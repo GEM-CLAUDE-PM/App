@@ -8,8 +8,6 @@ interface SplashScreenProps {
 export default function SplashScreen({ onComplete, duration = 3500 }: SplashScreenProps) {
   const [phase, setPhase] = useState<'enter' | 'hold' | 'exit'>('enter');
   const [progress, setProgress] = useState(0);
-  const [imgLoaded, setImgLoaded] = useState(false);
-  const [imgSrc, setImgSrc] = useState('');
 
   // Resolve image URL tại runtime — tránh Vite resolve sai lúc build
   useEffect(() => {
@@ -42,28 +40,13 @@ export default function SplashScreen({ onComplete, duration = 3500 }: SplashScre
           <div className="absolute inset-0 rounded-[28px] animate-pulse"
             style={{ boxShadow: '0 0 60px 20px rgba(26,138,122,0.15)' }} />
 
-          {/* Placeholder hiện trong khi ảnh load */}
-          <div className="w-28 h-28 rounded-[28px] overflow-hidden shadow-2xl bg-white flex items-center justify-center"
-            style={{ boxShadow: '0 20px 60px rgba(26,138,122,0.25), 0 8px 24px rgba(0,0,0,0.15)' }}>
-            {imgSrc && (
-              <img
-                src={imgSrc}
-                alt=""
-                onLoad={() => setImgLoaded(true)}
-                onError={() => setImgLoaded(false)}
-                style={{
-                  width: '100%', height: '100%', objectFit: 'cover',
-                  display: imgLoaded ? 'block' : 'none'
-                }}
-              />
-            )}
-            {/* Fallback khi ảnh chưa load hoặc lỗi */}
-            {!imgLoaded && (
-              <div className="flex flex-col items-center justify-center w-full h-full"
-                style={{ background: 'linear-gradient(135deg, #1a8a7a, #c47a5a)' }}>
-                <span className="text-white font-black text-2xl">G</span>
-              </div>
-            )}
+          <div className="w-28 h-28 rounded-[28px] overflow-hidden shadow-2xl"
+            style={{ boxShadow: '0 20px 60px rgba(26,138,122,0.25), 0 8px 24px rgba(0,0,0,0.15)', background: 'linear-gradient(135deg, #1a8a7a, #c47a5a)' }}>
+            <img
+              src="/icon/icon_app.png"
+              alt=""
+              style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+            />
           </div>
 
           <div className="absolute -bottom-1 -right-1 w-6 h-6 rounded-full
