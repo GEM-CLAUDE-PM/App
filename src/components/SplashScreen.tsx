@@ -9,12 +9,6 @@ export default function SplashScreen({ onComplete, duration = 3500 }: SplashScre
   const [phase, setPhase] = useState<'enter' | 'hold' | 'exit'>('enter');
   const [progress, setProgress] = useState(0);
 
-  // Resolve image URL tại runtime — tránh Vite resolve sai lúc build
-  useEffect(() => {
-    const base = window.location.origin;
-    setImgSrc(`${base}/icon_app.png`);
-  }, []);
-
   useEffect(() => {
     const interval = setInterval(() => {
       setProgress(p => { if (p >= 100) { clearInterval(interval); return 100; } return p + 2; });
