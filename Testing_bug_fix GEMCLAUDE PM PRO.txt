@@ -1,0 +1,20 @@
+1.	Lỗi điều hướng: 
+- Từ nút thông báo khẩn và dashboard tổng quan chỉ điều hướng vào trang projectdashboard không điều hướng vào công trình và tab nghiệp vụ cụ thể.
+- Khi đứng bên trong 1 công trình click vào các tin nhắn trong thông báo khẩn thì thì điều hướng về đúng tab nghiệp vụ nhưng không đúng công trình vẫn ở tại công trình đó.
+- Từ action center chỉ điều hướng được vào trang chính của ProjectDashboard không vào được công trình và tab nghiệp vụ cụ thể trên thông báo.
+- Bộ lọc trong phần porfolio analytics không hoạt động. Portfolio dòng tiền và radar nguy cơ đều không điều hướng về đúng công trình và tab nghiệp vụ cụ thể.
+- Kiểm tra lỗi do code hay do dữ liệu hiện tại là mockdata fix lỗi.
+2.	Trong ChatAssistant, trình đọc hiện tại dùng trình đọc hệ thống của window dẫn đến không đồng nhất tiếng Việt chuẩn, đổi trình đọc hiện tại sang Google Cloud TTS. Giọng Neural2-A của Google phân tích điều này sẽ gây khó khăn gì khi lập trình đa ngữ và có nên thay hay không?
+3.	Tab chức năng tài nguyên cần thiết kế lại.
+4.	Tab chức năng ManpowerDashboard với 6 chức năng con: Quân số hàng ngày; An toàn LĐ (HSE); Hồ sơ nhân lực; Hồ sơ lao động và An toàn; Chấm công và lương; HR/Nhân sự. Kiểm tra tổng thể các tính năng và sự đồng bộ dữ liệu giữa các tab. Với yêu cầu thiết kế lại đúng chuẩn ERP chuyên nghiệp và tối ưu nhất, bạn hãy đưa ra các đề xuất thiết kế mới và so sánh với thiết kế hiện trạng.
+5.	Kỹ sư giám sát (giamsatdashboard) lỗi, cần fix.
+6.	Ma trận phân quyền điều chỉnh 3 tầng: 
+Người dùng: Head office – Manager Onboard – Manager Onsite
+Tính năng: các chức năng được xem, các chức năng được sử dụng
+Phạm vi: xem một hay nhiều công trình/dự án
+
+
+
+
+
+

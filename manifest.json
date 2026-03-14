@@ -1,0 +1,85 @@
+{
+  "name": "GEM & CLAUDE PM Pro",
+  "short_name": "GEM PM Pro",
+  "description": "AI-Powered Construction ERP — Quản lý dự án xây dựng thông minh",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#e8eaec",
+  "theme_color": "#1a8a7a",
+  "orientation": "any",
+  "lang": "vi",
+  "categories": [
+    "business",
+    "productivity"
+  ],
+  "icons": [
+    {
+      "src": "/icons/icon-72.png",
+      "sizes": "72x72",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icons/icon-96.png",
+      "sizes": "96x96",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icons/icon-128.png",
+      "sizes": "128x128",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icons/icon-144.png",
+      "sizes": "144x144",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "maskable any"
+    },
+    {
+      "src": "/icons/icon-256.png",
+      "sizes": "256x256",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable any"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Dashboard tổng quan",
+      "short_name": "Dashboard",
+      "description": "Mở Dashboard tổng quan dự án",
+      "url": "/?view=dashboard",
+      "icons": [
+        {
+          "src": "/icon-192x192.png",
+          "sizes": "192x192"
+        }
+      ]
+    },
+    {
+      "name": "Danh sách dự án",
+      "short_name": "Dự án",
+      "description": "Xem danh sách dự án",
+      "url": "/?view=tasks",
+      "icons": [
+        {
+          "src": "/icon-192x192.png",
+          "sizes": "192x192"
+        }
+      ]
+    }
+  ]
+}
