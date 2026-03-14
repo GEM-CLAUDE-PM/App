@@ -468,10 +468,10 @@ export default function ManpowerDashboard({ project, initialTab }:Props) {
   // ── Phân quyền: lấy member hiện tại ──────────────────────────────────────
   const currentMember = getCurrentMember(pid);
   const currentCtx    = buildCtxFromMember(currentMember);
-  const roleId        = currentMember?.roleId || 'chi_huy_truong';
+  const roleId        = currentMember?.activeRoleId || 'chi_huy_truong';
   // THT chỉ được chấm công nhân của đội mình
   const isTHT     = roleId === 'to_truong' || roleId === 'thi_cong_vien';
-  const myTeam    = currentMember?.teamScope || null; // field teamScope trong projectMember
+  const myTeam    = null; // teamScope không tồn tại trong ProjectMember
   // CHT, HR, Giám đốc được override tất cả
   const canOverride = !isTHT;
 
@@ -549,7 +549,7 @@ export default function ManpowerDashboard({ project, initialTab }:Props) {
   const submitTimesheet = () => {
     const member = getCurrentMember(pid);
     const ctx = buildCtxFromMember(member);
-    const cr = createDocument(pid,'TIMESHEET',{ref:`TS-${currentMonth}`,projectId:pid},ctx);
+    const cr = createDocument({ projectId: pid, docType: 'TIMESHEET', title: `Bảng công ${currentMonth}`, data: { ref: `TS-${currentMonth}` }, ctx });
     if (cr.ok) { submitDocument(pid,cr.data!.id,ctx); setApprovalQueue(getApprovalQueue(pid,ctx)); }
   };
 
@@ -1261,9 +1261,9 @@ export default function ManpowerDashboard({ project, initialTab }:Props) {
       {showApproval && (
         <ApprovalQueue
           projectId={pid}
+          projectName={projectName}
+          ctx={currentCtx}
           onClose={()=>setShowApproval(false)}
-          queue={approvalQueue}
-          onQueueUpdate={q=>setApprovalQueue(q)}
         />
       )}
 

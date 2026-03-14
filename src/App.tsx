@@ -34,6 +34,7 @@ interface Notification {
 }
 
 function AppInner() {
+  const { ok: notifOk, err: notifErr, warn: notifWarn, info: notifInfo } = useNotification();
   const { user } = useAuth();
   const isAdmin = user?.tier === 'admin' || user?.job_role === 'giam_doc';
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
@@ -500,7 +501,6 @@ function AppInner() {
               generateGemRecord={generateGemRecord}
               showProfileForm={showProfileForm}
               showHseForm={showHseForm}
-              onNavigate={handleNavigate}
               onBackToList={handleBackToList}
               onPushNotification={(notif: any) => setNotifications((prev: any) =>
                 prev.some((n: any) => n.id === notif.id) ? prev : [notif, ...prev]
