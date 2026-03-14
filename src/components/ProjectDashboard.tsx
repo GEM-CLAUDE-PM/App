@@ -9,6 +9,7 @@ import { mockCashFlowData, seedProjectTemplates } from '../constants/mockData';
 
 // ── Sub-dashboard components ──────────────────────────────────────────────────
 import ManpowerDashboard  from './ManpowerDashboard';
+import HRWorkspace        from './HRWorkspace';
 import ContractDashboard  from './ContractDashboard';
 import GiamSatDashboard   from './GiamSatDashboard';
 import ReportsDashboard   from './ReportsDashboard';
@@ -787,6 +788,15 @@ export default function ProjectDashboard({
       );
     }
 
+    if (activeTab === 'hr') {
+      return (
+        <HRWorkspace
+          project={selectedProject}
+          projectId={localProjectId || selectedProjectId || ''}
+        />
+      );
+    }
+
     if (activeTab === 'hse') {
       // HSE accessible to all roles (viewer level = all authenticated users)
       return (
@@ -1517,6 +1527,7 @@ export default function ProjectDashboard({
           { id:'qa-qc',      label:'QA/QC',            icon:<ShieldCheck size={14}/>,     group:'thi-cong' },
           // NHÂN SỰ
           { id:'manpower',   label:'Nhân lực',         icon:<Users size={14}/>,           group:'nhan-su' },
+          { id:'hr',         label:'Nhân sự & HR',     icon:<Briefcase size={14}/>,       group:'nhan-su' },
           { id:'hse',        label:'An toàn HSE',      icon:<ShieldCheck size={14}/>,     group:'nhan-su' },
           // VẬT TƯ
           { id:'resources',  label:'Vật tư & Kho',     icon:<Package size={14}/>,         group:'vat-tu' },

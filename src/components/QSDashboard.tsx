@@ -355,6 +355,14 @@ export default function QSDashboard({ projectId, projectName, contractValue = 45
 
   // ── Subcontractor state ──────────────────────────────────────────────────
   // ── Subcontractor state lives in SubcontractorTab component ──────────────
+
+  // BOQ computed
+  const nonChapter = useMemo(() => boqItems.filter(i => !i.isChapter), [boqItems]);
+  const totalContract = useMemo(() => nonChapter.reduce((s, i) => s + i.qty_contract * i.unit_price, 0), [nonChapter]);
+  const totalDone     = useMemo(() => nonChapter.reduce((s, i) => s + i.qty_done * i.unit_price, 0), [nonChapter]);
+  const totalPlan     = useMemo(() => nonChapter.reduce((s, i) => s + i.qty_plan_current * i.unit_price, 0), [nonChapter]);
+  const totalPaid     = useMemo(() => payments.filter(p => p.status === 'paid').reduce((s, p) => s + p.net_payable, 0), [payments]);
+
   const alerts = useMemo(() =>
     nonChapter.filter(i => {
       const doneP = pct(i.qty_done, i.qty_contract);

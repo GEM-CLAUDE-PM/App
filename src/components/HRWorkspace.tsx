@@ -10,6 +10,7 @@ import { type UserContext, WORKFLOWS, type RoleId } from './permissions';
 import ApprovalQueue from './ApprovalQueue';
 
 import type { DashboardProps } from './types';
+import PayrollTab from './PayrollTab';
 
 type HRProps = DashboardProps;
 
@@ -779,7 +780,7 @@ export default function HRWorkspace({ project: selectedProject, projectId: proje
 
       {/* ── PAYROLL & BHXH ─────────────────────────────────────────────────── */}
       {hrTab === 'payroll' && <PayrollTab
-        employees={employees}
+        pid={projectId}
         projectName={selectedProject?.name || 'Dự án'}
       />}
 

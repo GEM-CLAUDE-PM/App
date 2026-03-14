@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { GoogleGenerativeAI } from "@google/generative-ai";
+import { genAI, GEM_MODEL } from './gemini';
 import {
   AlertTriangle, TrendingUp, TrendingDown, DollarSign, Users,
   HardHat, ShieldAlert, Clock, ArrowRight, CheckCircle2,
@@ -15,9 +15,6 @@ import { mockProjects, mockPortfolioCashFlow } from '../constants/mockData';
 import PortfolioAnalytics from './PortfolioAnalytics';
 
 // ── Gemini init ───────────────────────────────────────────────────────────────
-const genAI = new GoogleGenerativeAI(
-  (import.meta as any).env?.VITE_GEMINI_API_KEY || ""
-);
 
 // ── Mock data ─────────────────────────────────────────────────────────────────
 // PORTFOLIO_CASHFLOW — dùng từ mockData.ts (mockPortfolioCashFlow)
@@ -119,7 +116,7 @@ export default function Dashboard({ onNavigate }: {
     const now = new Date();
     try {
       const model = genAI.getGenerativeModel({
-        model: 'gemini-3-flash-preview',
+        model: GEM_MODEL,
         systemInstruction: `Bạn là Nàng GEM Siêu Việt. Xưng "em", gọi "Anh/Chị". Giọng nữ miền Nam, ngắn gọn, thực chiến. 
 Tóm tắt buổi sáng trong 3-4 câu ngắn: nêu điểm nóng khẩn cấp nhất, rủi ro tài chính/tiến độ đáng lo, và 1 lời khuyên cụ thể. 
 KHÔNG dùng ký tự markdown. Câu ngắn. Số liệu cụ thể.`,
