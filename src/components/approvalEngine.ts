@@ -346,7 +346,7 @@ export function createDocument(input: CreateDocInput): EngineResult<ApprovalDoc>
   };
 
   doc.auditLog.push({
-    id: `log_${Date.now()}`, docId: doc.id,
+    id: `log_${Date.now()}_${Math.random().toString(36).slice(2,7)}`, docId: doc.id,
     action: 'CREATE', stepId: doc.currentStepId,
     stepLabel: workflow.steps[0].label,
     userId: input.ctx.userId, userName: doc.createdByName,
@@ -377,7 +377,7 @@ export function submitDocument(
   doc.status    = 'SUBMITTED';
   doc.updatedAt = now;
   doc.auditLog.push({
-    id: `log_${Date.now()}`, docId: doc.id, action: 'SUBMIT',
+    id: `log_${Date.now()}_${Math.random().toString(36).slice(2,7)}`, docId: doc.id, action: 'SUBMIT',
     stepId: doc.currentStepId,
     stepLabel: workflow.steps.find(s => s.stepId === doc.currentStepId)?.label || doc.currentStepId,
     userId: ctx.userId, userName: ROLES[ctx.roleId]?.label || ctx.userId,
@@ -437,7 +437,7 @@ export function processApproval(input: ProcessInput): EngineResult<ApprovalDoc> 
     const auditAction = currStep.actionType === 'review' ? 'REVIEW' : 'APPROVE';
 
     doc.auditLog.push({
-      id: `log_${Date.now()}`, docId: doc.id,
+      id: `log_${Date.now()}_${Math.random().toString(36).slice(2,7)}`, docId: doc.id,
       action: auditAction, stepId: doc.currentStepId, stepLabel: currStep.label,
       userId: input.ctx.userId, userName: ROLES[input.ctx.roleId]?.label || input.ctx.userId,
       userRole: ROLES[input.ctx.roleId]?.label || '', timestamp: now,
@@ -459,7 +459,7 @@ export function processApproval(input: ProcessInput): EngineResult<ApprovalDoc> 
 
     doc.status    = 'REJECTED';
     doc.auditLog.push({
-      id: `log_${Date.now()}`, docId: doc.id, action: 'REJECT',
+      id: `log_${Date.now()}_${Math.random().toString(36).slice(2,7)}`, docId: doc.id, action: 'REJECT',
       stepId: doc.currentStepId, stepLabel: currStep?.label || doc.currentStepId,
       userId: input.ctx.userId, userName: ROLES[input.ctx.roleId]?.label || input.ctx.userId,
       userRole: ROLES[input.ctx.roleId]?.label || '', timestamp: now,
@@ -475,7 +475,7 @@ export function processApproval(input: ProcessInput): EngineResult<ApprovalDoc> 
     doc.status        = 'RETURNED';
     doc.currentStepId = firstStep.stepId;
     doc.auditLog.push({
-      id: `log_${Date.now()}`, docId: doc.id, action: 'RETURN',
+      id: `log_${Date.now()}_${Math.random().toString(36).slice(2,7)}`, docId: doc.id, action: 'RETURN',
       stepId: firstStep.stepId, stepLabel: firstStep.label,
       userId: input.ctx.userId, userName: ROLES[input.ctx.roleId]?.label || input.ctx.userId,
       userRole: ROLES[input.ctx.roleId]?.label || '', timestamp: now,
@@ -489,7 +489,7 @@ export function processApproval(input: ProcessInput): EngineResult<ApprovalDoc> 
 
     doc.status = 'CANCELLED';
     doc.auditLog.push({
-      id: `log_${Date.now()}`, docId: doc.id, action: 'CANCEL',
+      id: `log_${Date.now()}_${Math.random().toString(36).slice(2,7)}`, docId: doc.id, action: 'CANCEL',
       stepId: doc.currentStepId, stepLabel: currStep?.label || doc.currentStepId,
       userId: input.ctx.userId, userName: ROLES[input.ctx.roleId]?.label || input.ctx.userId,
       userRole: ROLES[input.ctx.roleId]?.label || '', timestamp: now,
@@ -528,7 +528,7 @@ export function uploadExternalSignature(
 
   doc.updatedAt = now;
   doc.auditLog.push({
-    id: `log_${Date.now()}`, docId: doc.id, action: 'UPLOAD_SIGNED',
+    id: `log_${Date.now()}_${Math.random().toString(36).slice(2,7)}`, docId: doc.id, action: 'UPLOAD_SIGNED',
     stepId: doc.currentStepId, stepLabel: 'Upload bản đã ký',
     userId: ctx.userId, userName: ROLES[ctx.roleId]?.label || ctx.userId,
     userRole: ROLES[ctx.roleId]?.label || '', timestamp: now,

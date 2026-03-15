@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
-import { LayoutDashboard, Folder, TrendingUp, Clock, HardDrive, CheckCircle2, Lock, FileText, Image as ImageIcon, Files, ClipboardList, ExternalLink, BookOpen, UploadCloud, Loader2, Plus, Printer, Users, HardHat, Camera, ShieldAlert, Sun, MessageCircle, Network, HeartPulse, AlertTriangle, Mic, Edit3, Unlock, X, Award, Target, GraduationCap, Briefcase, ChevronRight, ArrowRight, Building2, CheckCircle, CircleDashed, ArrowLeft, ChevronDown, Cloud, Download, Eye, MoreVertical, ChevronLeft, Calendar, ShieldCheck, Trash2, Sparkles, User, Info, ChevronUp, Wrench, Truck, Fuel, Activity, Zap, Settings, AlertCircle, Search, Scan, FileSpreadsheet, Save, Calculator, Copy, Bell, Package } from 'lucide-react';
+import { LayoutDashboard, Folder, TrendingUp, Clock, HardDrive, CheckCircle2, Lock, FileText, Image as ImageIcon, Files, ClipboardList, ExternalLink, BookOpen, UploadCloud, Loader2, Plus, Printer, Users, HardHat, Camera, ShieldAlert, Sun, MessageCircle, Network, HeartPulse, AlertTriangle, Mic, Edit3, Unlock, X, Award, Target, GraduationCap, Briefcase, ChevronRight, ArrowRight, Building2, CheckCircle, CircleDashed, ArrowLeft, ChevronDown, Cloud, Download, Eye, MoreVertical, ChevronLeft, Calendar, ShieldCheck, Trash2, Sparkles, User, Info, ChevronUp, Wrench, Truck, Fuel, Activity, Zap, Settings, AlertCircle, Search, Scan, FileSpreadsheet, Save, Calculator, Copy, Bell, Package, ShoppingCart } from 'lucide-react';
 import { OnboardingTutorial } from './OnboardingTutorial';
 import QaQcDashboard from './QaQcDashboard';
 import QSDashboard from './QSDashboard';
@@ -10,6 +10,8 @@ import { mockCashFlowData, seedProjectTemplates } from '../constants/mockData';
 // ── Sub-dashboard components ──────────────────────────────────────────────────
 import ManpowerDashboard  from './ManpowerDashboard';
 import HRWorkspace        from './HRWorkspace';
+import BOQDashboard        from './BOQDashboard';
+import ProcurementDashboard from './ProcurementDashboard';
 import ContractDashboard  from './ContractDashboard';
 import GiamSatDashboard   from './GiamSatDashboard';
 import ReportsDashboard   from './ReportsDashboard';
@@ -516,6 +518,20 @@ export default function ProjectDashboard({
 
   // ── Tab content router ────────────────────────────────────────────────────
   const renderContent = () => {
+    // uLevel cho permission check trong renderContent
+    const _lvlMap: Record<string, number> = {
+      giam_doc:5, pm:4, ke_toan_truong:4,
+      chi_huy_truong:3, chi_huy_pho:3,
+      ke_toan_site:2, ks_giam_sat:2, qaqc_site:2, qs_site:2,
+      thu_kho:1, thu_ky_site:1,
+    };
+    const _legacyToNew: Record<string, string> = {
+      giam_doc:'giam_doc', ke_toan:'ke_toan_site',
+      chi_huy_truong:'chi_huy_truong', giam_sat:'ks_giam_sat',
+      pm:'pm', chi_huy_pho:'chi_huy_pho',
+      thu_kho:'thu_kho', qs_site:'qs_site',
+    };
+    const uLevel = _lvlMap[_legacyToNew[currentRole] || currentRole] ?? 1;
 
     if (activeTab === 'overview') {
       const p = selectedProject;
@@ -929,6 +945,18 @@ export default function ProjectDashboard({
     if (activeTab === 'accounting') {
       if (!perm.canViewAccounting) return <AccessDenied label="Kế toán" />;
       return <AccountingDashboard project={selectedProject} projectId={localProjectId || ''} />;
+    }
+
+    if (activeTab === 'boq') {
+      return (
+        <BOQDashboard project={selectedProject} />
+      );
+    }
+
+    if (activeTab === 'procurement') {
+      return (
+        <ProcurementDashboard project={selectedProject} />
+      );
     }
 
     if (activeTab === 'qs') {
@@ -1533,6 +1561,8 @@ export default function ProjectDashboard({
           { id:'resources',  label:'Vật tư & Kho',     icon:<Package size={14}/>,         group:'vat-tu' },
           // TÀI CHÍNH
           { id:'contracts',  label:'Hợp đồng',         icon:<Lock size={14}/>,            group:'tai-chinh' },
+          { id:'boq',        label:'BOQ & Dự toán',    icon:<FileSpreadsheet size={14}/>,  group:'tai-chinh' },
+          { id:'procurement', label:'Mua sắm',            icon:<ShoppingCart size={14}/>,     group:'tai-chinh' },
           { id:'qs',         label:'QS & Thanh toán',  icon:<Calculator size={14}/>,      group:'tai-chinh' },
           { id:'accounting', label:'Kế toán',          icon:<Calculator size={14}/>,      group:'tai-chinh' },
           // HÀNH CHÍNH

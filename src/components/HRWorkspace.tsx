@@ -1,5 +1,5 @@
 import { useNotification } from './NotificationEngine';
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { LayoutDashboard, Folder, TrendingUp, Clock, HardDrive, CheckCircle2, Lock, FileText, Image as ImageIcon, Files, ClipboardList, ExternalLink, BookOpen, UploadCloud, Loader2, Plus, Printer, Users, HardHat, Camera, ShieldAlert, Sun, MessageCircle, Network, HeartPulse, AlertTriangle, Mic, Edit3, Unlock, X, Award, Target, GraduationCap, Briefcase, ChevronRight, ArrowRight, Building2, CheckCircle, CircleDashed, ArrowLeft, ChevronDown, Cloud, Download, Eye, MoreVertical, ChevronLeft, Calendar, ShieldCheck, Trash2, Sparkles, User, Info, ChevronUp, Wrench, Truck, Fuel, Activity, Zap, Settings, AlertCircle, Search, Scan, FileSpreadsheet, Save, Calculator, Copy } from 'lucide-react';
 import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
 import { mockProjects, mockCashFlowData, mockMaterialData, mockLaborData, mockOrgData, COLORS, mockAttendancePayrollData } from '../constants/mockData';
@@ -8,6 +8,7 @@ import { OrgNode } from './dashboard/OrgChart';
 import { createDocument, submitDocument, getApprovalQueue, type ApprovalDoc } from './approvalEngine';
 import { type UserContext, WORKFLOWS, type RoleId } from './permissions';
 import ApprovalQueue from './ApprovalQueue';
+import { genAI, GEM_MODEL, GEM_MODEL_QUALITY } from './gemini';
 
 import type { DashboardProps } from './types';
 import PayrollTab from './PayrollTab';
@@ -19,7 +20,13 @@ function useLocalCtx(ctxProp?: UserContext, projectIdProp?: string): { ctx: User
   const userId = localStorage.getItem('gem_user_id') || `user_${roleId}`;
   const userName = localStorage.getItem('gem_user_name') || roleId;
   const projId = projectIdProp || localStorage.getItem('gem_last_project') || 'proj_default';
-  return { ctx: ctxProp || { userId, userName, roleId }, projectId: projId };
+  // useMemo giữ stable object reference — không tạo object mới mỗi render
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const ctx = useMemo<UserContext>(
+    () => ctxProp ?? { userId, userName, roleId },
+    [ctxProp, userId, userName, roleId],
+  );
+  return { ctx, projectId: projId };
 }
 
 export default function HRWorkspace({ project: selectedProject, projectId: projectIdProp, ctx: ctxProp }: HRProps) {
@@ -648,7 +655,7 @@ export default function HRWorkspace({ project: selectedProject, projectId: proje
                   // Gửi vào hàng duyệt
                   const emp = employees.find(e => e.id === newL.emp_id);
                   triggerHrDoc(
-                    `Nghỉ phép: ${emp?.name || newL.emp_id} — ${newL.days} ngày (${newL.from_date})`,
+                    `Nghỉ phép: ${emp?.full_name || newL.emp_id} — ${newL.days} ngày (${newL.from_date})`,
                     'LEAVE_REQUEST',
                     { leave: newL },
                   );

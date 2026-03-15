@@ -526,3 +526,197 @@ export const MOCK_VOS: VariationOrder[] = [
   },
 ];
 
+
+// ══════════════════════════════════════════════════════════════════════════════
+// S12 — RATE LIBRARY (Đơn giá định mức)
+// ══════════════════════════════════════════════════════════════════════════════
+
+export type RateSource = 'thong_tu' | 'custom'; // Thông tư nhà nước | Tự nhập
+export type RateUnit   = 'm' | 'm²' | 'm³' | 'tấn' | 'kg' | 'cái' | 'bộ' | 'đồng' | 'công' | 'ca' | 'km' | 'kw' | 'gói' | 'lô';
+
+export interface RateItem {
+  id:          string;
+  code:        string;       // Mã định mức VD: AA.10110
+  name:        string;
+  unit:        RateUnit | string;
+  unit_price:  number;       // VNĐ
+  source:      RateSource;
+  category:    string;       // Nhóm công tác VD: "Đất", "Bê tông", "Cốp pha"
+  region?:     string;       // Vùng áp dụng
+  effective?:  string;       // Hiệu lực từ (Thông tư)
+  note?:       string;
+}
+
+// Seed rate library — đơn giá tham khảo theo TT13/2021/BXD
+export const INIT_RATE_LIBRARY: RateItem[] = [
+  // ── Công tác đất ──────────────────────────────────────────────────────────
+  { id:'r001', code:'AB.11110', name:'Đào đất cấp I bằng máy đào ≤ 0.8m³', unit:'m³', unit_price:18_500, source:'thong_tu', category:'Đất', region:'TP.HCM', effective:'2021' },
+  { id:'r002', code:'AB.11120', name:'Đào đất cấp II bằng máy đào ≤ 0.8m³', unit:'m³', unit_price:22_300, source:'thong_tu', category:'Đất', region:'TP.HCM', effective:'2021' },
+  { id:'r003', code:'AB.21110', name:'Đắp đất công trình bằng máy đầm', unit:'m³', unit_price:28_700, source:'thong_tu', category:'Đất', region:'TP.HCM', effective:'2021' },
+  // ── Bê tông ───────────────────────────────────────────────────────────────
+  { id:'r010', code:'BE.11100', name:'Bê tông móng đơn, móng băng đổ tại chỗ M200', unit:'m³', unit_price:1_850_000, source:'thong_tu', category:'Bê tông', region:'TP.HCM', effective:'2021' },
+  { id:'r011', code:'BE.21100', name:'Bê tông cột, trụ tiết diện ≤ 0.1m² M300', unit:'m³', unit_price:2_150_000, source:'thong_tu', category:'Bê tông', region:'TP.HCM', effective:'2021' },
+  { id:'r012', code:'BE.31100', name:'Bê tông dầm nhà M300', unit:'m³', unit_price:2_080_000, source:'thong_tu', category:'Bê tông', region:'TP.HCM', effective:'2021' },
+  { id:'r013', code:'BE.41100', name:'Bê tông sàn mái M300', unit:'m³', unit_price:1_980_000, source:'thong_tu', category:'Bê tông', region:'TP.HCM', effective:'2021' },
+  // ── Cốt thép ──────────────────────────────────────────────────────────────
+  { id:'r020', code:'BF.11110', name:'Gia công lắp dựng cốt thép móng ≤ 10mm', unit:'tấn', unit_price:8_200_000, source:'thong_tu', category:'Cốt thép', region:'TP.HCM', effective:'2021' },
+  { id:'r021', code:'BF.21110', name:'Gia công lắp dựng cốt thép cột ≤ 18mm', unit:'tấn', unit_price:8_850_000, source:'thong_tu', category:'Cốt thép', region:'TP.HCM', effective:'2021' },
+  // ── Cốp pha ───────────────────────────────────────────────────────────────
+  { id:'r030', code:'BG.11110', name:'Lắp dựng cốp pha móng bằng gỗ', unit:'m²', unit_price:125_000, source:'thong_tu', category:'Cốp pha', region:'TP.HCM', effective:'2021' },
+  { id:'r031', code:'BG.21110', name:'Lắp dựng cốp pha cột bằng thép', unit:'m²', unit_price:185_000, source:'thong_tu', category:'Cốp pha', region:'TP.HCM', effective:'2021' },
+  // ── Xây gạch ──────────────────────────────────────────────────────────────
+  { id:'r040', code:'BE.61110', name:'Xây tường gạch ống dày 100mm M75', unit:'m³', unit_price:980_000, source:'thong_tu', category:'Xây gạch', region:'TP.HCM', effective:'2021' },
+  { id:'r041', code:'BE.61120', name:'Xây tường gạch ống dày 200mm M75', unit:'m³', unit_price:920_000, source:'thong_tu', category:'Xây gạch', region:'TP.HCM', effective:'2021' },
+  // ── Hoàn thiện ────────────────────────────────────────────────────────────
+  { id:'r050', code:'BJ.11110', name:'Trát tường trong nhà vữa xi măng M50 dày 15mm', unit:'m²', unit_price:48_500, source:'thong_tu', category:'Hoàn thiện', region:'TP.HCM', effective:'2021' },
+  { id:'r051', code:'BJ.21110', name:'Lát nền gạch ceramic 400x400', unit:'m²', unit_price:125_000, source:'thong_tu', category:'Hoàn thiện', region:'TP.HCM', effective:'2021' },
+];
+
+export const RATE_CATEGORIES = ['Đất', 'Bê tông', 'Cốt thép', 'Cốp pha', 'Xây gạch', 'Hoàn thiện', 'Khác'];
+
+// ══════════════════════════════════════════════════════════════════════════════
+// S12 — PROCUREMENT TYPES (Mua sắm & Đấu thầu)
+// ══════════════════════════════════════════════════════════════════════════════
+
+export type RFQStatus      = 'draft' | 'submitted' | 'approved' | 'rejected' | 'closed';
+export type QuoteStatus    = 'pending' | 'received' | 'selected' | 'rejected';
+export type POStatus       = 'draft' | 'pending_pm' | 'pending_gd' | 'approved' | 'rejected' | 'completed';
+export type ProcurementCat = 'vat_lieu' | 'thiet_bi' | 'nhan_cong' | 'dich_vu' | 'khac';
+
+export interface Supplier {
+  id:       string;
+  name:     string;
+  tax_code: string;
+  phone:    string;
+  email:    string;
+  address:  string;
+  category: ProcurementCat[];
+  rating:   number;    // 1-5
+  notes?:   string;
+}
+
+export interface RFQItem {
+  boq_ref?:    string;   // Tham chiếu BOQ item nếu có
+  description: string;
+  unit:        string;
+  qty:         number;
+  note?:       string;
+}
+
+export interface RFQ {
+  id:           string;
+  rfq_no:       string;       // VD: RFQ-2026-001
+  project_id:   string;
+  title:        string;
+  category:     ProcurementCat;
+  items:        RFQItem[];
+  requested_by: string;       // Công trình / Bộ phận cung ứng
+  approved_by?: string;       // CHT → PM
+  status:       RFQStatus;
+  deadline:     string;       // Hạn báo giá
+  notes?:       string;
+  created_at:   string;
+}
+
+export interface QuoteItem {
+  description: string;
+  unit:        string;
+  qty:         number;
+  unit_price:  number;
+  total:       number;
+}
+
+export interface Quote {
+  id:          string;
+  rfq_id:      string;
+  supplier_id: string;
+  supplier_name: string;
+  quote_no?:   string;
+  items:       QuoteItem[];
+  subtotal:    number;
+  vat_pct:     number;    // % VAT
+  total:       number;
+  validity:    string;    // Hiệu lực báo giá
+  delivery:    string;    // Thời gian giao hàng
+  status:      QuoteStatus;
+  notes?:      string;
+  received_at: string;
+}
+
+export interface PurchaseOrder {
+  id:            string;
+  po_no:         string;      // VD: PO-2026-001
+  rfq_id:        string;
+  quote_id:      string;
+  project_id:    string;
+  supplier_id:   string;
+  supplier_name: string;
+  items:         QuoteItem[];
+  subtotal:      number;
+  vat_pct:       number;
+  total:         number;
+  delivery_date: string;
+  delivery_addr: string;
+  payment_terms: string;    // Điều khoản thanh toán
+  status:        POStatus;
+  approved_by_pm?: string;
+  approved_by_gd?: string;
+  gd_threshold:  number;    // Ngưỡng duyệt GĐ (VNĐ)
+  notes?:        string;
+  created_at:    string;
+  // Auto-update Materials khi approved
+  mat_voucher_created?: boolean;
+}
+
+// ── Procurement constants ─────────────────────────────────────────────────────
+export const PROCUREMENT_CAT: Record<ProcurementCat, { label: string; icon: string }> = {
+  vat_lieu:  { label: 'Vật liệu',   icon: '🧱' },
+  thiet_bi:  { label: 'Thiết bị',   icon: '⚙️' },
+  nhan_cong: { label: 'Nhân công',  icon: '👷' },
+  dich_vu:   { label: 'Dịch vụ',    icon: '🔧' },
+  khac:      { label: 'Khác',       icon: '📦' },
+};
+
+export const RFQ_STATUS: Record<RFQStatus, { label: string; cls: string }> = {
+  draft:     { label: 'Nháp',         cls: 'bg-slate-100 text-slate-600'   },
+  submitted: { label: 'Chờ duyệt',    cls: 'bg-amber-100 text-amber-700'   },
+  approved:  { label: 'Đã duyệt',     cls: 'bg-emerald-100 text-emerald-700'},
+  rejected:  { label: 'Từ chối',      cls: 'bg-red-100 text-red-700'       },
+  closed:    { label: 'Đã đóng',      cls: 'bg-slate-100 text-slate-500'   },
+};
+
+export const PO_STATUS: Record<POStatus, { label: string; cls: string }> = {
+  draft:      { label: 'Nháp',          cls: 'bg-slate-100 text-slate-600'   },
+  pending_pm: { label: 'Chờ PM duyệt',  cls: 'bg-amber-100 text-amber-700'   },
+  pending_gd: { label: 'Chờ GĐ duyệt', cls: 'bg-orange-100 text-orange-700' },
+  approved:   { label: 'Đã duyệt',      cls: 'bg-emerald-100 text-emerald-700'},
+  rejected:   { label: 'Từ chối',       cls: 'bg-red-100 text-red-700'       },
+  completed:  { label: 'Hoàn thành',    cls: 'bg-blue-100 text-blue-700'     },
+};
+
+export const DEFAULT_GD_THRESHOLD = 500_000_000; // 500 triệu VNĐ
+
+// Seed data
+export const INIT_SUPPLIERS: Supplier[] = [
+  { id:'s1', name:'Công ty TNHH Vật liệu Xây dựng Hoàng Phát', tax_code:'0312345678', phone:'0901234567', email:'contact@hoangphat.vn', address:'123 Điện Biên Phủ, Q.Bình Thạnh, TP.HCM', category:['vat_lieu'], rating:4, notes:'Nhà cung cấp thép, xi măng' },
+  { id:'s2', name:'Công ty CP Thiết bị Xây dựng Miền Nam', tax_code:'0398765432', phone:'0912345678', email:'info@tbxdmn.vn', address:'456 Quốc lộ 13, Bình Dương', category:['thiet_bi'], rating:4 },
+  { id:'s3', name:'HTX Dịch vụ Nhân công Xây dựng Phú Mỹ', tax_code:'0387654321', phone:'0923456789', email:'', address:'789 Nguyễn Văn Linh, Q.7, TP.HCM', category:['nhan_cong'], rating:3 },
+];
+
+export const INIT_RFQS: RFQ[] = [
+  {
+    id:'rfq1', rfq_no:'RFQ-2026-001', project_id:'',
+    title:'Cung cấp thép CB400-V φ12-φ25 tháng 4/2026',
+    category:'vat_lieu',
+    items:[
+      { description:'Thép CB400-V φ12', unit:'tấn', qty:15.5, note:'Cốt thép sàn tầng 3-5' },
+      { description:'Thép CB400-V φ16', unit:'tấn', qty:22.0, note:'Cốt thép cột tầng 3-5' },
+      { description:'Thép CB400-V φ25', unit:'tấn', qty:8.5, note:'Cốt thép dầm chính' },
+    ],
+    requested_by:'Nguyễn Văn Hùng - Tổ trưởng Cốt thép',
+    status:'approved', deadline:'25/03/2026', created_at:'15/03/2026',
+    notes:'Cần giao hàng đúng tiến độ — tầng 3 bắt đầu đổ BT 01/04/2026',
+  },
+];
+
+export const INIT_POS: PurchaseOrder[] = [];

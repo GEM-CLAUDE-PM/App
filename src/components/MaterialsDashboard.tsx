@@ -203,6 +203,8 @@ export default function MaterialsDashboard({ project, onAlert, currentRole = 'ch
   // Kiểm soát tab
   const [selectedKK, setSelectedKK] = useState<KiemKe | null>(null);
   const [showKKForm, setShowKKForm] = useState(false);
+  const [printVoucher, setPrintVoucher] = useState<Voucher | null>(null);
+  const [printInventory, setPrintInventory] = useState<KiemKe | null>(null);
 
   // ── Load from db + seed approvalEngine docs ────────────────────────────
   useEffect(() => {

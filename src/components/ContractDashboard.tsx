@@ -597,7 +597,7 @@ export default function ContractDashboard({ project: selectedProject, currentRol
             {/* Lock session */}
             <button onClick={() => {
               localStorage.removeItem(SESSION_KEY);
-              setContractUnlocked(false);
+              onManualLock();
               writeAuditLog('LOCK_MANUAL','Khoá phiên hợp đồng thủ công');
               setActiveTab('overview');
             }} className="flex items-center gap-1.5 px-3 py-2 bg-rose-50 hover:bg-rose-100 text-rose-600 border border-rose-200 rounded-xl text-xs font-semibold transition-colors shrink-0">

@@ -40,6 +40,7 @@ import { Taskbar, UserMenuBar } from "./components/dashboard/Taskbar";
 import { useTaskbar } from "./hooks/useTaskbar";
 import { mockProjects, mockCashFlowData, mockLaborData } from "./constants/mockData";
 import WorkspaceActionBar from "./components/WorkspaceActionBar";
+import DevChecklist from "./components/DevChecklist";
 // FIX: Sửa lại import thư viện chuẩn
 import Markdown from "react-markdown";
 
@@ -51,6 +52,7 @@ interface Notification {
   targetTab: string;
   targetSubTab?: string;
   targetManpowerTab?: string;
+  targetProjectId?: string;
   timestamp: Date;
   read: boolean;
 }
@@ -716,6 +718,7 @@ function AppInner() {
         pendingCount={pendingCount}
         isSyncing={isSyncing}
         onOpenQueuePanel={() => setShowQueuePanel(true)}
+        analyzeMaterialsWithGem={() => {}}
       />
 
       {/* Offline Queue Panel */}
@@ -736,6 +739,8 @@ function AppInner() {
 
       {/* Hidden File Input */}
       <input type="file" ref={fileInputRef} className="hidden" onChange={() => notifInfo("Đã nhận file!")} />
+      {/* Dev Testing Checklist — tự ẩn khi PROD */}
+      <DevChecklist />
     </div>
   );
 }

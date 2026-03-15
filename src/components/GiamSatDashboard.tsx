@@ -1,6 +1,6 @@
 import { db } from "./db";
 import { useNotification } from './NotificationEngine';
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { genAI, GEM_MODEL, GEM_MODEL_QUALITY } from './gemini';
 import {
   ClipboardList, MessageCircle, Files, LayoutDashboard,
@@ -179,7 +179,8 @@ const daysUntilDue = (due: string): number | null => {
 export default function GiamSatDashboard({ project }: Props) {
   const pid = project?.id ?? 'p1';
   const projectName = project?.name ?? 'Dự án';
-  const ctx: UserContext = getCurrentCtx(pid);
+  // useMemo giữ stable object reference — tránh infinite loop trong useCallback/useEffect
+  const ctx: UserContext = useMemo(() => getCurrentCtx(pid), [pid]);
   const { printComponent, printSupervisionLog } = usePrint();
 
   // ── ALL useState at top — Rules of Hooks ────────────────────────────────────

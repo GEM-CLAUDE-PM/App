@@ -1,5 +1,5 @@
 import { useNotification } from './NotificationEngine';
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { LayoutDashboard, Folder, TrendingUp, Clock, HardDrive, CheckCircle2, Lock, FileText, Image as ImageIcon, Files, ClipboardList, ExternalLink, BookOpen, UploadCloud, Loader2, Plus, Printer, Users, HardHat, Camera, ShieldAlert, Sun, MessageCircle, Network, HeartPulse, AlertTriangle, Mic, Edit3, Unlock, X, Award, Target, GraduationCap, Briefcase, ChevronRight, ArrowRight, Building2, CheckCircle, CircleDashed, ArrowLeft, ChevronDown, Cloud, Download, Eye, MoreVertical, ChevronLeft, Calendar, ShieldCheck, Trash2, Sparkles, User, Info, ChevronUp, Wrench, Truck, Fuel, Activity, Zap, Settings, AlertCircle, Search, Scan, FileSpreadsheet, Save, Calculator, Copy, Send } from 'lucide-react';
 import { createDocument, submitDocument, getApprovalQueue, type ApprovalDoc } from './approvalEngine';
 import { type UserContext, WORKFLOWS, type RoleId } from './permissions';
@@ -14,13 +14,18 @@ import { db } from './db';
 
 type HSEProps = DashboardProps;
 
-/** Build ctx từ localStorage nếu không có prop */
+/** Build ctx từ localStorage nếu không có prop — useMemo để stable reference, tránh infinite loop */
 function useLocalCtx(ctxProp?: UserContext, projectIdProp?: string): { ctx: UserContext; projectId: string } {
   const roleId = (localStorage.getItem('gem_user_role') || 'chi_huy_truong') as RoleId;
   const userId = localStorage.getItem('gem_user_id') || `user_${roleId}`;
   const userName = localStorage.getItem('gem_user_name') || roleId;
   const projId = projectIdProp || localStorage.getItem('gem_last_project') || 'proj_default';
-  const ctx = ctxProp || { userId, userName, roleId };
+  // useMemo giữ stable object reference — không tạo object mới mỗi render
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const ctx = useMemo<UserContext>(
+    () => ctxProp ?? { userId, userName, roleId },
+    [ctxProp, userId, userName, roleId],
+  );
   return { ctx, projectId: projId };
 }
 

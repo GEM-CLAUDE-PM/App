@@ -354,7 +354,27 @@ export default function QSDashboard({ projectId, projectName, contractValue = 45
   const [advanceDeduct, setAdvanceDeduct] = useState("0");
 
   // ── Subcontractor state ──────────────────────────────────────────────────
-  // ── Subcontractor state lives in SubcontractorTab component ──────────────
+  const [subs, setSubs]               = useState<SubContractor[]>([]);
+  const [subPayments, setSubPayments] = useState<SubPayment[]>([]);
+
+  // ── GEM AI chat state ─────────────────────────────────────────────────────
+  const [aiPrompt, setAiPrompt]       = useState('');
+  const [aiResponse, setAiResponse]   = useState('');
+  const [isAiLoading, setIsAiLoading] = useState(false);
+
+  // ── Subcontractor form state ───────────────────────────────────────────────
+  const [newSub, setNewSub]                   = useState<Partial<SubContractor>>({ type:'subcontractor', pay_mechanism:'progress', retention_pct:5 });
+  const [selectedSub, setSelectedSub]         = useState<SubContractor|null>(null);
+  const [showNewSubPay, setShowNewSubPay]     = useState(false);
+  const [newSubPaySubId, setNewSubPaySubId]   = useState('');
+  const [newSubPayMech, setNewSubPayMech]     = useState<PayMechanism>('progress');
+  const [newSubPayPct, setNewSubPayPct]       = useState(0);
+  const [newSubPayNote, setNewSubPayNote]     = useState('');
+  const [newSubPayPeriod, setNewSubPayPeriod] = useState('');
+  const [newSubPayAdvance, setNewSubPayAdvance] = useState(0);
+  const [newSubPayLumpItems, setNewSubPayLumpItems] = useState<{name:string;value:number}[]>([{name:'',value:0}]);
+  const [newSubPayManrows, setNewSubPayManrows]     = useState<{description:string;qty:number;unit:string;unit_price:number}[]>([{description:'',qty:0,unit:'Công',unit_price:0}]);
+  const [newSubPayUnitrows, setNewSubPayUnitrows]   = useState<{boq_ref:string;qty:number;unit:string;unit_price:number}[]>([{boq_ref:'',qty:0,unit:'m³',unit_price:0}]);
 
   // BOQ computed
   const nonChapter = useMemo(() => boqItems.filter(i => !i.isChapter), [boqItems]);

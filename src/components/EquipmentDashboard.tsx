@@ -1,5 +1,5 @@
 import { useNotification } from './NotificationEngine';
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { Truck, Wrench, Fuel, Activity, AlertTriangle, Plus, X, Save, Clock,
   CheckCircle2, CircleDashed, AlertCircle, Sparkles,
   TrendingUp, TrendingDown, BarChart2, Calendar, User, Eye,
@@ -88,7 +88,7 @@ const fmt = (n: number) => n.toLocaleString('vi-VN');
 const eq = (id: string) => EQUIPMENT_LIST.find(e => e.id === id);
 
 // ─── Modal wrapper ────────────────────────────────────────────────────────────
-function Modal({ title, icon, onClose, children }: { title: string; icon: React.ReactNode; onClose: () => void; children: React.ReactNode }) {
+function Modal({ title, icon, onClose, children, readOnly = false }: { title: string; icon: React.ReactNode; onClose: () => void; children: React.ReactNode; readOnly?: boolean }) {
   return (
     <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
 
@@ -252,6 +252,7 @@ function TabDanhSach({ onSelectEquip }: { onSelectEquip: (id: string) => void })
 
 // ─── Sub-tab: Nhật ký ca ──────────────────────────────────────────────────────
 function TabNhatKy({ readOnly = false }: { readOnly?: boolean }) {
+  const { ok: notifOk } = useNotification();
   const [showForm, setShowForm] = useState(false);
   const [filterEquip, setFilterEquip] = useState('all');
   const logs = EQUIPMENT_LOGS.filter(l => filterEquip==='all' || l.equipId===filterEquip);
@@ -319,7 +320,7 @@ function TabNhatKy({ readOnly = false }: { readOnly?: boolean }) {
       </div>
 
       {showForm && (
-        <Modal title="Thêm nhật ký ca máy" icon={<Clock size={17} className="text-emerald-600"/>} onClose={()=>setShowForm(false)}>
+        <Modal title="Thêm nhật ký ca máy" icon={<Clock size={17} className="text-emerald-600"/>} onClose={()=>setShowForm(false)} readOnly={readOnly}>
           <div className="grid grid-cols-2 gap-4">
             <div className="col-span-2">
               <FormField label="Thiết bị">
@@ -352,6 +353,7 @@ function TabNhatKy({ readOnly = false }: { readOnly?: boolean }) {
 
 // ─── Sub-tab: Bảo dưỡng ──────────────────────────────────────────────────────
 function TabBaoDuong({ readOnly = false, onTriggerApproval, pendingCount = 0 }: { readOnly?: boolean; onTriggerApproval?: (title: string) => void; pendingCount?: number }) {
+  const { ok: notifOk, info: notifInfo } = useNotification();
   const [showForm, setShowForm] = useState(false);
   const overdue = MAINTENANCE_ITEMS.filter(m=>m.status==='overdue');
 
@@ -425,7 +427,7 @@ function TabBaoDuong({ readOnly = false, onTriggerApproval, pendingCount = 0 }: 
       </div>
 
       {showForm && (
-        <Modal title="Lập lịch bảo dưỡng" icon={<Wrench size={17} className="text-emerald-600"/>} onClose={()=>setShowForm(false)}>
+        <Modal title="Lập lịch bảo dưỡng" icon={<Wrench size={17} className="text-emerald-600"/>} onClose={()=>setShowForm(false)} readOnly={readOnly}>
           <div className="grid grid-cols-2 gap-4">
             <div className="col-span-2"><FormField label="Thiết bị"><select className={inputCls}>{EQUIPMENT_LIST.map(e=><option key={e.id}>{e.id} — {e.name}</option>)}</select></FormField></div>
             <FormField label="Loại bảo dưỡng"><select className={inputCls}>{['Định kỳ','Sửa chữa','Khẩn cấp','Kiểm tra'].map(t=><option key={t}>{t}</option>)}</select></FormField>
@@ -448,6 +450,7 @@ function TabBaoDuong({ readOnly = false, onTriggerApproval, pendingCount = 0 }: 
 
 // ─── Sub-tab: Nhiên liệu ──────────────────────────────────────────────────────
 function TabNhienLieu({ readOnly = false }: { readOnly?: boolean }) {
+  const { ok: notifOk } = useNotification();
   const [showForm, setShowForm] = useState(false);
   const totalL = FUEL_LOGS.reduce((s,f)=>s+f.liters,0);
   const totalC = FUEL_LOGS.reduce((s,f)=>s+f.total,0);
@@ -534,7 +537,7 @@ function TabNhienLieu({ readOnly = false }: { readOnly?: boolean }) {
       </div>
 
       {showForm && (
-        <Modal title="Nhập phiếu đổ dầu" icon={<Fuel size={17} className="text-emerald-600"/>} onClose={()=>setShowForm(false)}>
+        <Modal title="Nhập phiếu đổ dầu" icon={<Fuel size={17} className="text-emerald-600"/>} onClose={()=>setShowForm(false)} readOnly={readOnly}>
           <div className="grid grid-cols-2 gap-4">
             <div className="col-span-2"><FormField label="Thiết bị"><select className={inputCls}>{EQUIPMENT_LIST.filter(e=>e.fuel==='diesel').map(e=><option key={e.id}>{e.id} — {e.name}</option>)}</select></FormField></div>
             <FormField label="Ngày đổ dầu"><input placeholder="DD/MM/YYYY" className={inputCls}/></FormField>
@@ -557,6 +560,7 @@ function TabNhienLieu({ readOnly = false }: { readOnly?: boolean }) {
 
 // ─── Sub-tab: Sự cố ───────────────────────────────────────────────────────────
 function TabSuCo({ readOnly = false }: { readOnly?: boolean }) {
+  const { info: notifInfo } = useNotification();
   const [showForm, setShowForm] = useState(false);
   const totalDT = INCIDENTS.reduce((s,i)=>s+i.downtime,0);
   const totalC = INCIDENTS.reduce((s,i)=>s+i.repairCost,0);
@@ -632,7 +636,7 @@ function TabSuCo({ readOnly = false }: { readOnly?: boolean }) {
       </div>
 
       {showForm && (
-        <Modal title="Báo cáo sự cố" icon={<AlertTriangle size={17} className="text-rose-500"/>} onClose={()=>setShowForm(false)}>
+        <Modal title="Báo cáo sự cố" icon={<AlertTriangle size={17} className="text-rose-500"/>} onClose={()=>setShowForm(false)} readOnly={readOnly}>
           <div className="grid grid-cols-2 gap-4">
             <div className="col-span-2"><FormField label="Thiết bị"><select className={inputCls}>{EQUIPMENT_LIST.map(e=><option key={e.id}>{e.id} — {e.name}</option>)}</select></FormField></div>
             <FormField label="Ngày xảy ra"><input placeholder="DD/MM/YYYY" className={inputCls}/></FormField>
@@ -665,7 +669,7 @@ export default function EquipmentDashboard({ project: selectedProject, readOnly 
   const [subTab, setSubTab] = useState<'list'|'logs'|'maintenance'|'fuel'|'incidents'>('list');
 
   const pid  = selectedProject?.id ?? 'p1';
-  const ctx: UserContext = getCurrentCtx(pid);
+  const ctx: UserContext = useMemo(() => getCurrentCtx(pid), [pid]);
   const [showApprovalPanel, setShowApprovalPanel] = useState(false);
   const [eqApprovalQueue, setEqApprovalQueue] = useState<ApprovalDoc[]>(() => getApprovalQueue(pid, ctx));
 
