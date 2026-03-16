@@ -1436,10 +1436,15 @@ export default function ProjectDashboard({
             })()}
           </div>
           {/* Project menu — safe delete via ⋯ */}
-          <div className="relative">
-            <button onClick={() => setShowDetailMenu(v => !v)}
-              className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-slate-600
-                hover:bg-slate-100 rounded-xl transition-colors border border-slate-200">
+          <div className="flex items-center gap-2">
+            <button onClick={() => setShowSetupWizard(true)}
+              className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-white bg-emerald-600 hover:bg-emerald-700 rounded-xl transition-colors shadow-sm">
+              <Plus size={14}/> Dự án mới
+            </button>
+            <div className="relative">
+              <button onClick={() => setShowDetailMenu(v => !v)}
+                className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-slate-600
+                  hover:bg-slate-100 rounded-xl transition-colors border border-slate-200">
               <MoreVertical size={15}/> Tuỳ chọn
             </button>
             {showDetailMenu && (
@@ -1460,7 +1465,8 @@ export default function ProjectDashboard({
                   </>
                 )}
               </div>
-        </div>
+            </div>
+          </div>
         {selectedProject?.address && (
           <div className="flex items-center gap-1.5 text-[10px] md:text-sm text-slate-500 mb-2">
             <span className="font-medium shrink-0">Địa chỉ:</span>
