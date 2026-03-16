@@ -51,6 +51,7 @@ interface TaskbarProps {
   onOpenQueuePanel?: () => void;
   // WorkspaceActionBar trigger
   onOpenWorkspace?: () => void;
+  onNavigateApp?: (tab: string) => void;
   // Legacy drag props — kept for compatibility but unused
   taskbarRef?: React.RefObject<HTMLDivElement | null>;
   taskbarPosition?: { x: number; y: number };
@@ -323,6 +324,7 @@ export const Taskbar: React.FC<TaskbarProps> = ({
   isSyncing,
   onOpenQueuePanel,
   onOpenWorkspace,
+  onNavigateApp,
 }) => {
   const [showActions, setShowActions] = useState(false);
   const [isExpanded, setIsExpanded] = useState(typeof window !== "undefined" ? window.innerWidth >= 768 : true);
@@ -545,7 +547,7 @@ export function UserMenuBar() {
       </div>
       {/* User menu — top right */}
       <div className="fixed top-4 right-4 z-[9001] print:hidden">
-        <UserMenu />
+        <UserMenu onNavigate={onNavigateApp} />
       </div>
     </>
   );

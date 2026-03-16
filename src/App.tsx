@@ -71,9 +71,13 @@ function AppInner() {
 
   const isAdmin = user?.tier === "admin" || user?.job_role === "giam_doc";
   const isFirstLogin = user && !localStorage.getItem(`gem_onboarded_${user.id}`);
-  const [showOnboarding, setShowOnboarding] = React.useState(() =>
-    !!(user && !localStorage.getItem(`gem_onboarded_${user.id}`))
-  );
+  const [showOnboarding, setShowOnboarding] = React.useState(false);
+  // Trigger onboarding sau khi auth load xong — tránh user=null lúc khởi tạo
+  React.useEffect(() => {
+    if (user && !localStorage.getItem(`gem_onboarded_${user.id}`)) {
+      setShowOnboarding(true);
+    }
+  }, [user?.id]);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [activeTab, setActiveTab] = useState("dashboard");
   const [workspaceOpen, setWorkspaceOpen] = useState(false);
@@ -745,6 +749,7 @@ function AppInner() {
         onOpenQueuePanel={() => setShowQueuePanel(true)}
         analyzeMaterialsWithGem={() => {}}
         onOpenWorkspace={() => setWorkspaceOpen(true)}
+        onNavigateApp={setActiveTab}
       />
 
       {/* Offline Queue Panel */}

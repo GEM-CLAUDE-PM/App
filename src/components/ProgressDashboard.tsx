@@ -1,4 +1,5 @@
 import React, { useState, useCallback, useRef } from 'react';
+import { loadMembers } from './projectMember';
 import {
   TrendingUp, Clock, AlertTriangle, Award, CheckCircle, Target,
   Sparkles, Loader2, FileSpreadsheet, ChevronDown, ChevronUp,
@@ -650,7 +651,30 @@ export default function ProgressDashboard({ project: selectedProject, projectId:
                 {expandedWbs===w.id && (
                   <div className="border-t border-slate-100 px-4 py-3 bg-slate-50/50">
                     <div className="grid grid-cols-3 gap-3 text-xs text-slate-600">
-                      <div><span className="font-bold text-slate-400 uppercase text-[9px] block mb-0.5">Phụ trách</span>{w.responsible}</div>
+                      <div>
+                        <span className="font-bold text-slate-400 uppercase text-[9px] block mb-1">Phụ trách</span>
+                        <select
+                          value={w.responsible}
+                          onClick={e => e.stopPropagation()}
+                          onChange={e => {
+                            e.stopPropagation();
+                            setWbs(prev => {
+                              const next = prev.map(x => x.id === w.id ? {...x, responsible: e.target.value} : x);
+                              if (dbLoaded.current) db.set('progress_wbs', pid, next);
+                              return next;
+                            });
+                          }}
+                          className="w-full text-xs border border-slate-200 rounded-lg px-2 py-1 bg-white focus:outline-none focus:ring-1 focus:ring-emerald-400 cursor-pointer"
+                        >
+                          {loadMembers(pid).map(m => (
+                            <option key={m.userId} value={m.fullName}>{m.fullName}</option>
+                          ))}
+                          {/* Fallback nếu chưa có members */}
+                          {loadMembers(pid).length === 0 && (
+                            <option value={w.responsible}>{w.responsible}</option>
+                          )}
+                        </select>
+                      </div>
                       <div><span className="font-bold text-slate-400 uppercase text-[9px] block mb-0.5">Lệch PV-EV</span><span className={gap<0?'text-rose-600 font-bold':'text-emerald-600 font-bold'}>{gap>0?'+':''}{gap}%</span></div>
                       <div><span className="font-bold text-slate-400 uppercase text-[9px] block mb-0.5">Critical path</span><span className={w.critical?'text-rose-600 font-bold':'text-slate-500'}>{w.critical?'⚠ Có':'Không'}</span></div>
                     </div>
