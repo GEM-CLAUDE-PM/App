@@ -282,6 +282,16 @@ export const ProjectDB = {
   // Storage file metadata (added S14)
   storageFiles: (pid: string) => ({ get: <T>(fb: T) => db.get<T>('storage_files', pid, fb), set: <T>(d:T, uid?:string) => db.set('storage_files', pid, d, uid) }),
 
+  // Risk (added S15)
+  riskRegister: (pid: string) => ({ get: <T>(fb: T) => db.get<T>('risk_register', pid, fb), set: <T>(d:T, uid?:string) => db.set('risk_register', pid, d, uid) }),
+
+  // Contract EOT log (added S15) — key per contract: contract_eot_{contractId}
+  contractEot: (cid: string) => ({ get: <T>(fb: T) => db.get<T>(`contract_eot_${cid}`, cid, fb), set: <T>(d:T, uid?:string) => db.set(`contract_eot_${cid}`, cid, d, uid) }),
+
+  // SubconPortal (added S16) — isolation via projectId
+  subconDocs: (pid: string) => ({ get: <T>(fb: T) => db.get<T>('subcon_docs', pid, fb), set: <T>(d:T, uid?:string) => db.set('subcon_docs', pid, d, uid) }),
+  subconPos:  (pid: string) => ({ get: <T>(fb: T) => db.get<T>('subcon_pos',  pid, fb), set: <T>(d:T, uid?:string) => db.set('subcon_pos',  pid, d, uid) }),
+
   // Calendar & Contacts (global — pid = 'global' or userId)
   calendarEvents: (pid: string) => ({ get: <T>(fb: T) => db.get<T>('calendar_events', pid, fb), set: <T>(d:T, uid?:string) => db.set('calendar_events', pid, d, uid) }),
   contacts:       (pid: string) => ({ get: <T>(fb: T) => db.get<T>('contacts',        pid, fb), set: <T>(d:T, uid?:string) => db.set('contacts',        pid, d, uid) }),

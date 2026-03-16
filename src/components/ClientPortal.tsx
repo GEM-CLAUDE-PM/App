@@ -6,7 +6,7 @@
  */
 import React, { useState, useEffect } from 'react';
 import { useAuth } from './AuthProvider';
-import { db } from './db';
+import { db, useRealtimeSync } from './db';
 import {
   TrendingUp, DollarSign, Shield, FileText, BarChart2,
   CheckCircle2, AlertTriangle, Clock, LogOut, Bell,
@@ -52,17 +52,51 @@ export default function ClientPortal() {
 
   const projectId = localStorage.getItem('gem_last_project') || 'p1';
 
-  // Read-only KPIs (no write access)
-  const kpis = {
-    totalContract: 45.0,    // tỷ VNĐ
-    disbursed:     13.1,
-    remaining:     31.9,
-    progressPct:   45.6,
-    spi:           0.745,
-    cpi:           0.730,
-    daysRemaining: 37,
-    openRisks:     3,
-  };
+  // KPIs — loaded from db.ts (read-only for CĐT)
+  const [kpis, setKpis] = useState({
+    totalContract: 45.0, disbursed: 13.1, remaining: 31.9,
+    progressPct: 45.6, spi: 0.745, cpi: 0.730, daysRemaining: 37, openRisks: 3,
+  });
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const [wbs, payments] = await Promise.all([
+          db.get<any[]>('progress_wbs', projectId, []),
+          db.get<any[]>('qs_payments', projectId, []),
+        ]);
+        if (wbs.length) {
+          const totalBudget = wbs.reduce((s: number, w: any) => s + (w.budget || 0), 0);
+          const avgEV = wbs.reduce((s: number, w: any) => s + (w.ev_pct || 0), 0) / Math.max(wbs.length, 1);
+          const avgPV = wbs.reduce((s: number, w: any) => s + (w.pv_pct || 0), 0) / Math.max(wbs.length, 1);
+          const totalAC = wbs.reduce((s: number, w: any) => s + (w.ac || 0), 0);
+          const EV = totalBudget * avgEV / 100;
+          const PV = totalBudget * avgPV / 100;
+          const AC = totalAC;
+          setKpis(prev => ({
+            ...prev,
+            totalContract: totalBudget,
+            progressPct: +avgEV.toFixed(1),
+            spi: PV > 0 ? +(EV / PV).toFixed(3) : prev.spi,
+            cpi: AC > 0 ? +(EV / AC).toFixed(3) : prev.cpi,
+          }));
+        }
+        if (payments.length) {
+          const paid = payments.filter((p: any) => p.status === 'paid')
+            .reduce((s: number, p: any) => s + ((p.net_payable || p.total || 0) / 1e9), 0);
+          setKpis(prev => ({ ...prev, disbursed: +paid.toFixed(3) }));
+        }
+      } catch (e) { console.warn('[ClientPortal] load:', e); }
+    })();
+  }, [projectId]);
+
+  useRealtimeSync(projectId, ['progress_wbs', 'qs_payments'], async () => {
+    const wbs = await db.get<any[]>('progress_wbs', projectId, []);
+    if (wbs.length) {
+      const avgEV = wbs.reduce((s: number, w: any) => s + (w.ev_pct || 0), 0) / Math.max(wbs.length, 1);
+      setKpis(prev => ({ ...prev, progressPct: +avgEV.toFixed(1) }));
+    }
+  });
 
   const generateWeeklyReport = async () => {
     setGemLoading(true); setGemReport('');

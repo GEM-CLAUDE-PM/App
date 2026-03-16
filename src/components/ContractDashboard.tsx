@@ -224,6 +224,17 @@ export default function ContractDashboard({ project: selectedProject, currentRol
       const [eotForm, setEotForm] = React.useState<{days:string; reason:string; date:string}>({days:'', reason:'', date:''});
       const [eotLog, setEotLog] = React.useState<{id:string; days:number; reason:string; date:string; status:'pending'|'approved'|'rejected'}[]>([]);
       const dbLoaded = React.useRef(false);
+
+      // ── Load eotLog from db on mount ──────────────────────────────────────
+      React.useEffect(() => {
+        const cid = selectedContract?.id;
+        if (!cid) return;
+        dbLoaded.current = false;
+        db.get<typeof eotLog>(`contract_eot_${cid}`, cid, [])
+          .then(data => { setEotLog(data); })
+          .catch(e => { console.warn('[ContractDashboard] eotLog load:', e); })
+          .finally(() => { dbLoaded.current = true; });
+      }, [selectedContract?.id]);
       const [gemAnalyzing, setGemAnalyzing] = React.useState(false);
       const [gemResult, setGemResult] = React.useState('');
 
@@ -595,9 +606,17 @@ export default function ContractDashboard({ project: selectedProject, currentRol
                     </div>
                     {e.status === 'pending' && (
                       <div className="flex gap-1 shrink-0">
-                        <button onClick={() => setEotLog(prev => prev.map(x => x.id === e.id ? {...x, status: 'approved'} : x))}
+                        <button onClick={() => setEotLog(prev => {
+                          const next = prev.map(x => x.id === e.id ? {...x, status: 'approved'} : x);
+                          if (dbLoaded.current && selectedContract?.id) db.set(`contract_eot_${selectedContract.id}`, selectedContract.id, next);
+                          return next;
+                        })}
                           className="px-2 py-1 bg-emerald-100 text-emerald-700 rounded-lg text-[10px] font-bold hover:bg-emerald-200">Duyệt</button>
-                        <button onClick={() => setEotLog(prev => prev.map(x => x.id === e.id ? {...x, status: 'rejected'} : x))}
+                        <button onClick={() => setEotLog(prev => {
+                          const next = prev.map(x => x.id === e.id ? {...x, status: 'rejected'} : x);
+                          if (dbLoaded.current && selectedContract?.id) db.set(`contract_eot_${selectedContract.id}`, selectedContract.id, next);
+                          return next;
+                        })}
                           className="px-2 py-1 bg-rose-100 text-rose-700 rounded-lg text-[10px] font-bold hover:bg-rose-200">Từ chối</button>
                       </div>
                     )}
@@ -636,7 +655,11 @@ export default function ContractDashboard({ project: selectedProject, currentRol
                     date: eotForm.date || new Date().toLocaleDateString('vi-VN'),
                     status: 'pending' as const,
                   };
-                  setEotLog(prev => [newEOT, ...prev]);
+                  setEotLog(prev => {
+                    const next = [newEOT, ...prev];
+                    if (dbLoaded.current && selectedContract?.id) db.set(`contract_eot_${selectedContract.id}`, selectedContract.id, next);
+                    return next;
+                  });
                   setShowEOTForm(false);
                   setEotForm({days:'', reason:'', date:''});
                   notifOk('Đã tạo yêu cầu EOT — đang chờ duyệt');

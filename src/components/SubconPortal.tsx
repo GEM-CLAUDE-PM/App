@@ -75,8 +75,9 @@ export default function SubconPortal() {
   // Use first allowed project for the subcon
   const projectId = localStorage.getItem('gem_last_project') || 'p1';
   const subconId  = user?.id || 'subcon_default';
-  const collKey   = `subcon_docs_${subconId}`;
-  const poKey     = `subcon_pos_${subconId}`;
+  // Standard collection keys — isolation via projectId (one row per project_id+collection in db)
+  const collKey = 'subcon_docs';
+  const poKey   = 'subcon_pos';
 
   const [docs, setDocs]       = useState<SubconDocument[]>(SEED_DOCS);
   const [pos,  setPOs]        = useState<SubconPO[]>(SEED_POS);
