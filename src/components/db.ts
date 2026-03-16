@@ -58,18 +58,6 @@ import { getSupabase } from './supabase';
 
 const USE_REAL = () => (import.meta as any).env?.VITE_USE_SUPABASE === 'true';
 
-// ─── Optimistic locking ───────────────────────────────────────────────────────
-// Lưu updated_at từ server sau mỗi lần đọc hoặc ghi thành công.
-// Conflict = khi save, server đã có version mới hơn version lúc mình đọc.
-const _vc = new Map<string, string>(); // key → server updated_at
-const _vk = (c: string, p: string) => `${p}::${c}`;
-const _setV = (c: string, p: string, t: string) => _vc.set(_vk(c, p), t);
-const _getV = (c: string, p: string) => _vc.get(_vk(c, p));
-
-export type ConflictError = { type: 'CONFLICT'; collection: string; serverUpdatedAt: string };
-export const isConflictError = (e: unknown): e is ConflictError =>
-  typeof e === 'object' && e !== null && (e as any).type === 'CONFLICT';
-
 // ─── Local storage helpers ────────────────────────────────────────────────────
 function lsKey(collection: string, projectId: string) {
   return `gem_db__${collection}__${projectId}`;
@@ -109,14 +97,13 @@ async function sbGet<T>(collection: string, projectId: string, fallback: T): Pro
   try {
     const { data, error } = await sb
       .from('project_data')
-      .select('payload, updated_at')
+      .select('payload')
       .eq('project_id', projectId)
       .eq('collection', collection)
       .maybeSingle();
     if (error) return lsGet(collection, projectId, fallback);
     if (!data) return lsGet(collection, projectId, fallback);
-    // Cache version + sync server data về localStorage
-    if (data.updated_at) _setV(collection, projectId, data.updated_at);
+    // Sync server data về localStorage
     const result = (data.payload ?? fallback) as T;
     lsSet(collection, projectId, result);
     return result;
@@ -129,38 +116,11 @@ async function sbSet<T>(collection: string, projectId: string, payload: T, userI
   const sb = getSupabase();
   if (!sb) return;
   try {
-    // ── Optimistic locking: chỉ check khi đã từng đọc từ server ──────────
-    const known = _getV(collection, projectId);
-    if (known) {
-      const { data: cur } = await sb
-        .from('project_data').select('updated_at')
-        .eq('project_id', projectId).eq('collection', collection)
-        .maybeSingle();
-      // Có row trên server VÀ version khác → conflict thật
-      if (cur?.updated_at && cur.updated_at !== known) {
-        // Re-fetch data mới nhất từ server về localStorage trước khi báo conflict
-        const { data: fresh } = await sb
-          .from('project_data').select('payload, updated_at')
-          .eq('project_id', projectId).eq('collection', collection)
-          .maybeSingle();
-        if (fresh?.payload) {
-          lsSet(collection, projectId, fresh.payload);
-          _setV(collection, projectId, fresh.updated_at);
-        }
-        window.dispatchEvent(new CustomEvent('gem:db-conflict', {
-          detail: { collection, serverUpdatedAt: cur.updated_at }
-        }));
-        return; // Không ghi đè — giữ data server
-      }
-    }
-    // ── Ghi bình thường ──────────────────────────────────────────────────
-    const now = new Date().toISOString();
     const { error } = await sb.from('project_data').upsert(
-      { project_id: projectId, collection, payload, updated_at: now, updated_by: userId ?? null },
+      { project_id: projectId, collection, payload, updated_at: new Date().toISOString(), updated_by: userId ?? null },
       { onConflict: 'project_id,collection' }
     );
-    if (error) { console.warn('[db] Supabase write error:', error.message); return; }
-    _setV(collection, projectId, now);
+    if (error) console.warn('[db] Supabase write error (table may not exist yet):', error.message);
   } catch (e) {
     console.warn('[db] Supabase unreachable, data saved to localStorage only');
   }
@@ -327,8 +287,6 @@ import { useEffect } from 'react';
  * useRealtimeSync(projectId, collections, onRefresh)
  * Subscribe Supabase Realtime → gọi onRefresh khi thiết bị khác update.
  * Dev mode: no-op. Tự cleanup khi unmount. Debounce 300ms.
- *
- * Dùng: useRealtimeSync(projectId, ['qs_items','qs_payments'], loadData);
  */
 export function useRealtimeSync(
   projectId: string,
@@ -347,7 +305,6 @@ export function useRealtimeSync(
       }, (payload: any) => {
         const col = payload.new?.collection ?? payload.old?.collection;
         if (collections.length && !collections.includes(col)) return;
-        if (payload.new?.updated_at && col) _setV(col, projectId, payload.new.updated_at);
         clearTimeout(timer);
         timer = setTimeout(onRefresh, 300);
       })
