@@ -143,41 +143,33 @@ export default function AdminPanel({ currentUserId, onClose }: AdminPanelProps) 
       if (error) showToast('err', 'Lỗi cập nhật: ' + error.message);
       else { showToast('ok', `Đã cập nhật "${form.full_name}".`); await loadUsers(); }
     } else {
-      // CREATE user qua Supabase Auth (cần service role — dùng signUp thay thế)
-      // Cách an toàn nhất cho client: signUp + gửi confirmation email
-      const { data, error } = await sb.auth.signUp({
-        email: form.email,
-        password: form.password,
-        options: {
-          data: {
-            full_name: form.full_name,
-            job_role: form.job_role,
-            tier,
+      // CREATE — gọi Edge Function invite-member (dùng service_role key an toàn ở server)
+      const { data: { session } } = await sb.auth.getSession();
+      const res = await fetch(
+        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/invite-member`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${session?.access_token}`,
+            'apikey': import.meta.env.VITE_SUPABASE_ANON_KEY,
           },
-        },
-      });
-
-      if (error) {
-        showToast('err', 'Lỗi tạo user: ' + error.message);
-      } else if (data.user) {
-        // Update profile thêm phone + project_ids
-        await sb.from('profiles').update({
-          phone: form.phone || null,
-          project_ids: form.project_ids,
-        }).eq('id', data.user.id);
-
-        // Thêm vào project_members
-        for (const pid of form.project_ids) {
-          const roleId = JOB_ROLE_TO_ROLE_ID[form.job_role] ?? 'chi_huy_truong';
-          await sb.from('project_members').upsert({
-            project_id: pid,
-            user_id: data.user.id,
-            roles: [roleId],
-            active_role_id: roleId,
-          });
+          body: JSON.stringify({
+            email:       form.email,
+            full_name:   form.full_name,
+            job_role:    form.job_role,
+            tier,
+            phone:       form.phone || null,
+            project_ids: form.project_ids,
+          }),
         }
+      );
 
-        showToast('ok', `Đã tạo user "${form.full_name}". Email xác nhận đã gửi tới ${form.email}.`);
+      const result = await res.json();
+      if (!res.ok || result.error) {
+        showToast('err', result.error || 'Lỗi mời thành viên');
+      } else {
+        showToast('ok', `Đã gửi email mời đến ${form.email}. Họ sẽ nhận link để vào app.`);
         await loadUsers();
       }
     }
