@@ -160,18 +160,17 @@ async function sbSet<T>(collection: string, projectId: string, payload: T, userI
 
     // ── Ghi dữ liệu mới ──
     const now = new Date().toISOString();
-    const { data: upserted, error } = await sb.from('project_data').upsert(
+    const { error } = await sb.from('project_data').upsert(
       { project_id: projectId, collection, payload, updated_at: now, updated_by: userId ?? null },
       { onConflict: 'project_id,collection' }
-    ).select('updated_at').maybeSingle();
+    );
 
     if (error) {
       console.warn('[db] Supabase write error:', error.message);
       return;
     }
-    // Dùng updated_at từ server thật (trigger có thể override now())
-    const serverTs = upserted?.updated_at ?? now;
-    _setVersion(collection, projectId, serverTs);
+    // Cache version bằng now() — đủ để detect conflict thiết bị khác
+    _setVersion(collection, projectId, now);
   } catch (e) {
     if (isConflictError(e)) throw e;
     console.warn('[db] Supabase unreachable, data saved to localStorage only');
