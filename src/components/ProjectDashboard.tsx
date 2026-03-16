@@ -1139,7 +1139,7 @@ export default function ProjectDashboard({
       : 'single';
 
     return (
-      <div className="space-y-6 animate-in fade-in duration-300">
+      <><div className="space-y-6 animate-in fade-in duration-300">
 
         {/* ── Scope restriction banner (L3 trở xuống) ── */}
         {scopeType !== 'all' && (
@@ -1284,6 +1284,22 @@ export default function ProjectDashboard({
           </>
         )}
       </div>
+
+      {/* ── Project Setup Wizard — render trong list view ── */}
+      {showSetupWizard && (
+        <ProjectSetupWizard
+          onCancel={() => setShowSetupWizard(false)}
+          onConfirm={(newProject: NewProjectData) => {
+            setProjects((prev: any[]) => [...prev, newProject]);
+            setSelectedProjectId(newProject.id);
+            setLocalProjectId(newProject.id);
+            setActiveTab('overview');
+            setShowSetupWizard(false);
+            setTimeout(() => autoAssignMemberOnSeed(newProject.id), 100);
+          }}
+        />
+      )}
+    </>
     );
   }
 
