@@ -10,7 +10,7 @@ import type { SeedVoucherInput, ApprovalDoc } from './approvalEngine';
 import { usePrint } from './PrintService';
 import { DEFAULT_THRESHOLDS, WORKFLOWS, ROLES, canActOnStep } from './permissions';
 import type { UserContext } from './permissions';
-import { db } from "./db";
+import { db, useRealtimeSync } from "./db";
 import { useAuth } from "./AuthProvider";
 import {
   BarChart2, TrendingUp, TrendingDown, FileText, Plus, Upload,
@@ -255,6 +255,18 @@ export default function QSDashboard({ projectId, projectName, contractValue = 45
   useEffect(() => { if (dbLoaded && projectId) db.set('qs_items',      projectId, boqItems);      }, [boqItems,      projectId]);
   useEffect(() => { if (dbLoaded && projectId) db.set('qs_acceptance', projectId, acceptanceLots); }, [acceptanceLots, projectId]);
   useEffect(() => { if (dbLoaded && projectId) db.set('qs_payments',   projectId, payments);       }, [payments,       projectId]);
+
+  // ── Realtime sync ──────────────────────────────────────────────────────────
+  useRealtimeSync(projectId, ['qs_items', 'qs_acceptance', 'qs_payments'], async () => {
+    const [items, lots, pays] = await Promise.all([
+      db.get<BOQItem[]>('qs_items', projectId, INIT_BOQ),
+      db.get<AcceptanceLot[]>('qs_acceptance', projectId, INIT_ACCEPTANCE),
+      db.get<PaymentRequest[]>('qs_payments', projectId, INIT_PAYMENTS),
+    ]);
+    setBoqItems(items);
+    setAcceptanceLots(lots);
+    setPayments(pays);
+  });
 
   // BOQ state
   const [expandedChapters, setExpandedChapters] = useState<Set<string>>(new Set(CHAPTERS));

@@ -1,9 +1,9 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useRef } from 'react';
 import {
   TrendingUp, Clock, AlertTriangle, Award, CheckCircle, Target,
   Sparkles, Loader2, FileSpreadsheet, ChevronDown, ChevronUp,
   BarChart2, Activity, Zap, Flag, Edit3, Save, X, Plus, RefreshCw,
-  ArrowUp, ArrowDown, Minus, Info, Printer
+  ArrowUp, ArrowDown, Minus, Info, Printer, GripVertical
 } from 'lucide-react';
 import {
   LineChart, Line, AreaChart, Area, BarChart, Bar,
@@ -11,7 +11,7 @@ import {
   ResponsiveContainer, ReferenceLine, Dot
 } from 'recharts';
 import { genAI, GEM_MODEL, GEM_MODEL_QUALITY } from './gemini';
-
+import { db, useRealtimeSync } from './db';
 import { getProjectTemplate, applyTemplate, PROJECT_TEMPLATES } from './projectTemplates';
 import { usePrint } from './PrintService';
 
@@ -123,16 +123,166 @@ function IndexBadge({ label, value, threshold1=0.85, threshold2=0.95, unit='' }:
   );
 }
 
+// ─── GanttChart — drag-drop bằng pointer events ───────────────────────────────
+type GanttTask = { id: number; name: string; start: number; dur: number; done: number; cat: string; wbsId?: string };
+
+function GanttChart({
+  tasks, totalDays, today, onReorder,
+}: {
+  tasks: GanttTask[];
+  totalDays: number;
+  today: number;
+  onReorder: (tasks: GanttTask[]) => void;
+}) {
+  const [items, setItems] = React.useState<GanttTask[]>(tasks);
+  const [dragging, setDragging] = React.useState<number|null>(null);
+  const [dragOver, setDragOver] = React.useState<number|null>(null);
+  const dragIdx = useRef<number>(-1);
+
+  // Sync khi tasks prop thay đổi (realtime / db reload)
+  React.useEffect(() => { setItems(tasks); }, [tasks]);
+
+  const onPointerDown = (e: React.PointerEvent, idx: number) => {
+    e.currentTarget.setPointerCapture(e.pointerId);
+    dragIdx.current = idx;
+    setDragging(idx);
+  };
+
+  const onPointerEnter = (_e: React.PointerEvent, idx: number) => {
+    if (dragging === null) return;
+    setDragOver(idx);
+  };
+
+  const commitDrop = () => {
+    if (dragging !== null && dragOver !== null && dragging !== dragOver) {
+      const next = [...items];
+      const [moved] = next.splice(dragging, 1);
+      next.splice(dragOver, 0, moved);
+      setItems(next);
+      onReorder(next);
+    }
+    setDragging(null);
+    setDragOver(null);
+  };
+
+  return (
+    <div
+      className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden"
+      onPointerUp={commitDrop}
+      onPointerLeave={() => { if (dragging !== null) { setDragging(null); setDragOver(null); } }}
+    >
+      <div className="p-4 border-b border-slate-100 flex items-center justify-between">
+        <h3 className="text-base font-bold text-slate-800 flex items-center gap-2">
+          <FileSpreadsheet size={16} className="text-blue-600"/>
+          Sơ đồ Gantt — {items.length} hạng mục
+          <span className="text-[10px] font-normal text-slate-400 ml-1">kéo ☰ để sắp xếp lại</span>
+        </h3>
+        <div className="flex gap-3 text-[10px] font-semibold text-slate-500">
+          {[['bg-emerald-400','Hoàn thành'],['bg-amber-400','Đang thi công'],['bg-slate-300','Chưa bắt đầu']].map(([c,l])=>(
+            <span key={l} className="flex items-center gap-1">
+              <span className={`w-3 h-2.5 rounded ${c} inline-block`}/>{l}
+            </span>
+          ))}
+        </div>
+      </div>
+      <div className="overflow-x-auto">
+        <div style={{minWidth:640}}>
+          {/* Header */}
+          <div className="flex bg-slate-50 border-b border-slate-200 text-[10px] font-bold text-slate-400 uppercase tracking-wide">
+            <div className="w-6 shrink-0"/>
+            <div className="w-52 shrink-0 px-4 py-2.5">Hạng mục</div>
+            <div className="flex-1 px-3 py-2.5 relative">
+              <div className="flex justify-between">
+                {[0,10,20,30,40,50,60,70,80,90].map(d=><span key={d}>T{Math.ceil((d+1)/7)}</span>)}
+              </div>
+            </div>
+            <div className="w-16 shrink-0 px-2 py-2.5 text-center">%</div>
+          </div>
+
+          {/* Rows */}
+          {items.map((task, idx) => {
+            const isDragging = dragging === idx;
+            const isTarget   = dragOver === idx && dragging !== idx;
+            return (
+              <div
+                key={task.id}
+                className={[
+                  'flex border-b border-slate-100 transition-colors select-none',
+                  isDragging ? 'opacity-40 bg-blue-50' : 'hover:bg-slate-50/50',
+                  isTarget   ? 'border-t-2 border-t-blue-400' : '',
+                ].join(' ')}
+                onPointerEnter={e => onPointerEnter(e, idx)}
+              >
+                {/* Drag handle */}
+                <div
+                  className="w-6 shrink-0 flex items-center justify-center cursor-grab active:cursor-grabbing text-slate-300 hover:text-slate-500"
+                  onPointerDown={e => onPointerDown(e, idx)}
+                >
+                  <GripVertical size={13}/>
+                </div>
+
+                {/* Name */}
+                <div className="w-52 shrink-0 px-4 py-3">
+                  <p className="text-xs font-semibold text-slate-700 truncate">{task.name}</p>
+                  <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full ${CAT_CLS[task.cat]||'bg-slate-100 text-slate-500'}`}>{task.cat}</span>
+                </div>
+
+                {/* Bar */}
+                <div className="flex-1 px-3 py-3 relative flex items-center">
+                  {[0,10,20,30,40,50,60,70,80,90].map(d=>(
+                    <div key={d} className="absolute top-0 bottom-0 border-l border-slate-100" style={{left:`${(d/totalDays)*100}%`}}/>
+                  ))}
+                  {/* Today line */}
+                  <div className="absolute top-0 bottom-0 border-l-2 border-rose-400 border-dashed z-10" style={{left:`${(today/totalDays)*100}%`}}/>
+                  <div className="relative w-full h-6">
+                    {/* Background bar */}
+                    <div
+                      className="absolute h-full rounded-md bg-slate-100"
+                      style={{left:`${(task.start/totalDays)*100}%`, width:`${(task.dur/totalDays)*100}%`}}
+                    />
+                    {/* Progress bar */}
+                    <div
+                      className={`absolute h-full rounded-md transition-all ${
+                        task.done===100 ? 'bg-emerald-400' : task.done>0 ? 'bg-amber-400' : 'bg-transparent'
+                      }`}
+                      style={{
+                        left:`${(task.start/totalDays)*100}%`,
+                        width:`${(task.dur/totalDays)*(task.done/100)*100}%`,
+                      }}
+                    />
+                    {/* Baseline marker (end of planned duration) */}
+                    <div
+                      className="absolute top-1 bottom-1 w-0.5 bg-slate-400 rounded opacity-60 z-10"
+                      style={{left:`${((task.start+task.dur)/totalDays)*100}%`}}
+                    />
+                  </div>
+                </div>
+
+                {/* % done */}
+                <div className="w-16 shrink-0 flex items-center justify-center">
+                  <span className={`text-xs font-bold ${task.done===100?'text-emerald-600':task.done>0?'text-amber-600':'text-slate-400'}`}>
+                    {task.done}%
+                  </span>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ─── Main ─────────────────────────────────────────────────────────────────────
-export default function ProgressDashboard({ project: selectedProject }: Props) {
+export default function ProgressDashboard({ project: selectedProject, projectId: projectIdProp }: Props) {
+  const pid = projectIdProp ?? selectedProject?.id ?? 'default';
   const [tab, setTab] = useState<'scurve'|'evm'|'wbs'|'milestones'>('scurve');
   const { printComponent, printProgressReport } = usePrint();
+  const dbLoaded = useRef(false);
   const [wbs, setWbs] = useState(WBS_INIT);
 
   // Milestones: ưu tiên từ template nếu project có chọn template
   const [milestones, setMilestones] = useState(() => {
-    const pid = selectedProject?.id;
-    if (!pid) return MILESTONES_INIT;
     const tplId = getProjectTemplate(pid);
     if (!tplId) return MILESTONES_INIT;
     const startDate = selectedProject?.startDate && selectedProject.startDate !== '-'
@@ -140,7 +290,6 @@ export default function ProgressDashboard({ project: selectedProject }: Props) {
       : new Date();
     const applied = applyTemplate(tplId, startDate);
     if (!applied.milestones.length) return MILESTONES_INIT;
-    // Convert template milestones → ProgressDashboard format
     return applied.milestones.map((m, i) => ({
       id:       `ms_tpl_${i+1}`,
       name:     m.name,
@@ -151,6 +300,35 @@ export default function ProgressDashboard({ project: selectedProject }: Props) {
       critical: m.type === 'finish' || (i < 3),
     }));
   });
+
+  // ── Load from db on mount ──────────────────────────────────────────────────
+  React.useEffect(() => {
+    dbLoaded.current = false;
+    (async () => {
+      try {
+        const [savedWbs, savedMs] = await Promise.all([
+          db.get<typeof WBS_INIT>('progress_wbs', pid, WBS_INIT),
+          db.get<typeof MILESTONES_INIT>('progress_milestones', pid, []),
+        ]);
+        setWbs(savedWbs);
+        if (savedMs.length) setMilestones(savedMs as any);
+      } catch (e) {
+        console.warn('[ProgressDashboard] load error, dùng seed data:', e);
+      } finally {
+        dbLoaded.current = true;
+      }
+    })();
+  }, [pid]);
+
+  // ── Realtime sync ──────────────────────────────────────────────────────────
+  useRealtimeSync(pid, ['progress_wbs', 'progress_milestones'], async () => {
+    const [savedWbs, savedMs] = await Promise.all([
+      db.get<typeof WBS_INIT>('progress_wbs', pid, WBS_INIT),
+      db.get<typeof MILESTONES_INIT>('progress_milestones', pid, []),
+    ]);
+    setWbs(savedWbs);
+    if (savedMs.length) setMilestones(savedMs as any);
+  });
   const [editingWbs, setEditingWbs] = useState<string|null>(null);
   const [editEv, setEditEv] = useState('');
   const [gemLoading, setGemLoading] = useState(false);
@@ -160,19 +338,20 @@ export default function ProgressDashboard({ project: selectedProject }: Props) {
 
   const totalDays = 95; const today = 58;
 
-  // Gantt tasks derived from WBS
-  const ganttTasks = [
-    { id:1, name:'Công tác chuẩn bị',  start:0,  dur:10, done:100, cat:'Móng'       },
-    { id:2, name:'Thi công móng cọc',  start:5,  dur:20, done:100, cat:'Móng'       },
-    { id:3, name:'Đài móng & giằng',   start:22, dur:15, done:72,  cat:'Móng'       },
-    { id:4, name:'Tầng hầm (tường vây)',start:30,dur:18, done:48,  cat:'Thân nhà'   },
-    { id:5, name:'Cột & dầm tầng 1-2', start:42, dur:20, done:28,  cat:'Thân nhà'   },
-    { id:6, name:'Sàn tầng 1-2',       start:48, dur:14, done:14,  cat:'Thân nhà'   },
-    { id:7, name:'Xây tường bao T1',   start:55, dur:12, done:5,   cat:'Hoàn thiện' },
-    { id:8, name:'Hệ thống M&E',       start:50, dur:30, done:10,  cat:'M&E'        },
-    { id:9, name:'Hoàn thiện KT',      start:62, dur:25, done:0,   cat:'Hoàn thiện' },
-    { id:10,name:'Nghiệm thu & BG',    start:85, dur:10, done:0,   cat:'Kết thúc'   },
-  ];
+  // Gantt tasks derived từ WBS data thật (start/dur tính từ thứ tự WBS)
+  const ganttTasks = React.useMemo(() => {
+    const starts = [0, 5, 22, 30, 42, 48, 55, 50, 62, 85];
+    const durs   = [10, 20, 15, 18, 20, 14, 12, 30, 25, 10];
+    return wbs.map((w, i) => ({
+      id:   i + 1,
+      name: w.name,
+      start: starts[i] ?? i * 8,
+      dur:   durs[i]   ?? 10,
+      done:  w.ev_pct,
+      cat:   w.category,
+      wbsId: w.id,
+    }));
+  }, [wbs]);
 
   const callGEM = useCallback(async () => {
     setGemLoading(true); setGemText(''); setShowGem(true);
@@ -315,52 +494,25 @@ export default function ProgressDashboard({ project: selectedProject }: Props) {
             </ResponsiveContainer>
           </div>
 
-          {/* Gantt */}
-          <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
-            <div className="p-4 border-b border-slate-100 flex items-center justify-between">
-              <h3 className="text-base font-bold text-slate-800 flex items-center gap-2"><FileSpreadsheet size={16} className="text-blue-600"/>Sơ đồ Gantt — {ganttTasks.length} hạng mục</h3>
-              <div className="flex gap-3 text-[10px] font-semibold text-slate-500">
-                {[['bg-emerald-400','Hoàn thành'],['bg-amber-400','Đang thi công'],['bg-slate-300','Chưa bắt đầu']].map(([c,l])=>(
-                  <span key={l} className="flex items-center gap-1"><span className={`w-3 h-2.5 rounded ${c} inline-block`}/>{l}</span>
-                ))}
-              </div>
-            </div>
-            <div className="overflow-x-auto">
-              <div style={{minWidth:640}}>
-                <div className="flex bg-slate-50 border-b border-slate-200 text-[10px] font-bold text-slate-400 uppercase tracking-wide">
-                  <div className="w-52 shrink-0 px-4 py-2.5">Hạng mục</div>
-                  <div className="flex-1 px-3 py-2.5 relative">
-                    <div className="flex justify-between">
-                      {[0,10,20,30,40,50,60,70,80,90].map(d=><span key={d}>T{Math.ceil((d+1)/7)}</span>)}
-                    </div>
-                  </div>
-                  <div className="w-16 shrink-0 px-2 py-2.5 text-center">%</div>
-                </div>
-                {ganttTasks.map(task=>(
-                  <div key={task.id} className="flex border-b border-slate-100 hover:bg-slate-50/50 group">
-                    <div className="w-52 shrink-0 px-4 py-3">
-                      <p className="text-xs font-semibold text-slate-700 truncate">{task.name}</p>
-                      <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full ${CAT_CLS[task.cat]||'bg-slate-100 text-slate-500'}`}>{task.cat}</span>
-                    </div>
-                    <div className="flex-1 px-3 py-3 relative flex items-center">
-                      {[0,10,20,30,40,50,60,70,80,90].map(d=>(
-                        <div key={d} className="absolute top-0 bottom-0 border-l border-slate-100" style={{left:`${(d/totalDays)*100}%`}}/>
-                      ))}
-                      <div className="absolute top-0 bottom-0 border-l-2 border-rose-400 border-dashed z-10" style={{left:`${(today/totalDays)*100}%`}}/>
-                      <div className="relative w-full h-6">
-                        <div className="absolute h-full rounded-md bg-slate-100" style={{left:`${(task.start/totalDays)*100}%`,width:`${(task.dur/totalDays)*100}%`}}/>
-                        <div className={`absolute h-full rounded-md ${task.done===100?'bg-emerald-400':task.done>0?'bg-amber-400':'bg-transparent'} transition-all`}
-                          style={{left:`${(task.start/totalDays)*100}%`,width:`${(task.dur/totalDays)*(task.done/100)*100}%`}}/>
-                      </div>
-                    </div>
-                    <div className="w-16 shrink-0 flex items-center justify-center">
-                      <span className={`text-xs font-bold ${task.done===100?'text-emerald-600':task.done>0?'text-amber-600':'text-slate-400'}`}>{task.done}%</span>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
+          {/* Gantt — drag-drop bằng pointer events */}
+          <GanttChart
+            tasks={ganttTasks}
+            totalDays={totalDays}
+            today={today}
+            onReorder={(reordered) => {
+              // Sync thứ tự WBS theo thứ tự Gantt mới
+              const wbsById = Object.fromEntries(wbs.map(w => [w.id, w]));
+              const nextWbs = reordered
+                .map(t => wbsById[(t as any).wbsId])
+                .filter(Boolean);
+              if (nextWbs.length === wbs.length) {
+                setWbs(() => {
+                  if (dbLoaded.current) db.set('progress_wbs', pid, nextWbs);
+                  return nextWbs;
+                });
+              }
+            }}
+          />
         </div>
       )}
 
@@ -468,7 +620,14 @@ export default function ProgressDashboard({ project: selectedProject }: Props) {
                     {isEditing ? (
                       <div className="flex gap-1" onClick={e=>e.stopPropagation()}>
                         <input type="number" min={0} max={100} value={editEv} onChange={e=>setEditEv(e.target.value)} className="w-14 text-xs text-center border border-emerald-300 rounded-lg px-1 py-0.5 focus:outline-none focus:ring-1 focus:ring-emerald-400"/>
-                        <button onClick={()=>{setWbs(p=>p.map(x=>x.id===w.id?{...x,ev_pct:+editEv}:x));setEditingWbs(null);}} className="p-1 bg-emerald-500 text-white rounded"><Save size={9}/></button>
+                        <button onClick={()=>{
+                          setWbs(p => {
+                            const next = p.map(x=>x.id===w.id?{...x,ev_pct:+editEv}:x);
+                            if (dbLoaded.current) db.set('progress_wbs', pid, next);
+                            return next;
+                          });
+                          setEditingWbs(null);
+                        }} className="p-1 bg-emerald-500 text-white rounded"><Save size={9}/></button>
                         <button onClick={()=>setEditingWbs(null)} className="p-1 bg-slate-200 rounded"><X size={9}/></button>
                       </div>
                     ) : (

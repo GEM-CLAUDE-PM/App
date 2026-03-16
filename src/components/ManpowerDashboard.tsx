@@ -18,7 +18,7 @@ import { getCurrentMember, buildCtxFromMember } from './projectMember';
 import ApprovalQueue from './ApprovalQueue';
 import { loadProjectConfig, type ProjectConfig } from './ProjectConfigPanel';
 import { ManpowerPrint, type ManpowerPrintData } from './PrintService';
-import { db } from './db';
+import { db, useRealtimeSync } from './db';
 import ShiftScheduleView from './ShiftScheduleView';
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -490,6 +490,16 @@ export default function ManpowerDashboard({ project, initialTab }:Props) {
     (gps.status === 'off_site' || gps.status === 'gps_error');
 
 useEffect(()=>{ if (dbLoaded) db.set('mp_people', pid, people); },[people, pid]);
+
+  // ── Realtime sync ──────────────────────────────────────────────────────────
+  useRealtimeSync(pid, ['mp_people', 'mp_attendance'], async () => {
+    const [ppl, att] = await Promise.all([
+      db.get<Person[]>('mp_people', pid, SEED_PEOPLE),
+      db.get<DailyAttendance[]>('mp_attendance', pid, []),
+    ]);
+    setPeople(ppl);
+    setAttendance(att);
+  });
 
   // ── gem:open-action — WorkspaceActionBar trigger ─────────────────────────
   React.useEffect(() => {

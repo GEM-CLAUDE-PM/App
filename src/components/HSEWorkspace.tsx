@@ -11,7 +11,7 @@ import { OrgNode } from './dashboard/OrgChart';
 import { genAI, GEM_MODEL, GEM_MODEL_QUALITY } from './gemini';
 
 import type { DashboardProps } from './types';
-import { db } from './db';
+import { db, useRealtimeSync } from './db';
 
 type HSEProps = DashboardProps;
 
@@ -169,8 +169,79 @@ export default function HSEWorkspace({ project: selectedProject, projectId: proj
   }, [projectId, ctx, refreshHseQueue]);
   // ── /Approval wiring ──────────────────────────────────────────────────────
 
-  const [hseTab, setHseTab]             = React.useState<'dashboard'|'incidents'|'trainings'|'violations'|'inspections'|'reports'>('dashboard');
+  const [hseTab, setHseTab]             = React.useState<'dashboard'|'incidents'|'trainings'|'violations'|'inspections'|'reports'|'ptw'>('dashboard');
   const [trainingView, setTrainingView] = React.useState<'classes'|'certs'>('classes');
+
+  // ── PTW types ──────────────────────────────────────────────────────────────
+  type PTWStatus = 'draft'|'pending'|'approved'|'active'|'closed'|'rejected';
+  type PTWType = 'hot_work'|'confined_space'|'electrical'|'excavation'|'working_at_height'|'chemical'|'other';
+  interface PTW {
+    id: string; type: PTWType; title: string;
+    requester: string; contractor: string; area: string;
+    work_description: string; hazards: string; controls: string;
+    start_date: string; end_date: string;
+    status: PTWStatus; approved_by?: string; approved_at?: string;
+    created_at: string;
+  }
+  interface ToolboxTalk {
+    id: string; date: string; topic: string;
+    conducted_by: string; area: string;
+    attendees_count: number; key_points: string;
+    created_at: string;
+  }
+
+  const PTW_TYPE_LABEL: Record<PTWType, string> = {
+    hot_work: 'Công việc nóng (hàn/cắt)', confined_space: 'Không gian hạn chế',
+    electrical: 'Điện — Cao thế', excavation: 'Đào đất / Hầm móng',
+    working_at_height: 'Làm việc trên cao', chemical: 'Hóa chất nguy hiểm', other: 'Khác',
+  };
+  const PTW_STATUS_CFG: Record<PTWStatus, {label:string; cls:string}> = {
+    draft:    { label:'Nháp',       cls:'bg-slate-100 text-slate-600' },
+    pending:  { label:'Chờ duyệt',  cls:'bg-amber-100 text-amber-700' },
+    approved: { label:'Đã duyệt',   cls:'bg-blue-100 text-blue-700' },
+    active:   { label:'Đang thi công', cls:'bg-emerald-100 text-emerald-700' },
+    closed:   { label:'Đã đóng',    cls:'bg-slate-100 text-slate-500' },
+    rejected: { label:'Từ chối',    cls:'bg-rose-100 text-rose-700' },
+  };
+
+  const SEED_PTWS: PTW[] = [
+    { id:'ptw1', type:'hot_work', title:'Hàn kết cấu thép tầng 3', requester:'Trần Văn B',
+      contractor:'Phúc Thành', area:'Zone 2 — Tầng 3', work_description:'Hàn nối cột thép trục A-C',
+      hazards:'Tia lửa hàn, khói độc, cháy nổ vật liệu lân cận', controls:'Màn chắn lửa, bình CO2, khu vực dọn sạch 5m',
+      start_date:'16/03/2026', end_date:'17/03/2026', status:'active',
+      approved_by:'HSE Hải', approved_at:'15/03/2026 16:00', created_at:'15/03/2026' },
+    { id:'ptw2', type:'working_at_height', title:'Lắp đặt giàn giáo tầng 5', requester:'Lê Thị C',
+      contractor:'Nội bộ', area:'Zone 1 — Tầng 5',
+      work_description:'Dựng giàn giáo khung thép cho mặt ngoài tầng 5',
+      hazards:'Té ngã từ cao, rơi vật dụng', controls:'Dây an toàn, lưới chống rơi, khu vực cách ly bên dưới',
+      start_date:'17/03/2026', end_date:'18/03/2026', status:'pending',
+      created_at:'16/03/2026' },
+  ];
+  const SEED_TOOLBOX: ToolboxTalk[] = [
+    { id:'tb1', date:'16/03/2026', topic:'An toàn khi hàn điện — phòng cháy nổ', conducted_by:'HSE Hải',
+      area:'Zone 2', attendees_count: 18, key_points:'Kiểm tra bình CO2 trước khi hàn; Màn chắn lửa bắt buộc; Không để vật liệu dễ cháy trong 5m',
+      created_at:'16/03/2026' },
+    { id:'tb2', date:'10/03/2026', topic:'Sử dụng đúng PPE khi làm việc trên cao', conducted_by:'CHT Anh',
+      area:'Toàn công trình', attendees_count: 42, key_points:'Dây an toàn móc 2 điểm; Mũ bảo hộ đúng cỡ; Giày chống trượt',
+      created_at:'10/03/2026' },
+  ];
+
+  const [ptws, setPtws]           = React.useState<PTW[]>(SEED_PTWS);
+  const [toolboxTalks, setToolboxTalks] = React.useState<ToolboxTalk[]>(SEED_TOOLBOX);
+  const [showPTWForm, setShowPTWForm]   = React.useState(false);
+  const [showToolboxForm, setShowToolboxForm] = React.useState(false);
+  const [ptwForm, setPtwForm] = React.useState<Partial<PTW>>({
+    type: 'hot_work', status: 'draft',
+    start_date: new Date().toLocaleDateString('vi-VN'),
+    end_date: new Date().toLocaleDateString('vi-VN'),
+    created_at: new Date().toLocaleDateString('vi-VN'),
+  });
+  const [toolboxForm, setToolboxForm] = React.useState<Partial<ToolboxTalk>>({
+    date: new Date().toLocaleDateString('vi-VN'),
+    created_at: new Date().toLocaleDateString('vi-VN'),
+    attendees_count: 0,
+  });
+
   // Worker certificates
   interface WorkerCert {
     id:string; worker_name:string; contractor:string;
@@ -202,7 +273,27 @@ export default function HSEWorkspace({ project: selectedProject, projectId: proj
     db.get<Violation[]>('hse_violations', pid, SEED_VIOLATIONS).then(setViolations);
     db.get<Inspection[]>('hse_inspections', pid, SEED_INSPECTIONS).then(setInspections);
     db.get<WorkerCert[]>('hse_worker_certs', pid, SEED_CERTS).then(setWorkerCerts);
+    db.get<PTW[]>('hse_ptws', pid, SEED_PTWS).then(setPtws);
+    db.get<ToolboxTalk[]>('hse_toolbox', pid, SEED_TOOLBOX).then(setToolboxTalks);
   }, [selectedProject?.id, projectId]);
+
+  // ── Realtime sync ──────────────────────────────────────────────────────────
+  const _hse_pid = selectedProject?.id || projectId || 'default';
+  useRealtimeSync(_hse_pid, ['hse_incidents', 'hse_trainings', 'hse_violations', 'hse_inspections', 'hse_worker_certs', 'hse_ptws', 'hse_toolbox'], async () => {
+    const pid = selectedProject?.id || projectId || 'default';
+    const [inc, trn, vio, ins, crt, pw, tb] = await Promise.all([
+      db.get<Incident[]>('hse_incidents', pid, SEED_INCIDENTS),
+      db.get<Training[]>('hse_trainings', pid, SEED_TRAININGS),
+      db.get<Violation[]>('hse_violations', pid, SEED_VIOLATIONS),
+      db.get<Inspection[]>('hse_inspections', pid, SEED_INSPECTIONS),
+      db.get<WorkerCert[]>('hse_worker_certs', pid, SEED_CERTS),
+      db.get<PTW[]>('hse_ptws', pid, SEED_PTWS),
+      db.get<ToolboxTalk[]>('hse_toolbox', pid, SEED_TOOLBOX),
+    ]);
+    setIncidents(inc); setTrainings(trn); setViolations(vio);
+    setInspections(ins); setWorkerCerts(crt);
+    setPtws(pw); setToolboxTalks(tb);
+  });
 
   // Forms
   const [showIncidentForm, setShowIncidentForm] = React.useState(false);
@@ -212,9 +303,9 @@ export default function HSEWorkspace({ project: selectedProject, projectId: proj
     const handler = (e: Event) => {
       const { actionId } = (e as CustomEvent).detail;
       if (actionId === 'HSE_INCIDENT')   { setHseTab('incidents'); setTimeout(() => setShowIncidentForm(true), 150); }
-      if (actionId === 'PERMIT_TO_WORK') { setHseTab('violations'); setTimeout(() => setShowViolationForm(true), 150); }
+      if (actionId === 'PERMIT_TO_WORK') { setHseTab('ptw'); setTimeout(() => setShowPTWForm(true), 150); }
       if (actionId === 'CAPA')           { setHseTab('violations'); setTimeout(() => setShowViolationForm(true), 150); }
-      if (actionId === 'HSE_INSPECTION')  { setHseTab('incidents');  setTimeout(() => setShowIncidentForm(true), 150); }
+      if (actionId === 'HSE_INSPECTION')  { setHseTab('inspections');  setTimeout(() => setShowIncidentForm(true), 150); }
     };
     window.addEventListener('gem:open-action', handler);
     return () => window.removeEventListener('gem:open-action', handler);
@@ -309,6 +400,7 @@ export default function HSEWorkspace({ project: selectedProject, projectId: proj
       <div className="flex gap-1.5 flex-wrap bg-white border border-slate-200 rounded-2xl p-2">
         {([
           { id:'dashboard',   label:'Tổng quan',      icon:<LayoutDashboard size={13}/>,  color:'rose'    },
+          { id:'ptw',         label:'PTW / Giấy phép', icon:<ClipboardList size={13}/>,    color:'violet'  },
           { id:'incidents',   label:'Sự cố / TNLĐ',  icon:<AlertTriangle size={13}/>,    color:'rose'    },
           { id:'violations',  label:'Vi phạm',        icon:<ShieldAlert size={13}/>,      color:'orange'  },
           { id:'trainings',   label:'Huấn luyện AT',  icon:<GraduationCap size={13}/>,    color:'blue'    },
@@ -322,6 +414,7 @@ export default function HSEWorkspace({ project: selectedProject, projectId: proj
                 : t.color==='orange'  ? 'bg-orange-500 text-white shadow-sm'
                 : t.color==='blue'    ? 'bg-blue-600 text-white shadow-sm'
                 : t.color==='teal'    ? 'bg-teal-600 text-white shadow-sm'
+                : t.color==='violet'  ? 'bg-violet-600 text-white shadow-sm'
                                       : 'bg-emerald-600 text-white shadow-sm'
                 : 'text-slate-600 hover:bg-slate-100'
             }`}>
@@ -329,6 +422,7 @@ export default function HSEWorkspace({ project: selectedProject, projectId: proj
             {t.id==='incidents'  && openIncidents > 0   && <span className="bg-white/30 text-[9px] font-bold px-1.5 rounded-full">{openIncidents}</span>}
             {t.id==='violations' && openViolations > 0  && <span className="bg-white/30 text-[9px] font-bold px-1.5 rounded-full">{openViolations}</span>}
             {t.id==='trainings'  && overdueTrainings > 0 && <span className="bg-white/30 text-[9px] font-bold px-1.5 rounded-full">{overdueTrainings}</span>}
+            {t.id==='ptw'        && ptws.filter(p=>p.status==='pending').length > 0 && <span className="bg-white/30 text-[9px] font-bold px-1.5 rounded-full">{ptws.filter(p=>p.status==='pending').length}</span>}
           </button>
         ))}
       </div>
@@ -472,6 +566,116 @@ export default function HSEWorkspace({ project: selectedProject, projectId: proj
               </div>
             </div>
           </div>
+        </div>
+      )}
+
+      {/* ── PTW / PERMIT TO WORK ───────────────────────────────── */}
+      {hseTab === 'ptw' && (
+        <div className="space-y-5">
+          {/* Header row */}
+          <div className="flex items-center justify-between flex-wrap gap-3">
+            <div className="flex gap-2 flex-wrap">
+              {(['pending','active','approved','closed'] as PTWStatus[]).map(s => {
+                const cnt = ptws.filter(p => p.status === s).length;
+                if (!cnt) return null;
+                return <span key={s} className={`text-xs font-semibold px-3 py-1.5 rounded-xl border ${PTW_STATUS_CFG[s].cls}`}>{PTW_STATUS_CFG[s].label}: {cnt}</span>;
+              })}
+            </div>
+            <div className="flex gap-2">
+              <button onClick={() => setShowToolboxForm(true)}
+                className="flex items-center gap-1.5 px-3 py-2 bg-blue-50 border border-blue-200 text-blue-700 rounded-xl text-xs font-bold hover:bg-blue-100 transition-colors">
+                <MessageCircle size={13}/> Toolbox Talk
+              </button>
+              <button onClick={() => setShowPTWForm(true)}
+                className="flex items-center gap-1.5 px-3 py-2 bg-violet-600 text-white rounded-xl text-xs font-bold hover:bg-violet-700 transition-colors">
+                <Plus size={13}/> Tạo Giấy phép
+              </button>
+            </div>
+          </div>
+
+          {/* PTW list */}
+          <div className="space-y-3">
+            {ptws.length === 0 && (
+              <div className="bg-white border border-slate-200 rounded-2xl p-8 text-center text-sm text-slate-400">Chưa có giấy phép nào</div>
+            )}
+            {ptws.map(p => (
+              <div key={p.id} className="bg-white border border-slate-200 rounded-2xl p-4 shadow-sm hover:shadow-md transition-all">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap mb-1">
+                      <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${PTW_STATUS_CFG[p.status].cls}`}>{PTW_STATUS_CFG[p.status].label}</span>
+                      <span className="text-[10px] font-semibold bg-violet-100 text-violet-700 px-2 py-0.5 rounded-full">{PTW_TYPE_LABEL[p.type]}</span>
+                    </div>
+                    <p className="text-sm font-bold text-slate-800">{p.title}</p>
+                    <p className="text-xs text-slate-500 mt-0.5">{p.area} · {p.contractor} · {p.requester}</p>
+                    <p className="text-xs text-slate-400 mt-0.5">{p.start_date} → {p.end_date}</p>
+                    {p.hazards && <p className="text-xs text-amber-700 bg-amber-50 rounded-lg px-2 py-1 mt-2">⚠ {p.hazards}</p>}
+                    {p.approved_by && <p className="text-[10px] text-emerald-600 mt-1">✅ Duyệt bởi {p.approved_by} lúc {p.approved_at}</p>}
+                  </div>
+                  <div className="flex flex-col gap-1.5 shrink-0">
+                    {p.status === 'pending' && (
+                      <button onClick={() => {
+                        setPtws(prev => {
+                          const next = prev.map(x => x.id === p.id ? {
+                            ...x, status: 'approved' as PTWStatus,
+                            approved_by: ctx.userName || 'HSE Officer',
+                            approved_at: new Date().toLocaleString('vi-VN'),
+                          } : x);
+                          db.set('hse_ptws', _hse_pid, next);
+                          return next;
+                        });
+                      }} className="px-3 py-1.5 bg-emerald-500 text-white rounded-xl text-[10px] font-bold hover:bg-emerald-600">
+                        ✅ Duyệt
+                      </button>
+                    )}
+                    {p.status === 'approved' && (
+                      <button onClick={() => {
+                        setPtws(prev => {
+                          const next = prev.map(x => x.id === p.id ? {...x, status: 'active' as PTWStatus} : x);
+                          db.set('hse_ptws', _hse_pid, next);
+                          return next;
+                        });
+                      }} className="px-3 py-1.5 bg-blue-500 text-white rounded-xl text-[10px] font-bold hover:bg-blue-600">
+                        ▶ Kích hoạt
+                      </button>
+                    )}
+                    {(p.status === 'active' || p.status === 'approved') && (
+                      <button onClick={() => {
+                        setPtws(prev => {
+                          const next = prev.map(x => x.id === p.id ? {...x, status: 'closed' as PTWStatus} : x);
+                          db.set('hse_ptws', _hse_pid, next);
+                          return next;
+                        });
+                      }} className="px-3 py-1.5 bg-slate-100 text-slate-600 rounded-xl text-[10px] font-bold hover:bg-slate-200">
+                        Đóng
+                      </button>
+                    )}
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {/* Toolbox Talk list */}
+          <div className="bg-white border border-slate-200 rounded-2xl overflow-hidden">
+            <div className="px-4 py-3 border-b border-slate-100 flex items-center justify-between">
+              <h3 className="text-sm font-bold text-slate-800 flex items-center gap-2"><MessageCircle size={14} className="text-blue-600"/>Toolbox Talk — {toolboxTalks.length} buổi</h3>
+            </div>
+            <div className="divide-y divide-slate-100">
+              {toolboxTalks.map(tb => (
+                <div key={tb.id} className="px-4 py-3 flex items-start gap-3 hover:bg-slate-50/50">
+                  <div className="w-8 h-8 rounded-xl bg-blue-100 flex items-center justify-center shrink-0 text-blue-600"><MessageCircle size={14}/></div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-xs font-bold text-slate-800">{tb.topic}</p>
+                    <p className="text-[10px] text-slate-500 mt-0.5">{tb.date} · {tb.area} · {tb.conducted_by} · {tb.attendees_count} người</p>
+                    <p className="text-[10px] text-slate-400 mt-1 line-clamp-2">{tb.key_points}</p>
+                  </div>
+                </div>
+              ))}
+              {toolboxTalks.length === 0 && <div className="px-4 py-6 text-center text-xs text-slate-400">Chưa có buổi nào</div>}
+            </div>
+          </div>
+
         </div>
       )}
 
@@ -1113,6 +1317,97 @@ export default function HSEWorkspace({ project: selectedProject, projectId: proj
           </div>
         </div>
       )}
+
+      {/* ── MODALS — cuối component theo DS rule 5.2 ─────────────────────── */}
+      <ModalForm
+        open={showPTWForm}
+        onClose={() => setShowPTWForm(false)}
+        title="Tạo Giấy phép Công việc (PTW)"
+        subtitle="Permit to Work — yêu cầu duyệt trước khi thi công"
+        icon={<ClipboardList size={18}/>}
+        color="violet"
+        width="lg"
+        footer={<>
+          <BtnCancel onClick={() => setShowPTWForm(false)}/>
+          <BtnSubmit onClick={() => {
+            if (!ptwForm.title?.trim())     { notifErr('Vui lòng nhập tiêu đề công việc!'); return; }
+            if (!ptwForm.requester?.trim()) { notifErr('Vui lòng nhập người yêu cầu!'); return; }
+            if (!ptwForm.area?.trim())      { notifErr('Vui lòng nhập khu vực thi công!'); return; }
+            const newPTW: PTW = {
+              id: 'ptw_' + Date.now(), type: ptwForm.type ?? 'other',
+              title: ptwForm.title!, requester: ptwForm.requester!,
+              contractor: ptwForm.contractor ?? '', area: ptwForm.area!,
+              work_description: ptwForm.work_description ?? '',
+              hazards: ptwForm.hazards ?? '', controls: ptwForm.controls ?? '',
+              start_date: ptwForm.start_date ?? '', end_date: ptwForm.end_date ?? '',
+              status: 'pending', created_at: new Date().toLocaleDateString('vi-VN'),
+            };
+            setPtws(prev => { const next = [newPTW, ...prev]; db.set('hse_ptws', _hse_pid, next); return next; });
+            setShowPTWForm(false);
+            setPtwForm({ type:'hot_work', status:'draft', start_date: new Date().toLocaleDateString('vi-VN'), end_date: new Date().toLocaleDateString('vi-VN'), created_at: new Date().toLocaleDateString('vi-VN') });
+            notifOk('Đã tạo giấy phép — đang chờ duyệt');
+          }} label="Nộp duyệt"/>
+        </>}
+      >
+        <FormSection title="Thông tin chung">
+          <FormGrid cols={2}>
+            <FormRow label="Loại công việc *">
+              <select className={selectCls} value={ptwForm.type} onChange={e => setPtwForm(p => ({...p, type: e.target.value as PTWType}))}>
+                {(Object.entries(PTW_TYPE_LABEL) as [PTWType, string][]).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+              </select>
+            </FormRow>
+            <FormRow label="Tiêu đề *"><input className={inputCls} value={ptwForm.title ?? ''} onChange={e => setPtwForm(p => ({...p, title: e.target.value}))} placeholder="Mô tả ngắn công việc"/></FormRow>
+            <FormRow label="Người yêu cầu *"><input className={inputCls} value={ptwForm.requester ?? ''} onChange={e => setPtwForm(p => ({...p, requester: e.target.value}))}/></FormRow>
+            <FormRow label="Nhà thầu"><input className={inputCls} value={ptwForm.contractor ?? ''} onChange={e => setPtwForm(p => ({...p, contractor: e.target.value}))}/></FormRow>
+            <FormRow label="Khu vực thi công *"><input className={inputCls} value={ptwForm.area ?? ''} onChange={e => setPtwForm(p => ({...p, area: e.target.value}))}/></FormRow>
+            <FormRow label="Ngày bắt đầu"><input type="date" className={inputCls} onChange={e => setPtwForm(p => ({...p, start_date: new Date(e.target.value).toLocaleDateString('vi-VN')}))}/></FormRow>
+          </FormGrid>
+        </FormSection>
+        <FormSection title="Đánh giá rủi ro (JSA)">
+          <FormGrid cols={1}>
+            <FormRow label="Mô tả công việc"><textarea className={inputCls} rows={2} value={ptwForm.work_description ?? ''} onChange={e => setPtwForm(p => ({...p, work_description: e.target.value}))}/></FormRow>
+            <FormRow label="Nguy cơ / Rủi ro nhận diện"><textarea className={inputCls} rows={2} value={ptwForm.hazards ?? ''} onChange={e => setPtwForm(p => ({...p, hazards: e.target.value}))}/></FormRow>
+            <FormRow label="Biện pháp kiểm soát"><textarea className={inputCls} rows={2} value={ptwForm.controls ?? ''} onChange={e => setPtwForm(p => ({...p, controls: e.target.value}))}/></FormRow>
+          </FormGrid>
+        </FormSection>
+      </ModalForm>
+
+      <ModalForm
+        open={showToolboxForm}
+        onClose={() => setShowToolboxForm(false)}
+        title="Ghi nhận Toolbox Talk"
+        subtitle="Buổi họp an toàn đầu ca"
+        icon={<MessageCircle size={18}/>}
+        color="blue"
+        width="md"
+        footer={<>
+          <BtnCancel onClick={() => setShowToolboxForm(false)}/>
+          <BtnSubmit onClick={() => {
+            if (!toolboxForm.topic?.trim())        { notifErr('Vui lòng nhập chủ đề!'); return; }
+            if (!toolboxForm.conducted_by?.trim()) { notifErr('Vui lòng nhập người thực hiện!'); return; }
+            const newTB: ToolboxTalk = {
+              id: 'tb_' + Date.now(),
+              date: toolboxForm.date ?? new Date().toLocaleDateString('vi-VN'),
+              topic: toolboxForm.topic!, conducted_by: toolboxForm.conducted_by!,
+              area: toolboxForm.area ?? '', attendees_count: toolboxForm.attendees_count ?? 0,
+              key_points: toolboxForm.key_points ?? '',
+              created_at: new Date().toLocaleDateString('vi-VN'),
+            };
+            setToolboxTalks(prev => { const next = [newTB, ...prev]; db.set('hse_toolbox', _hse_pid, next); return next; });
+            setShowToolboxForm(false);
+            setToolboxForm({ date: new Date().toLocaleDateString('vi-VN'), created_at: new Date().toLocaleDateString('vi-VN'), attendees_count: 0 });
+            notifOk('Đã lưu Toolbox Talk!');
+          }} label="Lưu"/>
+        </>}
+      >
+        <FormGrid cols={2}>
+          <FormRow label="Chủ đề *"><input className={inputCls} value={toolboxForm.topic ?? ''} onChange={e => setToolboxForm(p => ({...p, topic: e.target.value}))}/></FormRow>
+          <FormRow label="Người thực hiện *"><input className={inputCls} value={toolboxForm.conducted_by ?? ''} onChange={e => setToolboxForm(p => ({...p, conducted_by: e.target.value}))}/></FormRow>
+          <FormRow label="Khu vực"><input className={inputCls} value={toolboxForm.area ?? ''} onChange={e => setToolboxForm(p => ({...p, area: e.target.value}))}/></FormRow>
+          <FormRow label="Số người tham dự"><input type="number" className={inputCls} value={toolboxForm.attendees_count ?? 0} onChange={e => setToolboxForm(p => ({...p, attendees_count: +e.target.value}))}/></FormRow>
+          <FormRow label="Nội dung chính" className="col-span-2"><textarea className={inputCls} rows={3} value={toolboxForm.key_points ?? ''} onChange={e => setToolboxForm(p => ({...p, key_points: e.target.value}))}/></FormRow>
+        </FormGrid>
+      </ModalForm>
 
       {printHSE && <HSEReportPrint
         data={{

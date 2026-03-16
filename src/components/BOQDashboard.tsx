@@ -15,7 +15,7 @@ import {
 } from 'recharts';
 import { genAI, GEM_MODEL } from './gemini';
 import { useNotification } from './NotificationEngine';
-import { db } from './db';
+import { db, useRealtimeSync } from './db';
 import type { DashboardProps } from './types';
 import {
   type BOQItem, type RateItem,
@@ -76,6 +76,16 @@ export default function BOQDashboard({ project }: DashboardProps) {
       setDbLoaded(true);
     })();
   }, [pid]);
+
+  // ── Realtime sync ──────────────────────────────────────────────────────────
+  useRealtimeSync(pid, ['boq_items', 'rate_library'], async () => {
+    const [items, rates] = await Promise.all([
+      db.get<BOQItem[]>('boq_items', pid, INIT_BOQ),
+      db.get<RateItem[]>('rate_library', pid, INIT_RATE_LIBRARY),
+    ]);
+    setBoqItems(items);
+    setRateLib(rates);
+  });
 
   // ── Persist ────────────────────────────────────────────────────────────────
   useEffect(() => { if (dbLoaded) db.set('boq_items', pid, boqItems); }, [boqItems, pid]);

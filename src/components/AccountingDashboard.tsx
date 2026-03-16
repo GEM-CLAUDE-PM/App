@@ -1,6 +1,6 @@
 import { useNotification } from './NotificationEngine';
 import React, { useState, useCallback, useEffect } from 'react';
-import { db } from './db';
+import { db, useRealtimeSync } from './db';
 import { getAllDocs, seedApprovalDocs, createDocument, submitDocument as engineSubmitDoc, getApprovalQueue, type ApprovalDoc } from './approvalEngine';
 import type { SeedVoucherInput } from './approvalEngine';
 import { createLegacyContext, WORKFLOWS, type UserContext } from './permissions';
@@ -346,6 +346,36 @@ export default function AccountingDashboard({ project, projectId }: Props) {
       }
     })();
   }, [projectId]);
+
+  // ── Realtime sync — reload khi mat_vouchers hoặc qs_payments thay đổi ────
+  useRealtimeSync(projectId ?? pid, ['mat_vouchers', 'qs_payments', 'acc_debts'], async () => {
+    const _pid = projectId ?? pid;
+    const vouchers = await db.get('mat_vouchers', _pid, []) as any[];
+    const approved = vouchers.filter((v: any) => v.status === 'approved');
+    setMatVouchers(approved);
+    const qsPayments = await db.get<any[]>('qs_payments', _pid, []);
+    const qsApproved = qsPayments.filter((p: any) => p.status === 'approved' || p.status === 'paid');
+    const qsDebts = qsApproved.map((p: any) => ({
+      id: `qs-${p.id}`,
+      name: 'Chủ đầu tư (QS)',
+      type: 'receivable' as const,
+      category: 'Thanh toán công trình',
+      total: +((p.net_payable || p.total || 0) / 1e9).toFixed(3),
+      paid: p.status === 'paid' ? +((p.net_payable || p.total || 0) / 1e9).toFixed(3) : 0,
+      status: (p.status === 'paid' ? 'paid' : 'current') as any,
+      dueDate: p.date || '--/--/----',
+      invoiceNo: p.request_no || p.id,
+      description: `${p.request_no} — ${p.period || 'Đề nghị thanh toán'}`,
+      contact: 'Xem tab QS',
+    }));
+    const savedDebts = await db.get('acc_debts', _pid, []) as any[];
+    setDebts(prev => {
+      const base = savedDebts.length ? savedDebts : prev;
+      const existingIds = new Set(base.map((d: any) => d.id));
+      const newOnes = qsDebts.filter((d: any) => !existingIds.has(d.id));
+      return newOnes.length ? [...base, ...newOnes] : base;
+    });
+  });
 
   // Persist debts khi thay đổi
   useEffect(() => {

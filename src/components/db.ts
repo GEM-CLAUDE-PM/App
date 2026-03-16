@@ -268,6 +268,19 @@ export const ProjectDB = {
   hseInspections: (pid: string) => ({ get: <T>(fb: T) => db.get<T>('hse_inspections', pid, fb), set: <T>(d:T, uid?:string) => db.set('hse_inspections', pid, d, uid) }),
   hseViolations:  (pid: string) => ({ get: <T>(fb: T) => db.get<T>('hse_violations',  pid, fb), set: <T>(d:T, uid?:string) => db.set('hse_violations',  pid, d, uid) }),
   hseWorkerCerts: (pid: string) => ({ get: <T>(fb: T) => db.get<T>('hse_worker_certs',pid, fb), set: <T>(d:T, uid?:string) => db.set('hse_worker_certs',pid, d, uid) }),
+  // HSE — PTW & Toolbox Talk (added S14)
+  hsePtws:        (pid: string) => ({ get: <T>(fb: T) => db.get<T>('hse_ptws',    pid, fb), set: <T>(d:T, uid?:string) => db.set('hse_ptws',    pid, d, uid) }),
+  hseToolbox:     (pid: string) => ({ get: <T>(fb: T) => db.get<T>('hse_toolbox', pid, fb), set: <T>(d:T, uid?:string) => db.set('hse_toolbox', pid, d, uid) }),
+
+  // Progress (added S14)
+  progressWbs:        (pid: string) => ({ get: <T>(fb: T) => db.get<T>('progress_wbs',        pid, fb), set: <T>(d:T, uid?:string) => db.set('progress_wbs',        pid, d, uid) }),
+  progressMilestones: (pid: string) => ({ get: <T>(fb: T) => db.get<T>('progress_milestones', pid, fb), set: <T>(d:T, uid?:string) => db.set('progress_milestones', pid, d, uid) }),
+
+  // Equipment (added S14)
+  eqMaintenance: (pid: string) => ({ get: <T>(fb: T) => db.get<T>('eq_maintenance', pid, fb), set: <T>(d:T, uid?:string) => db.set('eq_maintenance', pid, d, uid) }),
+
+  // Storage file metadata (added S14)
+  storageFiles: (pid: string) => ({ get: <T>(fb: T) => db.get<T>('storage_files', pid, fb), set: <T>(d:T, uid?:string) => db.set('storage_files', pid, d, uid) }),
 
   // Calendar & Contacts (global — pid = 'global' or userId)
   calendarEvents: (pid: string) => ({ get: <T>(fb: T) => db.get<T>('calendar_events', pid, fb), set: <T>(d:T, uid?:string) => db.set('calendar_events', pid, d, uid) }),

@@ -11,7 +11,7 @@ import {
   Star, Filter, Download, ArrowRight, Lock,
 } from 'lucide-react';
 import { useNotification } from './NotificationEngine';
-import { db } from './db';
+import { db, useRealtimeSync } from './db';
 import { getCurrentMember, buildCtxFromMember } from './projectMember';
 import { createDocument, submitDocument } from './approvalEngine';
 import type { DashboardProps } from './types';
@@ -85,6 +85,17 @@ export default function ProcurementDashboard({ project }: DashboardProps) {
   useEffect(() => { if (dbLoaded) db.set('procurement_quotes', pid, quotes); }, [quotes, pid]);
   useEffect(() => { if (dbLoaded) db.set('procurement_pos', pid, pos); }, [pos, pid]);
   useEffect(() => { if (dbLoaded) db.set('procurement_suppliers', pid, suppliers); }, [suppliers, pid]);
+
+  // ── Realtime sync ──────────────────────────────────────────────────────────
+  useRealtimeSync(pid, ['procurement_rfqs', 'procurement_quotes', 'procurement_pos', 'procurement_suppliers'], async () => {
+    const [r, q, p, s] = await Promise.all([
+      db.get<RFQ[]>('procurement_rfqs', pid, INIT_RFQS.map(rfq => ({ ...rfq, project_id: pid }))),
+      db.get<Quote[]>('procurement_quotes', pid, []),
+      db.get<PurchaseOrder[]>('procurement_pos', pid, INIT_POS),
+      db.get<Supplier[]>('procurement_suppliers', pid, INIT_SUPPLIERS),
+    ]);
+    setRfqs(r); setQuotes(q); setPOs(p); setSuppliers(s);
+  });
 
   // ── Computed ───────────────────────────────────────────────────────────────
   const currentMember = getCurrentMember(pid);

@@ -1,5 +1,5 @@
 import { useNotification } from './NotificationEngine';
-import React, { useState, useMemo } from 'react';
+import React, { useState, useRef, useMemo } from 'react';
 import { Truck, Wrench, Fuel, Activity, AlertTriangle, Plus, X, Save, Clock,
   CheckCircle2, CircleDashed, AlertCircle, Sparkles,
   TrendingUp, TrendingDown, BarChart2, Calendar, User, Eye,
@@ -7,10 +7,10 @@ import { Truck, Wrench, Fuel, Activity, AlertTriangle, Plus, X, Save, Clock,
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line } from 'recharts';
 import { createDocument, submitDocument, getApprovalQueue, type ApprovalDoc } from './approvalEngine';
 import { WORKFLOWS, type UserContext } from './permissions';
-import { getCurrentCtx } from './projectMember';
+import { getCurrentMember, buildCtxFromMember } from './projectMember';
 import ApprovalQueue from './ApprovalQueue';
 import { ClipboardList } from 'lucide-react';
-
+import { db, useRealtimeSync } from './db';
 import type { DashboardProps } from './types';
 
 type Props = DashboardProps & { readOnly?: boolean };
@@ -350,10 +350,16 @@ function TabNhatKy({ readOnly = false }: { readOnly?: boolean }) {
 }
 
 // ─── Sub-tab: Bảo dưỡng ──────────────────────────────────────────────────────
-function TabBaoDuong({ readOnly = false, onTriggerApproval, pendingCount = 0 }: { readOnly?: boolean; onTriggerApproval?: (title: string) => void; pendingCount?: number }) {
+function TabBaoDuong({ readOnly = false, onTriggerApproval, pendingCount = 0, maintItems, setMaintItems, pid }: {
+  readOnly?: boolean;
+  onTriggerApproval?: (title: string) => void;
+  pendingCount?: number;
+  maintItems: typeof MAINTENANCE_ITEMS;
+  setMaintItems: React.Dispatch<React.SetStateAction<typeof MAINTENANCE_ITEMS>>;
+  pid: string;
+}) {
   const { ok: notifOk, info: notifInfo } = useNotification();
   const [showForm, setShowForm] = useState(false);
-  const [maintItems, setMaintItems] = useState(MAINTENANCE_ITEMS);
   const overdue = maintItems.filter(m=>m.status==='overdue');
 
   return (
@@ -386,7 +392,11 @@ function TabBaoDuong({ readOnly = false, onTriggerApproval, pendingCount = 0 }: 
             <p className="text-xs text-rose-400 mt-1">Đã quá ngày {m.scheduledDate}</p>
           </div>
           <button onClick={() => {
-              setMaintItems(prev => prev.map(x => x.id === m.id ? {...x, status: 'in_progress'} : x));
+              setMaintItems(prev => {
+              const next = prev.map(x => x.id === m.id ? {...x, status: 'in_progress'} : x);
+              db.set('eq_maintenance', pid, next);
+              return next;
+            });
               notifOk('Đã bắt đầu xử lý bảo dưỡng quá hạn!');
             }} className="px-3 py-1.5 bg-rose-600 text-white rounded-lg text-xs font-semibold hover:bg-rose-700">Xử lý ngay</button>
         </div>
@@ -420,10 +430,18 @@ function TabBaoDuong({ readOnly = false, onTriggerApproval, pendingCount = 0 }: 
                 {m.status !== 'done' && (
                   <button onClick={() => {
                       if (m.status === 'in_progress') {
-                        setMaintItems(prev => prev.map(x => x.id === m.id ? {...x, status: 'done'} : x));
+                        setMaintItems(prev => {
+                          const next = prev.map(x => x.id === m.id ? {...x, status: 'done'} : x);
+                          db.set('eq_maintenance', pid, next);
+                          return next;
+                        });
                         notifOk('Đã hoàn thành bảo dưỡng!');
                       } else {
-                        setMaintItems(prev => prev.map(x => x.id === m.id ? {...x, status: 'in_progress'} : x));
+                        setMaintItems(prev => {
+                          const next = prev.map(x => x.id === m.id ? {...x, status: 'in_progress'} : x);
+                          db.set('eq_maintenance', pid, next);
+                          return next;
+                        });
                         notifInfo('Đã bắt đầu bảo dưỡng!');
                       }
                     }} className="px-3 py-1.5 bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-lg text-xs font-semibold hover:bg-emerald-100 shrink-0">
@@ -690,7 +708,26 @@ export default function EquipmentDashboard({ project: selectedProject, readOnly 
   const [subTab, setSubTab] = useState<'list'|'logs'|'maintenance'|'fuel'|'incidents'>('list');
 
   const pid  = selectedProject?.id ?? 'p1';
-  const ctx: UserContext = useMemo(() => getCurrentCtx(pid), [pid]);
+  const currentMember = getCurrentMember(pid);
+  const ctx: UserContext = useMemo(() => buildCtxFromMember(currentMember), [currentMember]);
+  const dbLoaded = useRef(false);
+
+  // ── maintItems — lifted from TabBaoDuong → persisted via db.ts ───────────
+  const [maintItems, setMaintItems] = useState(MAINTENANCE_ITEMS);
+
+  React.useEffect(() => {
+    dbLoaded.current = false;
+    db.get<typeof MAINTENANCE_ITEMS>('eq_maintenance', pid, MAINTENANCE_ITEMS)
+      .then(data => { setMaintItems(data); })
+      .catch(e => { console.warn('[EquipmentDashboard] load error:', e); })
+      .finally(() => { dbLoaded.current = true; });
+  }, [pid]);
+
+  useRealtimeSync(pid, ['eq_maintenance'], async () => {
+    const data = await db.get<typeof MAINTENANCE_ITEMS>('eq_maintenance', pid, MAINTENANCE_ITEMS);
+    setMaintItems(data);
+  });
+
   const [showApprovalPanel, setShowApprovalPanel] = useState(false);
   const [eqApprovalQueue, setEqApprovalQueue] = useState<ApprovalDoc[]>(() => getApprovalQueue(pid, ctx));
 
@@ -765,7 +802,7 @@ export default function EquipmentDashboard({ project: selectedProject, readOnly 
       {/* Content */}
       {subTab === 'list'        && <TabDanhSach onSelectEquip={()=>setSubTab('logs')}/>}
       {subTab === 'logs'        && <TabNhatKy readOnly={readOnly}/>}
-      {subTab === 'maintenance' && <TabBaoDuong readOnly={readOnly} onTriggerApproval={(title) => triggerEqDoc(title)} pendingCount={eqApprovalQueue.length}/>}
+      {subTab === 'maintenance' && <TabBaoDuong readOnly={readOnly} onTriggerApproval={(title) => triggerEqDoc(title)} pendingCount={eqApprovalQueue.length} maintItems={maintItems} setMaintItems={setMaintItems} pid={pid}/>}
       {subTab === 'fuel'        && <TabNhienLieu readOnly={readOnly}/>}
       {subTab === 'incidents'   && <TabSuCo readOnly={readOnly}/>}
       {/* ── APPROVAL QUEUE DRAWER ── */}

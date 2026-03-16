@@ -20,6 +20,7 @@ import {
   Check, Link, Copy, Archive, Zap, Building2,
 } from 'lucide-react';
 
+import { db } from './db';
 import type { DashboardProps } from './types';
 
 type Props = DashboardProps;
@@ -250,9 +251,15 @@ export default function StorageDashboard({ project }: Props) {
   }));
 
   const handleDelete = async (f: StorageFile) => {
-    await StorageService.deleteFile(projectId, f.category, f.name);
-    setFiles(p => p.filter(x => x.id !== f.id));
+    const err = await StorageService.deleteFile(projectId, f.category, f.name);
+    if (err) { notifErr(`❌ Xóa file thất bại: ${err}`); return; }
+    setFiles(p => {
+      const next = p.filter(x => x.id !== f.id);
+      db.set('storage_files', projectId, next);
+      return next;
+    });
     setConfirmDelete(null);
+    notifOk(`✅ Đã xóa: ${f.name}`);
   };
 
   const handleDownload = async (f: StorageFile) => {
@@ -338,7 +345,13 @@ export default function StorageDashboard({ project }: Props) {
           <UploadZone
             projectId={projectId}
             uploadedBy={user?.full_name ?? 'Người dùng'}
-            onUploaded={f => { setFiles(p => [f, ...p]); }}
+            onUploaded={f => {
+              setFiles(p => {
+                const next = [f, ...p];
+                db.set('storage_files', projectId, next);
+                return next;
+              });
+            }}
           />
         </div>
       )}

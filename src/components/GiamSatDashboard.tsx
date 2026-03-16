@@ -1,4 +1,4 @@
-import { db } from "./db";
+import { db, useRealtimeSync } from "./db";
 import { useNotification } from './NotificationEngine';
 import ModalForm, { FormRow, FormGrid, FormSection, inputCls, selectCls, BtnCancel, BtnSubmit } from './ModalForm';
 import React, { useState, useEffect, useRef, useMemo } from 'react';
@@ -245,6 +245,18 @@ export default function GiamSatDashboard({ project }: Props) {
       if ((d as any[]).length) setDrawings(d as any);
     })();
   }, [pid]);
+
+  // ── Realtime sync ──────────────────────────────────────────────────────────
+  useRealtimeSync(pid, ['gs_logs', 'gs_rfi', 'gs_drawings'], async () => {
+    const [l, r, d] = await Promise.all([
+      db.get('gs_logs',     pid, SEED_LOGS),
+      db.get('gs_rfi',      pid, SEED_RFI),
+      db.get('gs_drawings', pid, SEED_DRAWINGS),
+    ]);
+    if ((l as any[]).length) setLogs(l as any);
+    if ((r as any[]).length) setRfis(r as any);
+    if ((d as any[]).length) setDrawings(d as any);
+  });
 
   // ── Approval wiring ─────────────────────────────────────────────────────────
   const refreshGsQueue = React.useCallback(() => {

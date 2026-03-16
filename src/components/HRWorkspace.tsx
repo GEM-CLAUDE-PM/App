@@ -13,6 +13,7 @@ import { genAI, GEM_MODEL, GEM_MODEL_QUALITY } from './gemini';
 
 import type { DashboardProps } from './types';
 import PayrollTab from './PayrollTab';
+import { db, useRealtimeSync } from './db';
 
 type HRProps = DashboardProps;
 
@@ -135,12 +136,10 @@ export default function HRWorkspace({ project: selectedProject, projectId: proje
 
   // ── State ─────────────────────────────────────────────────────
   // ── HR data layer — uses db.ts key format for Supabase compatibility ──
-  const lsKeyHR = (col: string) => `gem_db__${col}__${projectIdProp || 'default'}`;
-  const loadHR = <T,>(col: string, seed: T[]): T[] => {
-    try { const s = localStorage.getItem(lsKeyHR(col)); return s ? JSON.parse(s) : seed; } catch { return seed; }
-  };
+  // ── HR data layer — db.ts (Supabase + localStorage cache) ──────────────
+  const dbLoaded = useRef(false);
   const saveHR = <T,>(col: string, data: T[]) => {
-    try { localStorage.setItem(lsKeyHR(col), JSON.stringify(data)); } catch {}
+    db.set(col, projectId, data);
   };
 
   // ── Approval wiring ──────────────────────────────────────────────────────
@@ -178,10 +177,47 @@ export default function HRWorkspace({ project: selectedProject, projectId: proje
   // ── /Approval wiring ──────────────────────────────────────────────────────
 
   const [hrTab, setHrTab]         = React.useState<'overview'|'employees'|'contracts'|'leaves'|'evaluations'|'payroll'>('overview');
-  const [employees, setEmployees]   = React.useState<Employee[]>(() => loadHR(HR_KEYS.EMPLOYEES, SEED_EMPS));
-  const [contracts, setContracts]   = React.useState<LaborContract[]>(() => loadHR(HR_KEYS.CONTRACTS, SEED_CONTRACTS));
-  const [leaves, setLeaves]         = React.useState<LeaveRequest[]>(() => loadHR(HR_KEYS.LEAVES, SEED_LEAVES));
-  const [evaluations, setEvaluations] = React.useState<Evaluation[]>(() => loadHR(HR_KEYS.EVALUATIONS, SEED_EVALS));
+  const [employees, setEmployees]   = React.useState<Employee[]>(SEED_EMPS);
+  const [contracts, setContracts]   = React.useState<LaborContract[]>(SEED_CONTRACTS);
+  const [leaves, setLeaves]         = React.useState<LeaveRequest[]>(SEED_LEAVES);
+  const [evaluations, setEvaluations] = React.useState<Evaluation[]>(SEED_EVALS);
+
+  // ── Load from db on mount ────────────────────────────────────────────────
+  React.useEffect(() => {
+    dbLoaded.current = false;
+    (async () => {
+      try {
+        const [emps, ctrcts, lvs, evals] = await Promise.all([
+          db.get<Employee[]>(HR_KEYS.EMPLOYEES, projectId, SEED_EMPS),
+          db.get<LaborContract[]>(HR_KEYS.CONTRACTS, projectId, SEED_CONTRACTS),
+          db.get<LeaveRequest[]>(HR_KEYS.LEAVES, projectId, SEED_LEAVES),
+          db.get<Evaluation[]>(HR_KEYS.EVALUATIONS, projectId, SEED_EVALS),
+        ]);
+        setEmployees(emps);
+        setContracts(ctrcts);
+        setLeaves(lvs);
+        setEvaluations(evals);
+      } catch (e) {
+        console.warn('[HRWorkspace] load error, dùng seed data:', e);
+      } finally {
+        dbLoaded.current = true;
+      }
+    })();
+  }, [projectId]);
+
+  // ── Realtime sync ────────────────────────────────────────────────────────
+  useRealtimeSync(projectId, [HR_KEYS.EMPLOYEES, HR_KEYS.CONTRACTS, HR_KEYS.LEAVES, HR_KEYS.EVALUATIONS], async () => {
+    const [emps, ctrcts, lvs, evals] = await Promise.all([
+      db.get<Employee[]>(HR_KEYS.EMPLOYEES, projectId, SEED_EMPS),
+      db.get<LaborContract[]>(HR_KEYS.CONTRACTS, projectId, SEED_CONTRACTS),
+      db.get<LeaveRequest[]>(HR_KEYS.LEAVES, projectId, SEED_LEAVES),
+      db.get<Evaluation[]>(HR_KEYS.EVALUATIONS, projectId, SEED_EVALS),
+    ]);
+    setEmployees(emps);
+    setContracts(ctrcts);
+    setLeaves(lvs);
+    setEvaluations(evals);
+  });
 
   const [selectedEmp, setSelectedEmp] = React.useState<Employee|null>(null);
   const [showEmpForm, setShowEmpForm]   = React.useState(false);
