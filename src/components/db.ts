@@ -59,8 +59,8 @@ import { getSupabase } from './supabase';
 const USE_REAL = () => (import.meta as any).env?.VITE_USE_SUPABASE === 'true';
 
 // ─── Optimistic locking — version cache ──────────────────────────────────────
-// Lưu updated_at của lần đọc cuối cùng cho mỗi (collection, projectId).
-// Khi ghi, so sánh với server → nếu lệch → conflict.
+// Lưu updated_at server của lần đọc/ghi cuối cùng cho mỗi (collection, projectId).
+// Khi ghi, so sánh với server → nếu lệch → thiết bị khác đã ghi → conflict.
 const _versionCache = new Map<string, string>();
 function _vkey(collection: string, projectId: string) {
   return `${projectId}::${collection}`;
@@ -124,7 +124,10 @@ async function sbGet<T>(collection: string, projectId: string, fallback: T): Pro
     if (!data) return fallback;
     // Cache updated_at để dùng cho optimistic locking khi sbSet
     if (data.updated_at) _setVersion(collection, projectId, data.updated_at);
-    return (data.payload ?? fallback) as T;
+    // Sync server data về localStorage → UI luôn thấy data mới nhất
+    const serverPayload = (data.payload ?? fallback) as T;
+    lsSet(collection, projectId, serverPayload);
+    return serverPayload;
   } catch {
     return lsGet(collection, projectId, fallback);
   }
@@ -136,7 +139,7 @@ async function sbSet<T>(collection: string, projectId: string, payload: T, userI
   try {
     const knownVersion = _getVersion(collection, projectId);
 
-    // ── Optimistic locking: nếu đã từng đọc, kiểm tra server version ──
+    // ── Optimistic locking: chỉ check khi đã từng đọc từ server ──
     if (knownVersion) {
       const { data: current, error: checkErr } = await sb
         .from('project_data')
@@ -145,8 +148,8 @@ async function sbSet<T>(collection: string, projectId: string, payload: T, userI
         .eq('collection', collection)
         .maybeSingle();
 
+      // Nếu không có row trên server → không conflict (collection mới)
       if (!checkErr && current?.updated_at && current.updated_at !== knownVersion) {
-        // Server đã bị cập nhật bởi thiết bị khác → throw ConflictError
         throw {
           type: 'CONFLICT',
           collection,
@@ -157,18 +160,20 @@ async function sbSet<T>(collection: string, projectId: string, payload: T, userI
 
     // ── Ghi dữ liệu mới ──
     const now = new Date().toISOString();
-    const { error } = await sb.from('project_data').upsert(
+    const { data: upserted, error } = await sb.from('project_data').upsert(
       { project_id: projectId, collection, payload, updated_at: now, updated_by: userId ?? null },
       { onConflict: 'project_id,collection' }
-    );
+    ).select('updated_at').maybeSingle();
+
     if (error) {
       console.warn('[db] Supabase write error:', error.message);
       return;
     }
-    // Cập nhật cache version sau khi ghi thành công
-    _setVersion(collection, projectId, now);
+    // Dùng updated_at từ server thật (trigger có thể override now())
+    const serverTs = upserted?.updated_at ?? now;
+    _setVersion(collection, projectId, serverTs);
   } catch (e) {
-    if (isConflictError(e)) throw e; // re-throw để caller xử lý
+    if (isConflictError(e)) throw e;
     console.warn('[db] Supabase unreachable, data saved to localStorage only');
   }
 }
@@ -223,9 +228,11 @@ export const db = {
     } catch (e) {
       if (isConflictError(e)) {
         // Auto re-fetch data mới nhất từ server → sync về localStorage
+        // Đồng thời update _versionCache với version mới nhất
         try {
           const serverData = await sbGet(collection, projectId, data);
           lsSet(collection, projectId, serverData);
+          // sbGet đã update _versionCache → lần save tiếp theo sẽ không conflict
         } catch { /* ignore fetch error */ }
 
         // Dispatch global event → toast thông báo user
