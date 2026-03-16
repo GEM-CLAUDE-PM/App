@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react'
+import ReactDOM from 'react-dom';
 import { db } from './db';
 import { useNotification } from './NotificationEngine';
 import { LayoutDashboard, Folder, TrendingUp, Clock, HardDrive, CheckCircle2, Lock, FileText, Image as ImageIcon, Files, ClipboardList, ExternalLink, BookOpen, UploadCloud, Loader2, Plus, Printer, Users, HardHat, Camera, ShieldAlert, Sun, MessageCircle, Network, HeartPulse, AlertTriangle, Mic, Edit3, Unlock, X, Award, Target, GraduationCap, Briefcase, ChevronRight, ArrowRight, Building2, CheckCircle, CircleDashed, ArrowLeft, ChevronDown, Cloud, Download, Eye, MoreVertical, ChevronLeft, Calendar, ShieldCheck, Trash2, Sparkles, User, Info, ChevronUp, Wrench, Truck, Fuel, Activity, Zap, Settings, AlertCircle, Search, Scan, FileSpreadsheet, Save, Calculator, Copy, Bell, Package, ShoppingCart } from 'lucide-react';
@@ -77,6 +78,7 @@ interface ProjectDashboardProps {
   showHseForm: boolean;
   onBackToList?: () => void;
   onPushNotification?: (notif: any) => void;
+  onRequestNewProject?: () => void;
 }
 
 export default function ProjectDashboard({
@@ -84,7 +86,7 @@ export default function ProjectDashboard({
   generateWeeklyReport, setShowRecordForm, setRecordType,
   setShowProfileForm, setShowHseForm, isGeneratingReport, generatedReport,
   showRecordForm, recordType, recordData, setRecordData, isGeneratingRecord, generateGemRecord,
-  showProfileForm, showHseForm, onBackToList, onPushNotification
+  showProfileForm, showHseForm, onBackToList, onPushNotification, onRequestNewProject
 }: ProjectDashboardProps) {
   const { ok: notifOk, info: notifInfo } = useNotification();
   const [activeTab, setActiveTab] = useState(initialTab || 'overview');
@@ -1139,7 +1141,8 @@ export default function ProjectDashboard({
       : 'single';
 
     return (
-      <><div className="space-y-6 animate-in fade-in duration-300">
+      <>{/* list-view-root */}
+      <div className="space-y-6 animate-in fade-in duration-300">
 
         {/* ── Scope restriction banner (L3 trở xuống) ── */}
         {scopeType !== 'all' && (
@@ -1235,7 +1238,7 @@ export default function ProjectDashboard({
             </select>
             <button onClick={() => setSortAsc(v => !v)} className="p-2 bg-slate-100 rounded-xl text-slate-600 hover:bg-slate-200 transition-colors text-xs font-bold">{sortAsc ? '↑' : '↓'}</button>
           </div>
-          <button onClick={() => setShowSetupWizard(true)}
+          <button onClick={() => onRequestNewProject ? onRequestNewProject() : setShowSetupWizard(true)}
             className="flex items-center gap-1.5 px-3 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-semibold transition-colors shadow-sm shrink-0">
             <Plus size={13}/> Dự án mới
           </button>
@@ -1285,8 +1288,8 @@ export default function ProjectDashboard({
         )}
       </div>
 
-      {/* ── Project Setup Wizard — render trong list view ── */}
-      {showSetupWizard && (
+      {/* Wizard portal — thoát khỏi overflow-y-auto của <main> */}
+      {showSetupWizard && ReactDOM.createPortal(
         <ProjectSetupWizard
           onCancel={() => setShowSetupWizard(false)}
           onConfirm={(newProject: NewProjectData) => {
@@ -1297,9 +1300,10 @@ export default function ProjectDashboard({
             setShowSetupWizard(false);
             setTimeout(() => autoAssignMemberOnSeed(newProject.id), 100);
           }}
-        />
+        />,
+        document.body
       )}
-    </>
+      </>
     );
   }
 
@@ -1930,8 +1934,8 @@ export default function ProjectDashboard({
         />
       )}
 
-      {/* ── Project Setup Wizard ── */}
-      {showSetupWizard && (
+      {/* Wizard portal — render thẳng vào document.body, thoát khỏi mọi overflow/stacking context */}
+      {showSetupWizard && ReactDOM.createPortal(
         <ProjectSetupWizard
           onCancel={() => setShowSetupWizard(false)}
           onConfirm={(newProject: NewProjectData) => {
@@ -1940,12 +1944,12 @@ export default function ProjectDashboard({
             setLocalProjectId(newProject.id);
             setActiveTab('overview');
             setShowSetupWizard(false);
-            setShowTutorial(false); // skip old tutorial
-            // Auto-assign members vào scope sau khi seed
             setTimeout(() => autoAssignMemberOnSeed(newProject.id), 100);
           }}
-        />
+        />,
+        document.body
       )}
+
     </div>
   );
 }
