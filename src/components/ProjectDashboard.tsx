@@ -1288,7 +1288,7 @@ export default function ProjectDashboard({
   }
 
   return (
-    <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-3 md:p-6 lg:p-8 animate-in slide-in-from-right-4 duration-300">
+    <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-3 md:p-6 lg:p-8 animate-in fade-in duration-200">
 
       {/* ── PIN Dialog Overlay ──────────────────────────────────────────── */}
       {showPinDialog && (
