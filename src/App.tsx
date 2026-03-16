@@ -22,6 +22,7 @@ import {
   ClipboardList,
   Loader2,
   Shield,
+  CreditCard,
 } from "lucide-react";
 import ChatAssistant from "./components/ChatAssistant";
 import ProjectDashboard from "./components/ProjectDashboard";
@@ -34,6 +35,8 @@ import { NotificationProvider, useNotification } from "./components/Notification
 import AdminPanel from "./components/AdminPanel";
 import SubconPortal from "./components/SubconPortal";
 import ClientPortal from "./components/ClientPortal";
+import BillingPage from "./components/BillingPage";
+import OnboardingFlow from "./components/OnboardingFlow";
 import SplashScreen from "./components/SplashScreen";
 import { PWAManager } from "./components/PWABanner";
 import { useOfflineQueue, OfflineQueuePanel } from "./components/useOfflineQueue";
@@ -68,6 +71,10 @@ function AppInner() {
   if (user?.job_role === 'chu_dau_tu') return <ClientPortal />;
 
   const isAdmin = user?.tier === "admin" || user?.job_role === "giam_doc";
+  const isFirstLogin = user && !localStorage.getItem(`gem_onboarded_${user.id}`);
+  const [showOnboarding, setShowOnboarding] = React.useState(() =>
+    !!(user && !localStorage.getItem(`gem_onboarded_${user.id}`))
+  );
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [activeTab, setActiveTab] = useState("dashboard");
   const [workspaceOpen, setWorkspaceOpen] = useState(false);
@@ -319,6 +326,7 @@ function AppInner() {
     { id: "tasks", label: "Dự án & Công việc", icon: CheckSquare },
     { id: "calendar", label: "Lịch trình", icon: Calendar },
     { id: "contacts", label: "Đối tác liên hệ", icon: Users },
+    { id: "billing", label: "Gói dịch vụ", icon: CreditCard },
     ...(isAdmin ? [{ id: "admin", label: "Quản lý User", icon: Shield }] : []),
   ];
 
@@ -556,6 +564,8 @@ function AppInner() {
             <Contacts />
           ) : activeTab === "calendar" ? (
             <CalendarSchedule />
+          ) : activeTab === "billing" ? (
+            <BillingPage onClose={() => setActiveTab("dashboard")} />
           ) : activeTab === "admin" && isAdmin ? (
             <AdminPanel currentUserId={user?.id ?? ""} />
           ) : (
@@ -759,6 +769,23 @@ function AppInner() {
       <input type="file" ref={fileInputRef} className="hidden" onChange={() => notifInfo("Đã nhận file!")} />
       {/* Dev Testing Checklist — tự ẩn khi PROD */}
       <DevChecklist />
+
+      {/* Onboarding — trigger lần đầu login */}
+      {showOnboarding && user && (
+        <OnboardingFlow
+          onComplete={({ company, project }) => {
+            localStorage.setItem(`gem_onboarded_${user.id}`, '1');
+            if (company.name) localStorage.setItem('gem_company_name', company.name);
+            setShowOnboarding(false);
+            setActiveTab('tasks');
+            notifOk(`🎉 Chào mừng ${company.name || 'anh'} đến với GEM & CLAUDE PM Pro!`);
+          }}
+          onSkip={() => {
+            localStorage.setItem(`gem_onboarded_${user.id}`, '1');
+            setShowOnboarding(false);
+          }}
+        />
+      )}
     </div>
   );
 }
