@@ -1,6 +1,7 @@
 import { useNotification } from './NotificationEngine';
 import React, { useState, useCallback, useEffect } from 'react';
 import { db, useRealtimeSync } from './db';
+import ModalForm, { FormRow, FormGrid, inputCls, selectCls, BtnCancel, BtnSubmit } from './ModalForm';
 import { getAllDocs, seedApprovalDocs, createDocument, submitDocument as engineSubmitDoc, getApprovalQueue, type ApprovalDoc } from './approvalEngine';
 import type { SeedVoucherInput } from './approvalEngine';
 import { createLegacyContext, WORKFLOWS, type UserContext } from './permissions';
@@ -248,6 +249,7 @@ export default function AccountingDashboard({ project, projectId }: Props) {
   const [debtFilter, setDebtFilter] = useState<'all'|DebtType>('all');
   const [expandedId, setExpandedId] = useState<string|null>(null);
   const [showForm, setShowForm] = useState(false);
+  const [debtForm, setDebtForm] = useState<Partial<DebtItem & {type: string}>>({});
   const [gemLoading, setGemLoading] = useState(false);
   const [gemText, setGemText] = useState('');
   const [showGem, setShowGem] = useState(false);
@@ -754,18 +756,75 @@ export default function AccountingDashboard({ project, projectId }: Props) {
         </div>
       )}
 
-      {showForm && (
-        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg p-6">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="font-bold text-slate-800 flex items-center gap-2"><DollarSign size={16} className="text-teal-600"/>Thêm công nợ mới</h3>
-              <button onClick={()=>setShowForm(false)} className="p-1.5 hover:bg-slate-100 rounded-lg"><X size={18}/></button>
-            </div>
-            <p className="text-sm text-slate-500 text-center py-8">Form tạo công nợ — coming soon ✨</p>
-            <button onClick={()=>setShowForm(false)} className="w-full px-4 py-2.5 bg-slate-100 text-slate-700 rounded-xl text-sm font-semibold">Đóng</button>
-          </div>
-        </div>
-      )}
+      <ModalForm
+        open={showForm}
+        onClose={() => setShowForm(false)}
+        title="Thêm công nợ mới"
+        subtitle="Ghi nhận khoản phải thu / phải trả"
+        icon={<DollarSign size={18}/>}
+        color="teal"
+        width="md"
+        footer={<>
+          <BtnCancel onClick={() => setShowForm(false)}/>
+          <BtnSubmit label="Lưu công nợ" onClick={() => {
+            if (!debtForm.name?.trim())  { notifErr('Vui lòng nhập tên đối tác!'); return; }
+            if (!debtForm.total || debtForm.total <= 0) { notifErr('Vui lòng nhập giá trị công nợ!'); return; }
+            const newDebt: DebtItem = {
+              id: 'debt_' + Date.now(),
+              name: debtForm.name!,
+              type: debtForm.type as DebtType ?? 'payable',
+              category: debtForm.category ?? 'Chi phí khác',
+              total: debtForm.total!,
+              paid: 0,
+              status: 'current' as DebtStatus,
+              dueDate: debtForm.dueDate ?? '--/--/----',
+              invoiceNo: debtForm.invoiceNo ?? '',
+              description: debtForm.description ?? '',
+              contact: debtForm.contact ?? '',
+            };
+            setDebts(prev => {
+              const next = [newDebt, ...prev];
+              if (pid) db.set('acc_debts', pid, next);
+              return next;
+            });
+            setDebtForm({});
+            setShowForm(false);
+            notifOk('Đã thêm công nợ!');
+          }}/>
+        </>}
+      >
+        <FormGrid cols={2}>
+          <FormRow label="Tên đối tác *" className="col-span-2">
+            <input className={inputCls} placeholder="VD: NTP Phúc Thành" value={debtForm.name ?? ''} onChange={e => setDebtForm(p => ({...p, name: e.target.value}))}/>
+          </FormRow>
+          <FormRow label="Loại">
+            <select className={selectCls} value={debtForm.type ?? 'payable'} onChange={e => setDebtForm(p => ({...p, type: e.target.value}))}>
+              <option value="payable">Phải trả (NTP/NCC)</option>
+              <option value="receivable">Phải thu (Chủ đầu tư)</option>
+            </select>
+          </FormRow>
+          <FormRow label="Danh mục">
+            <select className={selectCls} value={debtForm.category ?? 'Chi phí khác'} onChange={e => setDebtForm(p => ({...p, category: e.target.value}))}>
+              {['Vật tư & thiết bị','Nhân công','Thanh toán công trình','Chi phí khác'].map(c => <option key={c}>{c}</option>)}
+            </select>
+          </FormRow>
+          <FormRow label="Giá trị (tỷ VNĐ) *">
+            <input type="number" step="0.001" className={inputCls} placeholder="0.000" value={debtForm.total ?? ''} onChange={e => setDebtForm(p => ({...p, total: +e.target.value}))}/>
+          </FormRow>
+          <FormRow label="Hạn thanh toán">
+            <input className={inputCls} placeholder="DD/MM/YYYY" value={debtForm.dueDate ?? ''} onChange={e => setDebtForm(p => ({...p, dueDate: e.target.value}))}/>
+          </FormRow>
+          <FormRow label="Số hóa đơn / Hợp đồng">
+            <input className={inputCls} placeholder="VD: HĐ-2026/001" value={debtForm.invoiceNo ?? ''} onChange={e => setDebtForm(p => ({...p, invoiceNo: e.target.value}))}/>
+          </FormRow>
+          <FormRow label="Liên hệ">
+            <input className={inputCls} placeholder="Tên / SĐT người phụ trách" value={debtForm.contact ?? ''} onChange={e => setDebtForm(p => ({...p, contact: e.target.value}))}/>
+          </FormRow>
+          <FormRow label="Ghi chú" className="col-span-2">
+            <input className={inputCls} value={debtForm.description ?? ''} onChange={e => setDebtForm(p => ({...p, description: e.target.value}))}/>
+          </FormRow>
+        </FormGrid>
+      </ModalForm>
       {/* ── APPROVAL QUEUE DRAWER ── */}
       {showApprovalPanel && (
         <div className="fixed inset-0 z-50 flex justify-end">

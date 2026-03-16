@@ -7,7 +7,7 @@ import {
   ClipboardList, MessageCircle, Files, LayoutDashboard,
   AlertTriangle, AlertCircle, ChevronRight, Plus, Search,
   X, Printer, Sparkles, Loader2, Eye, CheckCircle2, Calendar,
-  ChevronDown,
+  ChevronDown, RefreshCw,
 } from 'lucide-react';
 
 // ── Types — khai báo NGOÀI component ─────────────────────────────────────────
@@ -908,38 +908,7 @@ export default function GiamSatDashboard({ project }: Props) {
             </div>
           </div>
 
-          {showNewRevForm && (
-            <div className="bg-blue-50 border border-blue-200 rounded-2xl p-4 space-y-3">
-              <p className="text-sm font-bold text-blue-800">🔀 Thêm Revision mới</p>
-              <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
-                <select value={newRevDrawingId} onChange={e => setNewRevDrawingId(e.target.value)}
-                  className="text-xs border border-blue-200 rounded-xl px-3 py-2 bg-white focus:outline-none col-span-2 md:col-span-1">
-                  <option value="">-- Chọn bản vẽ --</option>
-                  {drawings.map(d => <option key={d.id} value={d.id}>{d.drawing_code} — {d.title}</option>)}
-                </select>
-                <input placeholder="Ký hiệu Rev (VD: D)" value={newRevCode} onChange={e => setNewRevCode(e.target.value)}
-                  className="text-xs border border-blue-200 rounded-xl px-3 py-2 bg-white focus:outline-none" />
-                <input placeholder="Người phát hành" value={newRevIssuer} onChange={e => setNewRevIssuer(e.target.value)}
-                  className="text-xs border border-blue-200 rounded-xl px-3 py-2 bg-white focus:outline-none" />
-              </div>
-              <input placeholder="Mô tả thay đổi trong revision này..." value={newRevDesc} onChange={e => setNewRevDesc(e.target.value)}
-                className="w-full text-xs border border-blue-200 rounded-xl px-3 py-2 bg-white focus:outline-none" />
-              <div className="flex justify-end gap-2">
-                <button onClick={() => setShowNewRevForm(false)} className="px-4 py-2 text-xs text-slate-600 bg-white border border-slate-200 rounded-xl">Huỷ</button>
-                <button onClick={() => {
-                  if (!newRevDrawingId || !newRevCode) return notifInfo('Chọn bản vẽ và nhập ký hiệu revision!');
-                  const today = new Date().toLocaleDateString('vi-VN');
-                  const updated = drawings.map(d => {
-                    if (d.id !== newRevDrawingId) return d;
-                    return { ...d, current_rev: newRevCode, revisions: [...d.revisions.map(r => ({ ...r, superseded: true })), { rev: newRevCode, date: today, description: newRevDesc || 'Cập nhật', issued_by: newRevIssuer || 'TK', superseded: false }] };
-                  });
-                  setDrawings(updated); saveGS('gs_drawings', updated);
-                  setShowNewRevForm(false); setNewRevCode(''); setNewRevDesc(''); setNewRevIssuer(''); setNewRevDrawingId('');
-                  notifInfo('Đã thêm revision mới!');
-                }} className="px-4 py-2 text-xs bg-blue-600 text-white rounded-xl font-bold hover:bg-blue-700">Lưu Revision</button>
-              </div>
-            </div>
-          )}
+
 
           <div className="space-y-3">
             {drawings.map(d => {
@@ -1088,6 +1057,43 @@ export default function GiamSatDashboard({ project }: Props) {
       )}
 
       {/* ── MODALS — end of component per DESIGN_SYSTEM ── */}
+
+      <ModalForm
+        open={showNewRevForm}
+        onClose={() => setShowNewRevForm(false)}
+        title="Thêm Revision bản vẽ"
+        subtitle="Cập nhật phiên bản mới nhất"
+        icon={<RefreshCw size={18}/>}
+        color="teal"
+        width="md"
+        footer={<>
+          <BtnCancel onClick={() => setShowNewRevForm(false)}/>
+          <BtnSubmit label="Lưu Revision" onClick={() => {
+            if (!newRevDrawingId) { notifErr('Vui lòng chọn bản vẽ!'); return; }
+            if (!newRevCode?.trim()) { notifErr('Vui lòng nhập ký hiệu revision!'); return; }
+            const today = new Date().toLocaleDateString('vi-VN');
+            const updated = drawings.map(d => {
+              if (d.id !== newRevDrawingId) return d;
+              return { ...d, current_rev: newRevCode, revisions: [...d.revisions.map(r => ({ ...r, superseded: true })), { rev: newRevCode, date: today, description: newRevDesc || 'Cập nhật', issued_by: newRevIssuer || 'TK', superseded: false }] };
+            });
+            setDrawings(updated); saveGS('gs_drawings', updated);
+            setShowNewRevForm(false); setNewRevCode(''); setNewRevDesc(''); setNewRevIssuer(''); setNewRevDrawingId('');
+            notifOk('Đã thêm revision mới!');
+          }}/>
+        </>}
+      >
+        <FormGrid cols={2}>
+          <FormRow label="Bản vẽ *" className="col-span-2">
+            <select className={selectCls} value={newRevDrawingId} onChange={e => setNewRevDrawingId(e.target.value)}>
+              <option value="">-- Chọn bản vẽ --</option>
+              {drawings.map(d => <option key={d.id} value={d.id}>{d.drawing_code} — {d.title}</option>)}
+            </select>
+          </FormRow>
+          <FormRow label="Ký hiệu Rev *"><input className={inputCls} placeholder="VD: D" value={newRevCode} onChange={e => setNewRevCode(e.target.value)}/></FormRow>
+          <FormRow label="Người phát hành"><input className={inputCls} placeholder="VD: TK Hùng" value={newRevIssuer} onChange={e => setNewRevIssuer(e.target.value)}/></FormRow>
+          <FormRow label="Mô tả thay đổi" className="col-span-2"><input className={inputCls} placeholder="Mô tả nội dung thay đổi..." value={newRevDesc} onChange={e => setNewRevDesc(e.target.value)}/></FormRow>
+        </FormGrid>
+      </ModalForm>
 
       <ModalForm open={showLogForm} onClose={() => setShowLogForm(false)}
       title="Tạo Nhật ký Giám sát"

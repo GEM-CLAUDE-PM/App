@@ -8,6 +8,7 @@
  */
 
 import React, { useState, useEffect, useCallback } from 'react';
+import ModalForm, { BtnCancel, BtnSubmit } from './ModalForm';
 import {
   Users, UserPlus, Trash2, Edit3, Save, X, Shield,
   Building2, ChevronDown, CheckCircle2, AlertCircle,
@@ -390,22 +391,25 @@ export default function AdminPanel({ currentUserId, onClose }: AdminPanelProps) 
       </div>
 
       {/* ── Create / Edit Form Modal ── */}
-      {showForm && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
-
-            {/* Modal header */}
-            <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100">
-              <h2 className="font-bold text-slate-900 flex items-center gap-2">
-                <UserPlus size={17} className="text-violet-600"/>
-                {editUser ? 'Chỉnh sửa người dùng' : 'Thêm người dùng mới'}
-              </h2>
-              <button onClick={() => setShowForm(false)} className="p-1.5 hover:bg-slate-100 rounded-lg">
-                <X size={16} className="text-slate-500"/>
-              </button>
-            </div>
-
-            <div className="px-6 py-5 space-y-4">
+      <ModalForm
+        open={showForm}
+        onClose={() => setShowForm(false)}
+        title={editUser ? 'Chỉnh sửa người dùng' : 'Thêm người dùng mới'}
+        subtitle={editUser ? 'Cập nhật thông tin tài khoản' : 'Tạo tài khoản và gán dự án'}
+        icon={<UserPlus size={18}/>}
+        color="violet"
+        width="md"
+        loading={saving}
+        footer={<>
+          <BtnCancel onClick={() => setShowForm(false)}/>
+          <BtnSubmit
+            label={editUser ? 'Lưu thay đổi' : 'Tạo tài khoản'}
+            loading={saving}
+            onClick={handleSave}
+          />
+        </>}
+      >
+        <div className="space-y-4">
 
               {/* Họ tên */}
               <div>
@@ -537,28 +541,8 @@ export default function AdminPanel({ currentUserId, onClose }: AdminPanelProps) 
                   })}
                 </div>
               </div>
-            </div>
-
-            {/* Modal footer */}
-            <div className="px-6 py-4 border-t border-slate-100 flex items-center justify-end gap-3">
-              <button
-                onClick={() => setShowForm(false)}
-                className="px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-100 rounded-xl transition-colors"
-              >
-                Hủy
-              </button>
-              <button
-                onClick={handleSave}
-                disabled={saving}
-                className="flex items-center gap-2 bg-violet-600 hover:bg-violet-700 disabled:opacity-50 text-white text-sm font-semibold px-5 py-2 rounded-xl transition-colors shadow-sm"
-              >
-                {saving ? <Loader2 size={14} className="animate-spin"/> : <Save size={14}/>}
-                {editUser ? 'Lưu thay đổi' : 'Tạo tài khoản'}
-              </button>
-            </div>
-          </div>
         </div>
-      )}
+      </ModalForm>
 
       {/* ── Toast ── */}
       {toast && (

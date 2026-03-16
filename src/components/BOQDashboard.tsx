@@ -16,6 +16,7 @@ import {
 import { genAI, GEM_MODEL } from './gemini';
 import { useNotification } from './NotificationEngine';
 import { db, useRealtimeSync } from './db';
+import ModalForm, { FormRow, FormGrid, FormSection, inputCls, selectCls, BtnCancel, BtnSubmit } from './ModalForm';
 import type { DashboardProps } from './types';
 import {
   type BOQItem, type RateItem,
@@ -283,7 +284,7 @@ export default function BOQDashboard({ project }: DashboardProps) {
   }, []);
 
   const addItem = useCallback(() => {
-    if (!newRow.name) return;
+    if (!newRow.name?.trim()) { notifErr('Vui lòng nhập tên hạng mục!'); return; }
     const item: BOQItem = {
       id: `item_${Date.now()}`,
       code: newRow.code || `HM-${nonChapter.length + 1}`,
@@ -295,11 +296,15 @@ export default function BOQDashboard({ project }: DashboardProps) {
       qty_done: 0,
       qty_plan_current: +(newRow.qty_contract!) * 0.3 || 0,
     };
-    setBoqItems(prev => [...prev, item]);
+    setBoqItems(prev => {
+      const next = [...prev, item];
+      if (dbLoaded) db.set('boq_items', pid, next);
+      return next;
+    });
     setNewRow({ chapter: 'C1', unit: 'm³' });
     setShowAddRow(false);
     notifOk('Đã thêm hạng mục!');
-  }, [newRow, nonChapter.length]);
+  }, [newRow, nonChapter.length, pid, dbLoaded]);
 
   // ── Apply rate from library ────────────────────────────────────────────────
   const applyRate = useCallback((rate: RateItem, itemId: string) => {
@@ -414,36 +419,7 @@ export default function BOQDashboard({ project }: DashboardProps) {
             </button>
           </div>
 
-          {/* Add row form */}
-          {showAddRow && (
-            <div className="bg-indigo-50 border border-indigo-200 rounded-2xl p-4">
-              <h3 className="font-bold text-indigo-800 text-sm mb-3">Thêm hạng mục mới</h3>
-              <div className="grid grid-cols-2 md:grid-cols-6 gap-2">
-                <input placeholder="Mã HM" value={newRow.code || ''} onChange={e => setNewRow(p => ({...p, code: e.target.value}))}
-                  className="border border-slate-200 rounded-lg px-2 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-indigo-200"/>
-                <input placeholder="Tên hạng mục *" value={newRow.name || ''} onChange={e => setNewRow(p => ({...p, name: e.target.value}))}
-                  className="col-span-2 border border-slate-200 rounded-lg px-2 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-indigo-200"/>
-                <select value={newRow.chapter} onChange={e => setNewRow(p => ({...p, chapter: e.target.value}))}
-                  className="border border-slate-200 rounded-lg px-2 py-1.5 text-xs bg-white">
-                  {CHAPTERS.map(ch => <option key={ch} value={ch}>{CHAPTER_NAMES[ch]}</option>)}
-                </select>
-                <input placeholder="Đơn vị" value={newRow.unit || ''} onChange={e => setNewRow(p => ({...p, unit: e.target.value}))}
-                  className="border border-slate-200 rounded-lg px-2 py-1.5 text-xs focus:outline-none"/>
-                <input type="number" placeholder="KL HĐ" value={newRow.qty_contract || ''} onChange={e => setNewRow(p => ({...p, qty_contract: +e.target.value}))}
-                  className="border border-slate-200 rounded-lg px-2 py-1.5 text-xs focus:outline-none"/>
-              </div>
-              <div className="flex gap-2 mt-3">
-                <button onClick={addItem}
-                  className="px-3 py-1.5 bg-indigo-600 text-white rounded-lg text-xs font-bold hover:bg-indigo-700 flex items-center gap-1">
-                  <Save size={11}/> Lưu
-                </button>
-                <button onClick={() => setShowAddRow(false)}
-                  className="px-3 py-1.5 bg-slate-200 text-slate-600 rounded-lg text-xs font-bold hover:bg-slate-300">
-                  Huỷ
-                </button>
-              </div>
-            </div>
-          )}
+
 
           {/* BOQ table by chapter */}
           {CHAPTERS.map(ch => {
@@ -732,6 +708,33 @@ export default function BOQDashboard({ project }: DashboardProps) {
           </div>
         </div>
       )}
+      {/* ── Thêm hạng mục — ModalForm theo DS 5.2 ─── */}
+      <ModalForm
+        open={showAddRow}
+        onClose={() => setShowAddRow(false)}
+        title="Thêm hạng mục BOQ"
+        subtitle="Bổ sung hạng mục vào bảng khối lượng"
+        icon={<Plus size={18}/>}
+        color="indigo"
+        width="md"
+        footer={<>
+          <BtnCancel onClick={() => setShowAddRow(false)}/>
+          <BtnSubmit label="Lưu hạng mục" onClick={addItem}/>
+        </>}
+      >
+        <FormGrid cols={2}>
+          <FormRow label="Mã hạng mục"><input className={inputCls} placeholder="VD: HM-01" value={newRow.code || ''} onChange={e => setNewRow(p => ({...p, code: e.target.value}))}/></FormRow>
+          <FormRow label="Tên hạng mục *" className="col-span-2"><input className={inputCls} placeholder="VD: Thi công móng cọc" value={newRow.name || ''} onChange={e => setNewRow(p => ({...p, name: e.target.value}))}/></FormRow>
+          <FormRow label="Chương">
+            <select className={selectCls} value={newRow.chapter} onChange={e => setNewRow(p => ({...p, chapter: e.target.value}))}>
+              {CHAPTERS.map(ch => <option key={ch} value={ch}>{CHAPTER_NAMES[ch]}</option>)}
+            </select>
+          </FormRow>
+          <FormRow label="Đơn vị"><input className={inputCls} placeholder="m³, m², tấn..." value={newRow.unit || ''} onChange={e => setNewRow(p => ({...p, unit: e.target.value}))}/></FormRow>
+          <FormRow label="Khối lượng HĐ"><input type="number" className={inputCls} placeholder="0" value={newRow.qty_contract || ''} onChange={e => setNewRow(p => ({...p, qty_contract: +e.target.value}))}/></FormRow>
+          <FormRow label="Đơn giá (đồng)"><input type="number" className={inputCls} placeholder="0" value={newRow.unit_price || ''} onChange={e => setNewRow(p => ({...p, unit_price: +e.target.value}))}/></FormRow>
+        </FormGrid>
+      </ModalForm>
     </div>
   );
 }

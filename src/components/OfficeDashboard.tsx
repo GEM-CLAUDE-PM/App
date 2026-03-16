@@ -14,6 +14,7 @@ import { WORKFLOWS, type UserContext } from './permissions';
 import { getCurrentCtx } from './projectMember';
 import ApprovalQueue from './ApprovalQueue';
 
+import ModalForm, { FormRow, FormGrid, FormSection, inputCls, selectCls, BtnCancel, BtnSubmit } from './ModalForm';
 import type { DashboardProps } from './types';
 
 type Props = DashboardProps;
@@ -313,57 +314,57 @@ function TabCongVan() {
       </div>
 
       {/* Create CV Modal */}
-      {showForm && (
-        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl p-6 max-h-[90vh] overflow-y-auto">
-            <div className="flex items-center justify-between mb-5">
-              <h3 className="text-lg font-bold text-slate-800 flex items-center gap-2"><Mail size={17} className="text-violet-600"/>Tạo công văn mới</h3>
-              <button onClick={()=>setShowForm(false)} className="p-1.5 hover:bg-slate-100 rounded-lg"><X size={18}/></button>
-            </div>
-            <div className="grid grid-cols-2 gap-4">
-              <div><label className="text-xs font-semibold text-slate-600 mb-1 block">Số hiệu CV</label><input placeholder="VD: CV-2026/004-GĐDA" value={newCV.so_cv} onChange={e=>setNewCV(p=>({...p,so_cv:e.target.value}))} className={inputCls}/></div>
-              <div><label className="text-xs font-semibold text-slate-600 mb-1 block">Loại</label>
-                <select value={newCV.direction} onChange={e=>setNewCV(p=>({...p,direction:e.target.value as CVDir}))} className={inputCls}>
-                  <option value="outbound">📤 Công văn đi</option><option value="inbound">📥 Công văn đến</option>
-                </select>
-              </div>
-              <div className="col-span-2"><label className="text-xs font-semibold text-slate-600 mb-1 block">Trích yếu</label><input placeholder="Nội dung trích yếu ngắn gọn" value={newCV.trich_yeu} onChange={e=>setNewCV(p=>({...p,trich_yeu:e.target.value}))} className={inputCls}/></div>
-              <div><label className="text-xs font-semibold text-slate-600 mb-1 block">Danh mục</label>
-                <select value={newCV.category} onChange={e=>setNewCV(p=>({...p,category:e.target.value}))} className={inputCls}>
-                  {['Kỹ thuật','Nghiệm thu','Báo cáo','Vật tư','Chỉ đạo','Hành chính'].map(c=><option key={c}>{c}</option>)}
-                </select>
-              </div>
-              <div><label className="text-xs font-semibold text-slate-600 mb-1 block">Độ ưu tiên</label>
-                <select value={newCV.priority} onChange={e=>setNewCV(p=>({...p,priority:e.target.value as any}))} className={inputCls}>
-                  <option value="normal">Thường</option><option value="urgent">Khẩn</option><option value="express">Hỏa tốc</option>
-                </select>
-              </div>
-              <div><label className="text-xs font-semibold text-slate-600 mb-1 block">Gửi / Nhận từ</label><input placeholder="VD: Ban QLDA → CHT" value={newCV.from_to} onChange={e=>setNewCV(p=>({...p,from_to:e.target.value}))} className={inputCls}/></div>
-              <div><label className="text-xs font-semibold text-slate-600 mb-1 block">Hạn xử lý</label><input placeholder="DD/MM/YYYY" value={newCV.deadline} onChange={e=>setNewCV(p=>({...p,deadline:e.target.value}))} className={inputCls}/></div>
-              <div className="col-span-2">
-                <div className="flex items-center justify-between mb-1">
-                  <label className="text-xs font-semibold text-slate-600">Nội dung công văn</label>
-                  <button onClick={draftWithGEM} disabled={gemLoading} className="flex items-center gap-1 px-2 py-1 bg-violet-100 text-violet-700 rounded-lg text-xs font-bold hover:bg-violet-200 disabled:opacity-50">
-                    {gemLoading?<Loader2 size={11} className="animate-spin"/>:<Sparkles size={11}/>} GEM soạn thảo
-                  </button>
-                </div>
-                <textarea rows={6} placeholder="Nhập nội dung hoặc dùng GEM soạn thảo tự động..." value={newCV.noi_dung} onChange={e=>setNewCV(p=>({...p,noi_dung:e.target.value}))} className={inputCls + " resize-none"}/>
-              </div>
-            </div>
-            <div className="flex gap-3 mt-5">
-              <button onClick={()=>setShowForm(false)} className="flex-1 px-4 py-2.5 bg-slate-100 text-slate-700 rounded-xl text-sm font-semibold">Hủy</button>
-              <button onClick={()=>{
-                if(!newCV.so_cv||!newCV.trich_yeu) return notifInfo('Nhập số hiệu và trích yếu!');
-                const cv: CongVan = { id:'cv_'+Date.now(), so_cv:newCV.so_cv, trich_yeu:newCV.trich_yeu, noi_dung:newCV.noi_dung, direction:newCV.direction, category:newCV.category, status: newCV.direction==='outbound'?'sent':'received', priority:newCV.priority, date_in:new Date().toLocaleDateString('vi-VN'), deadline:newCV.deadline||undefined, from_to:newCV.from_to, handler:'Người dùng hiện tại', tags:[], attachments:0 };
-                setCvs(p=>[cv,...p]); setShowForm(false);
-                setNewCV({ so_cv:'', trich_yeu:'', noi_dung:'', direction:'outbound', category:'Kỹ thuật', priority:'normal', from_to:'', deadline:'' });
-              }} className="flex-1 px-4 py-2.5 bg-violet-600 text-white rounded-xl text-sm font-semibold hover:bg-violet-700 flex items-center justify-center gap-2">
-                <Save size={14}/> Lưu công văn
-              </button>
-            </div>
+      <ModalForm
+        open={showForm}
+        onClose={() => setShowForm(false)}
+        title="Tạo công văn mới"
+        subtitle="Công văn đi / Công văn đến"
+        icon={<Mail size={18}/>}
+        color="violet"
+        width="lg"
+        footer={<>
+          <BtnCancel onClick={() => setShowForm(false)}/>
+          <BtnSubmit label="Lưu công văn" onClick={() => {
+            if (!newCV.so_cv?.trim())   { notifErr('Vui lòng nhập số hiệu CV!'); return; }
+            if (!newCV.trich_yeu?.trim()) { notifErr('Vui lòng nhập trích yếu!'); return; }
+            const cv: CongVan = { id:'cv_'+Date.now(), so_cv:newCV.so_cv, trich_yeu:newCV.trich_yeu, noi_dung:newCV.noi_dung, direction:newCV.direction, category:newCV.category, status: newCV.direction==='outbound'?'sent':'received', priority:newCV.priority, date_in:new Date().toLocaleDateString('vi-VN'), deadline:newCV.deadline||undefined, from_to:newCV.from_to, handler:'Người dùng hiện tại', tags:[], attachments:0 };
+            setCvs(p=>[cv,...p]); setShowForm(false);
+            setNewCV({ so_cv:'', trich_yeu:'', noi_dung:'', direction:'outbound', category:'Kỹ thuật', priority:'normal', from_to:'', deadline:'' });
+          }}/>
+        </>}
+      >
+        <FormSection title="Thông tin chung">
+          <FormGrid cols={2}>
+            <FormRow label="Số hiệu CV *"><input className={inputCls} placeholder="VD: CV-2026/004-GĐDA" value={newCV.so_cv} onChange={e=>setNewCV(p=>({...p,so_cv:e.target.value}))}/></FormRow>
+            <FormRow label="Loại">
+              <select className={selectCls} value={newCV.direction} onChange={e=>setNewCV(p=>({...p,direction:e.target.value as CVDir}))}>
+                <option value="outbound">Công văn đi</option><option value="inbound">Công văn đến</option>
+              </select>
+            </FormRow>
+            <FormRow label="Trích yếu *" className="col-span-2"><input className={inputCls} placeholder="Nội dung trích yếu ngắn gọn" value={newCV.trich_yeu} onChange={e=>setNewCV(p=>({...p,trich_yeu:e.target.value}))}/></FormRow>
+            <FormRow label="Danh mục">
+              <select className={selectCls} value={newCV.category} onChange={e=>setNewCV(p=>({...p,category:e.target.value}))}>
+                {['Kỹ thuật','Nghiệm thu','Báo cáo','Vật tư','Chỉ đạo','Hành chính'].map(c=><option key={c}>{c}</option>)}
+              </select>
+            </FormRow>
+            <FormRow label="Độ ưu tiên">
+              <select className={selectCls} value={newCV.priority} onChange={e=>setNewCV(p=>({...p,priority:e.target.value as any}))}>
+                <option value="normal">Thường</option><option value="urgent">Khẩn</option><option value="express">Hỏa tốc</option>
+              </select>
+            </FormRow>
+            <FormRow label="Gửi / Nhận từ"><input className={inputCls} placeholder="VD: Ban QLDA → CHT" value={newCV.from_to} onChange={e=>setNewCV(p=>({...p,from_to:e.target.value}))}/></FormRow>
+            <FormRow label="Hạn xử lý"><input className={inputCls} placeholder="DD/MM/YYYY" value={newCV.deadline} onChange={e=>setNewCV(p=>({...p,deadline:e.target.value}))}/></FormRow>
+          </FormGrid>
+        </FormSection>
+        <FormSection title="Nội dung">
+          <div className="flex items-center justify-end mb-2">
+            <button onClick={draftWithGEM} disabled={gemLoading} className="flex items-center gap-1 px-2 py-1 bg-violet-100 text-violet-700 rounded-lg text-xs font-bold hover:bg-violet-200 disabled:opacity-50">
+              {gemLoading?<Loader2 size={11} className="animate-spin"/>:<Sparkles size={11}/>} GEM soạn thảo
+            </button>
           </div>
-        </div>
-      )}
+          <textarea rows={6} placeholder="Nhập nội dung hoặc dùng GEM soạn thảo tự động..." value={newCV.noi_dung} onChange={e=>setNewCV(p=>({...p,noi_dung:e.target.value}))} className={inputCls + " resize-none w-full"}/>
+        </FormSection>
+      </ModalForm>
     </div>
   );
 }
@@ -498,46 +499,44 @@ function TabLichHop() {
         })}
       </div>
 
-      {showForm && (
-        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-xl p-6">
-            <div className="flex items-center justify-between mb-5">
-              <h3 className="text-lg font-bold text-slate-800 flex items-center gap-2"><Calendar size={17} className="text-violet-600"/>Lên lịch họp mới</h3>
-              <button onClick={()=>setShowForm(false)} className="p-1.5 hover:bg-slate-100 rounded-lg"><X size={18}/></button>
-            </div>
-            <div className="space-y-3">
-              <div><label className="text-xs font-semibold text-slate-600 mb-1 block">Tiêu đề cuộc họp</label><input placeholder="VD: Họp giao ban tuần 11" value={newMeet.title} onChange={e=>setNewMeet(p=>({...p,title:e.target.value}))} className={inputCls}/></div>
-              <div className="grid grid-cols-3 gap-3">
-                <div><label className="text-xs font-semibold text-slate-600 mb-1 block">Ngày</label><input placeholder="DD/MM/YYYY" value={newMeet.date} onChange={e=>setNewMeet(p=>({...p,date:e.target.value}))} className={inputCls}/></div>
-                <div><label className="text-xs font-semibold text-slate-600 mb-1 block">Bắt đầu</label><input type="time" value={newMeet.time_start} onChange={e=>setNewMeet(p=>({...p,time_start:e.target.value}))} className={inputCls}/></div>
-                <div><label className="text-xs font-semibold text-slate-600 mb-1 block">Kết thúc</label><input type="time" value={newMeet.time_end} onChange={e=>setNewMeet(p=>({...p,time_end:e.target.value}))} className={inputCls}/></div>
-              </div>
-              <div><label className="text-xs font-semibold text-slate-600 mb-1 block">Địa điểm</label><input placeholder="Phòng họp, địa chỉ..." value={newMeet.location} onChange={e=>setNewMeet(p=>({...p,location:e.target.value}))} className={inputCls}/></div>
-              <div><label className="text-xs font-semibold text-slate-600 mb-1 block">Chủ trì</label><input placeholder="Tên người chủ trì" value={newMeet.organizer} onChange={e=>setNewMeet(p=>({...p,organizer:e.target.value}))} className={inputCls}/></div>
-              <div>
-                <div className="flex items-center justify-between mb-1">
-                  <label className="text-xs font-semibold text-slate-600">Chương trình nghị sự</label>
-                  <button onClick={draftAgenda} disabled={gemLoading} className="flex items-center gap-1 px-2 py-1 bg-violet-100 text-violet-700 rounded-lg text-xs font-bold hover:bg-violet-200 disabled:opacity-50">
-                    {gemLoading?<Loader2 size={11} className="animate-spin"/>:<Sparkles size={11}/>} GEM soạn agenda
-                  </button>
-                </div>
-                <textarea rows={4} placeholder="Mỗi mục một dòng..." value={newMeet.agenda_raw} onChange={e=>setNewMeet(p=>({...p,agenda_raw:e.target.value}))} className={inputCls + " resize-none"}/>
-              </div>
-            </div>
-            <div className="flex gap-3 mt-5">
-              <button onClick={()=>setShowForm(false)} className="flex-1 px-4 py-2.5 bg-slate-100 text-slate-700 rounded-xl text-sm font-semibold">Hủy</button>
-              <button onClick={()=>{
-                if(!newMeet.title||!newMeet.date) return notifInfo('Nhập tiêu đề và ngày họp!');
-                const m: Meeting = { id:'m_'+Date.now(), title:newMeet.title, date:newMeet.date, time_start:newMeet.time_start, time_end:newMeet.time_end, location:newMeet.location, status:'scheduled', organizer:newMeet.organizer, attendees:[], agenda:newMeet.agenda_raw.split('\n').filter(Boolean), notes:'' };
-                setMeetings(p=>[...p,m]); setShowForm(false);
-                setNewMeet({ title:'', date:'', time_start:'08:00', time_end:'09:30', location:'', organizer:'', agenda_raw:'' });
-              }} className="flex-1 px-4 py-2.5 bg-violet-600 text-white rounded-xl text-sm font-semibold hover:bg-violet-700 flex items-center justify-center gap-2">
-                <Save size={14}/> Lưu lịch họp
-              </button>
-            </div>
+      <ModalForm
+        open={showForm}
+        onClose={() => setShowForm(false)}
+        title="Lên lịch họp mới"
+        subtitle="Tạo cuộc họp và chương trình nghị sự"
+        icon={<Calendar size={18}/>}
+        color="violet"
+        width="md"
+        footer={<>
+          <BtnCancel onClick={() => setShowForm(false)}/>
+          <BtnSubmit label="Lưu lịch họp" onClick={() => {
+            if (!newMeet.title?.trim()) { notifErr('Vui lòng nhập tiêu đề cuộc họp!'); return; }
+            if (!newMeet.date?.trim())  { notifErr('Vui lòng nhập ngày họp!'); return; }
+            const m: Meeting = { id:'m_'+Date.now(), title:newMeet.title, date:newMeet.date, time_start:newMeet.time_start, time_end:newMeet.time_end, location:newMeet.location, status:'scheduled', organizer:newMeet.organizer, attendees:[], agenda:newMeet.agenda_raw.split('\n').filter(Boolean), notes:'' };
+            setMeetings(p=>[...p,m]); setShowForm(false);
+            setNewMeet({ title:'', date:'', time_start:'08:00', time_end:'09:30', location:'', organizer:'', agenda_raw:'' });
+          }}/>
+        </>}
+      >
+        <FormSection title="Thông tin cuộc họp">
+          <FormGrid cols={2}>
+            <FormRow label="Tiêu đề *" className="col-span-2"><input className={inputCls} placeholder="VD: Họp giao ban tuần 11" value={newMeet.title} onChange={e=>setNewMeet(p=>({...p,title:e.target.value}))}/></FormRow>
+            <FormRow label="Ngày *"><input className={inputCls} placeholder="DD/MM/YYYY" value={newMeet.date} onChange={e=>setNewMeet(p=>({...p,date:e.target.value}))}/></FormRow>
+            <FormRow label="Địa điểm"><input className={inputCls} placeholder="Phòng họp, địa chỉ..." value={newMeet.location} onChange={e=>setNewMeet(p=>({...p,location:e.target.value}))}/></FormRow>
+            <FormRow label="Bắt đầu"><input type="time" className={inputCls} value={newMeet.time_start} onChange={e=>setNewMeet(p=>({...p,time_start:e.target.value}))}/></FormRow>
+            <FormRow label="Kết thúc"><input type="time" className={inputCls} value={newMeet.time_end} onChange={e=>setNewMeet(p=>({...p,time_end:e.target.value}))}/></FormRow>
+            <FormRow label="Chủ trì" className="col-span-2"><input className={inputCls} placeholder="Tên người chủ trì" value={newMeet.organizer} onChange={e=>setNewMeet(p=>({...p,organizer:e.target.value}))}/></FormRow>
+          </FormGrid>
+        </FormSection>
+        <FormSection title="Chương trình nghị sự">
+          <div className="flex items-center justify-end mb-2">
+            <button onClick={draftAgenda} disabled={gemLoading} className="flex items-center gap-1 px-2 py-1 bg-violet-100 text-violet-700 rounded-lg text-xs font-bold hover:bg-violet-200 disabled:opacity-50">
+              {gemLoading?<Loader2 size={11} className="animate-spin"/>:<Sparkles size={11}/>} GEM soạn agenda
+            </button>
           </div>
-        </div>
-      )}
+          <textarea rows={4} placeholder="Mỗi mục một dòng..." value={newMeet.agenda_raw} onChange={e=>setNewMeet(p=>({...p,agenda_raw:e.target.value}))} className={inputCls + " resize-none w-full"}/>
+        </FormSection>
+      </ModalForm>
     </div>
   );
 }
@@ -656,40 +655,36 @@ function TabKyDuyet() {
         })}
       </div>
 
-      {showForm && (
-        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg p-6">
-            <div className="flex items-center justify-between mb-5">
-              <h3 className="text-lg font-bold text-slate-800 flex items-center gap-2"><CheckSquare size={17} className="text-violet-600"/>Trình văn bản ký duyệt</h3>
-              <button onClick={()=>setShowForm(false)} className="p-1.5 hover:bg-slate-100 rounded-lg"><X size={18}/></button>
-            </div>
-            <div className="space-y-3">
-              <div><label className="text-xs font-semibold text-slate-600 mb-1 block">Tên văn bản</label><input placeholder="VD: Phương án tổ chức thi công tầng 4" value={newDoc.title} onChange={e=>setNewDoc(p=>({...p,title:e.target.value}))} className={inputCls}/></div>
-              <div><label className="text-xs font-semibold text-slate-600 mb-1 block">Loại văn bản</label>
-                <select value={newDoc.doc_type} onChange={e=>setNewDoc(p=>({...p,doc_type:e.target.value}))} className={inputCls}>
-                  {['Phê duyệt kỹ thuật','Báo cáo định kỳ','Quy định nội bộ','Hợp đồng','Biên bản','Đề xuất'].map(t=><option key={t}>{t}</option>)}
-                </select>
-              </div>
-              <div><label className="text-xs font-semibold text-slate-600 mb-1 block">Mô tả ngắn</label><textarea rows={3} value={newDoc.description} onChange={e=>setNewDoc(p=>({...p,description:e.target.value}))} className={inputCls + " resize-none"}/></div>
-              <div className="grid grid-cols-2 gap-3">
-                <div><label className="text-xs font-semibold text-slate-600 mb-1 block">Người nộp</label><input value={newDoc.submitted_by} onChange={e=>setNewDoc(p=>({...p,submitted_by:e.target.value}))} className={inputCls}/></div>
-                <div><label className="text-xs font-semibold text-slate-600 mb-1 block">Hạn phê duyệt</label><input placeholder="DD/MM/YYYY" value={newDoc.deadline} onChange={e=>setNewDoc(p=>({...p,deadline:e.target.value}))} className={inputCls}/></div>
-              </div>
-            </div>
-            <div className="flex gap-3 mt-5">
-              <button onClick={()=>setShowForm(false)} className="flex-1 px-4 py-2.5 bg-slate-100 text-slate-700 rounded-xl text-sm font-semibold">Hủy</button>
-              <button onClick={()=>{
-                if(!newDoc.title) return notifInfo('Nhập tên văn bản!');
-                const d: ApprovalDoc = { id:'a_'+Date.now(), title:newDoc.title, doc_type:newDoc.doc_type||'Phê duyệt kỹ thuật', status:'pending', submitted_by:newDoc.submitted_by||'Người dùng', submitted_date:new Date().toLocaleDateString('vi-VN'), deadline:newDoc.deadline||'', description:newDoc.description, current_step:0, attachments:0, steps:[{name:'GĐ DA phê duyệt',assignee:'GĐ Trần Văn Bình',status:'pending'}] };
-                setDocs(p=>[d,...p]); setShowForm(false);
-                setNewDoc({ title:'', doc_type:'', description:'', submitted_by:'', deadline:'' });
-              }} className="flex-1 px-4 py-2.5 bg-violet-600 text-white rounded-xl text-sm font-semibold hover:bg-violet-700 flex items-center justify-center gap-2">
-                <Send size={14}/> Trình ký duyệt
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      <ModalForm
+        open={showForm}
+        onClose={() => setShowForm(false)}
+        title="Trình văn bản ký duyệt"
+        subtitle="Tạo yêu cầu phê duyệt văn bản"
+        icon={<CheckSquare size={18}/>}
+        color="violet"
+        width="md"
+        footer={<>
+          <BtnCancel onClick={() => setShowForm(false)}/>
+          <BtnSubmit label="Trình ký duyệt" onClick={() => {
+            if (!newDoc.title?.trim()) { notifErr('Vui lòng nhập tên văn bản!'); return; }
+            const d: ApprovalDoc = { id:'a_'+Date.now(), title:newDoc.title, doc_type:newDoc.doc_type||'Phê duyệt kỹ thuật', status:'pending', submitted_by:newDoc.submitted_by||'Người dùng', submitted_date:new Date().toLocaleDateString('vi-VN'), deadline:newDoc.deadline||'', description:newDoc.description, current_step:0, attachments:0, steps:[{name:'GĐ DA phê duyệt',assignee:'GĐ Trần Văn Bình',status:'pending'}] };
+            setDocs(p=>[d,...p]); setShowForm(false);
+            setNewDoc({ title:'', doc_type:'', description:'', submitted_by:'', deadline:'' });
+          }}/>
+        </>}
+      >
+        <FormGrid cols={2}>
+          <FormRow label="Tên văn bản *" className="col-span-2"><input className={inputCls} placeholder="VD: Phương án tổ chức thi công tầng 4" value={newDoc.title} onChange={e=>setNewDoc(p=>({...p,title:e.target.value}))}/></FormRow>
+          <FormRow label="Loại văn bản" className="col-span-2">
+            <select className={selectCls} value={newDoc.doc_type} onChange={e=>setNewDoc(p=>({...p,doc_type:e.target.value}))}>
+              {['Phê duyệt kỹ thuật','Báo cáo định kỳ','Quy định nội bộ','Hợp đồng','Biên bản','Đề xuất'].map(t=><option key={t}>{t}</option>)}
+            </select>
+          </FormRow>
+          <FormRow label="Người nộp"><input className={inputCls} value={newDoc.submitted_by} onChange={e=>setNewDoc(p=>({...p,submitted_by:e.target.value}))}/></FormRow>
+          <FormRow label="Hạn phê duyệt"><input className={inputCls} placeholder="DD/MM/YYYY" value={newDoc.deadline} onChange={e=>setNewDoc(p=>({...p,deadline:e.target.value}))}/></FormRow>
+          <FormRow label="Mô tả ngắn" className="col-span-2"><textarea rows={3} className={inputCls + " resize-none"} value={newDoc.description} onChange={e=>setNewDoc(p=>({...p,description:e.target.value}))}/></FormRow>
+        </FormGrid>
+      </ModalForm>
     </div>
   );
 }
@@ -815,37 +810,33 @@ function TabBienBan() {
         })}
       </div>
 
-      {showForm && (
-        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-xl p-6 max-h-[90vh] overflow-y-auto">
-            <div className="flex items-center justify-between mb-5">
-              <h3 className="text-lg font-bold text-slate-800 flex items-center gap-2"><BookOpen size={17} className="text-violet-600"/>Lập biên bản họp</h3>
-              <button onClick={()=>setShowForm(false)} className="p-1.5 hover:bg-slate-100 rounded-lg"><X size={18}/></button>
-            </div>
-            <div className="space-y-3">
-              <div><label className="text-xs font-semibold text-slate-600 mb-1 block">Tên cuộc họp</label><input value={newMin.meeting_title} onChange={e=>setNewMin(p=>({...p,meeting_title:e.target.value}))} className={inputCls}/></div>
-              <div className="grid grid-cols-2 gap-3">
-                <div><label className="text-xs font-semibold text-slate-600 mb-1 block">Ngày</label><input placeholder="DD/MM/YYYY" value={newMin.date} onChange={e=>setNewMin(p=>({...p,date:e.target.value}))} className={inputCls}/></div>
-                <div><label className="text-xs font-semibold text-slate-600 mb-1 block">Địa điểm</label><input value={newMin.location} onChange={e=>setNewMin(p=>({...p,location:e.target.value}))} className={inputCls}/></div>
-              </div>
-              <div><label className="text-xs font-semibold text-slate-600 mb-1 block">Nội dung thảo luận</label><textarea rows={3} value={newMin.content} onChange={e=>setNewMin(p=>({...p,content:e.target.value}))} className={inputCls + " resize-none"}/></div>
-              <div><label className="text-xs font-semibold text-slate-600 mb-1 block">Quyết định (mỗi dòng một quyết định)</label><textarea rows={3} placeholder="Quyết định 1&#10;Quyết định 2..." value={newMin.decisions_raw} onChange={e=>setNewMin(p=>({...p,decisions_raw:e.target.value}))} className={inputCls + " resize-none"}/></div>
-              <div><label className="text-xs font-semibold text-slate-600 mb-1 block">Người lập biên bản</label><input value={newMin.prepared_by} onChange={e=>setNewMin(p=>({...p,prepared_by:e.target.value}))} className={inputCls}/></div>
-            </div>
-            <div className="flex gap-3 mt-5">
-              <button onClick={()=>setShowForm(false)} className="flex-1 px-4 py-2.5 bg-slate-100 text-slate-700 rounded-xl text-sm font-semibold">Hủy</button>
-              <button onClick={()=>{
-                if(!newMin.meeting_title) return notifInfo('Nhập tên cuộc họp!');
-                const mn: MeetingMinute = { id:'min_'+Date.now(), meeting_id:'', meeting_title:newMin.meeting_title, date:newMin.date||new Date().toLocaleDateString('vi-VN'), location:newMin.location, attendees:[], content:newMin.content, decisions:newMin.decisions_raw.split('\n').filter(Boolean), action_items:[], status:'draft', prepared_by:newMin.prepared_by };
-                setMinutes(p=>[mn,...p]); setShowForm(false);
-                setNewMin({ meeting_title:'', date:'', location:'', content:'', decisions_raw:'', action_raw:'', prepared_by:'' });
-              }} className="flex-1 px-4 py-2.5 bg-violet-600 text-white rounded-xl text-sm font-semibold hover:bg-violet-700 flex items-center justify-center gap-2">
-                <Save size={14}/> Lưu biên bản
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      <ModalForm
+        open={showForm}
+        onClose={() => setShowForm(false)}
+        title="Lập biên bản họp"
+        subtitle="Ghi nhận nội dung và quyết định cuộc họp"
+        icon={<BookOpen size={18}/>}
+        color="violet"
+        width="lg"
+        footer={<>
+          <BtnCancel onClick={() => setShowForm(false)}/>
+          <BtnSubmit label="Lưu biên bản" onClick={() => {
+            if (!newMin.meeting_title?.trim()) { notifErr('Vui lòng nhập tên cuộc họp!'); return; }
+            const mn: MeetingMinute = { id:'min_'+Date.now(), meeting_id:'', meeting_title:newMin.meeting_title, date:newMin.date||new Date().toLocaleDateString('vi-VN'), location:newMin.location, attendees:[], content:newMin.content, decisions:newMin.decisions_raw.split('\n').filter(Boolean), action_items:[], status:'draft', prepared_by:newMin.prepared_by };
+            setMinutes(p=>[mn,...p]); setShowForm(false);
+            setNewMin({ meeting_title:'', date:'', location:'', content:'', decisions_raw:'', action_raw:'', prepared_by:'' });
+          }}/>
+        </>}
+      >
+        <FormGrid cols={2}>
+          <FormRow label="Tên cuộc họp *" className="col-span-2"><input className={inputCls} value={newMin.meeting_title} onChange={e=>setNewMin(p=>({...p,meeting_title:e.target.value}))}/></FormRow>
+          <FormRow label="Ngày"><input className={inputCls} placeholder="DD/MM/YYYY" value={newMin.date} onChange={e=>setNewMin(p=>({...p,date:e.target.value}))}/></FormRow>
+          <FormRow label="Địa điểm"><input className={inputCls} value={newMin.location} onChange={e=>setNewMin(p=>({...p,location:e.target.value}))}/></FormRow>
+          <FormRow label="Người lập biên bản" className="col-span-2"><input className={inputCls} value={newMin.prepared_by} onChange={e=>setNewMin(p=>({...p,prepared_by:e.target.value}))}/></FormRow>
+          <FormRow label="Nội dung thảo luận" className="col-span-2"><textarea rows={3} className={inputCls + " resize-none"} value={newMin.content} onChange={e=>setNewMin(p=>({...p,content:e.target.value}))}/></FormRow>
+          <FormRow label="Quyết định (mỗi dòng một quyết định)" className="col-span-2"><textarea rows={3} className={inputCls + " resize-none"} placeholder={"Quyết định 1\nQuyết định 2..."} value={newMin.decisions_raw} onChange={e=>setNewMin(p=>({...p,decisions_raw:e.target.value}))}/></FormRow>
+        </FormGrid>
+      </ModalForm>
     </div>
   );
 }
