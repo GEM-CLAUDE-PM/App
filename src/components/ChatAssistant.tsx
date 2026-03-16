@@ -542,6 +542,7 @@ function EmptyState({ onSend, projectName }: { onSend: (t: string) => void; proj
 
 // ══ MAIN COMPONENT ════════════════════════════════════════════════════════════
 export default function ChatAssistant() {
+  const { ok: notifOk, err: notifErr, warn: notifWarn, info: notifInfo } = useNotification();
   const [mode, setMode] = useState<AppMode>("chat");
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
@@ -577,7 +578,7 @@ export default function ChatAssistant() {
     const model = genAI.getGenerativeModel({
       model: "gemini-3-flash-preview",
       systemInstruction: SYSTEM_PROMPT,
-      generationConfig: { temperature: 0.3, topP: 0.8, maxOutputTokens: 8192 },
+      generationConfig: { temperature: 0.3, maxOutputTokens: 8192 },
     });
     chatSessionRef.current = model.startChat({ history: [] });
   }, []);
@@ -599,7 +600,7 @@ export default function ChatAssistant() {
   const startListening = useCallback(() => {
     const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
     if (!SpeechRecognition) {
-      alert("Trình duyệt không hỗ trợ nhận giọng nói. Anh dùng Chrome nghen!");
+      notifErr("Trình duyệt không hỗ trợ nhận giọng nói. Anh dùng Chrome nghen!");
       return;
     }
     // Tự bật TTS khi dùng mic — voice in → voice out
@@ -642,53 +643,63 @@ export default function ChatAssistant() {
   const speak = useCallback((text: string) => {
     if (!ttsEnabledRef.current) return;
     if (!window.speechSynthesis) return;
-
-    // Dừng bất kỳ utterance nào đang chạy
     window.speechSynthesis.cancel();
 
-    // Giới hạn độ dài — tránh đọc quá dài
-    const shortText = text.length > 300 ? text.slice(0, 300) + "..." : text;
-    const utt = new SpeechSynthesisUtterance(shortText);
-    utt.lang = "vi-VN";
-    utt.rate = 1.0;
-    utt.pitch = 1.2;
-    utt.volume = 1;
+    // Chỉ bỏ markdown, giữ nguyên tiếng Anh để browser đọc tự nhiên
+    let t = text;
+    t = t.replace(/```[\s\S]*?```/g, ' ');
+    t = t.replace(/#{1,6}\s+/g, '');
+    t = t.replace(/\*\*([^*]+)\*\*/g, '$1');
+    t = t.replace(/\*([^*]+)\*/g, '$1');
+    t = t.replace(/`([^`]+)`/g, '$1');
+    t = t.replace(/\[([^\]]+)\]\([^)]+\)/g, '$1');
+    t = t.replace(/\n{2,}/g, '. ');
+    t = t.replace(/\n/g, ', ');
+    t = t.replace(/\s{2,}/g, ' ').trim();
+    if (!t) return;
 
-    // Chọn giọng — ưu tiên Google tiếng Việt nữ
-    const pickVoice = () => {
+    // Split thành chunks để đọc hết — không bị cắt
+    const chunks: string[] = [];
+    const sentences = t.split(/(?<=[.!?,;])\s+/);
+    let cur = '';
+    for (const s of sentences) {
+      if ((cur + s).length > 200) { if (cur) chunks.push(cur.trim()); cur = s; }
+      else cur += (cur ? ' ' : '') + s;
+    }
+    if (cur.trim()) chunks.push(cur.trim());
+    if (!chunks.length) return;
+
+    const getViVoice = () => {
       const voices = window.speechSynthesis.getVoices();
-      return (
-        voices.find((v) => v.name.includes("Google") && v.lang === "vi-VN") ||
-        voices.find((v) => v.lang === "vi-VN") ||
-        voices.find((v) => v.lang.startsWith("vi")) ||
-        null
-      );
+      return voices.find(v => v.name.includes('Google') && v.lang === 'vi-VN')
+        || voices.find(v => v.lang === 'vi-VN')
+        || voices.find(v => v.lang.startsWith('vi'))
+        || null;
     };
 
-    const doSpeak = () => {
-      const voice = pickVoice();
+    const speakChunks = (idx: number) => {
+      if (idx >= chunks.length) { setIsSpeaking(false); return; }
+      const utt = new SpeechSynthesisUtterance(chunks[idx]);
+      utt.lang = 'vi-VN';
+      const voice = getViVoice();
       if (voice) utt.voice = voice;
-      utt.onstart = () => setIsSpeaking(true);
-      utt.onend = () => {
-        setIsSpeaking(false);
-      };
-      utt.onerror = () => {
-        setIsSpeaking(false);
-      };
+      utt.rate = 1.0;
+      utt.pitch = 1.1;
+      utt.volume = 1;
+      if (idx === 0) utt.onstart = () => setIsSpeaking(true);
+      utt.onend = () => speakChunks(idx + 1);
+      utt.onerror = () => setIsSpeaking(false);
       synthRef.current = utt;
       window.speechSynthesis.speak(utt);
     };
 
     const voices = window.speechSynthesis.getVoices();
-    if (voices.length > 0) {
-      doSpeak();
-    } else {
-      // Chỉ gọi 1 lần duy nhất khi voices sẵn sàng
-      const handler = () => {
-        window.speechSynthesis.onvoiceschanged = null; // gỡ ngay sau khi gọi
-        doSpeak();
+    if (voices.length > 0) speakChunks(0);
+    else {
+      window.speechSynthesis.onvoiceschanged = () => {
+        window.speechSynthesis.onvoiceschanged = null;
+        speakChunks(0);
       };
-      window.speechSynthesis.onvoiceschanged = handler;
     }
   }, []);
 
@@ -782,7 +793,7 @@ export default function ChatAssistant() {
 
     const maxMB = 10;
     if (file.size > maxMB * 1024 * 1024) {
-      alert(`File quá lớn! Tối đa ${maxMB}MB nghen anh.`);
+      notifInfo(`File quá lớn! Tối đa ${maxMB}MB nghen anh.`);
       e.target.value = "";
       return;
     }
@@ -811,11 +822,9 @@ export default function ChatAssistant() {
 
       // ── WORD / EXCEL — thông báo giới hạn ────────────────────────────────────
     } else if (file.name.match(/\.(docx?|xlsx?|pptx?)$/i)) {
-      alert(
-        `Dạ file ${file.name.split(".").pop()?.toUpperCase()} anh cần copy nội dung dán trực tiếp vào chat, hoặc lưu thành PDF rồi gửi lại nghen! Gemini chưa đọc được định dạng Office trực tiếp ạ.`,
-      );
+      notifInfo(`Dạ file ${file.name.split(".").pop()?.toUpperCase()} anh cần copy nội dung dán trực tiếp vào chat, hoặc lưu thành PDF rồi gửi lại nghen!`);
     } else {
-      alert("Dạ định dạng này GEM chưa hỗ trợ. Anh gửi ảnh, PDF, CSV, TXT hoặc JSON nghen!");
+      notifInfo("Dạ định dạng này GEM chưa hỗ trợ. Anh gửi ảnh, PDF, CSV, TXT hoặc JSON nghen!");
     }
 
     e.target.value = "";
@@ -833,7 +842,7 @@ export default function ChatAssistant() {
     const model = genAI.getGenerativeModel({
       model: "gemini-3-flash-preview",
       systemInstruction: SYSTEM_PROMPT,
-      generationConfig: { temperature: 0.3, topP: 0.8, maxOutputTokens: 8192 },
+      generationConfig: { temperature: 0.3, maxOutputTokens: 8192 },
     });
     chatSessionRef.current = model.startChat({ history: [] });
     setMessages([]);

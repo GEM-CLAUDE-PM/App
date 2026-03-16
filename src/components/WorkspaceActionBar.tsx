@@ -51,7 +51,7 @@ const ACTIONS: WorkspaceAction[] = [
 
   // ── NHÓM C — Tài chính / Kế toán ─────────────────────────────────────────
   { id:'FINANCIAL_VOUCHER',      code:'C1', label:'Chứng từ kế toán',           shortLabel:'Chứng từ KT', icon:<Receipt size={13}/>,         group:'finance',   groupLabel:'Kế toán',       color:'violet',  tabId:'accounting',subTab:'vouchers', minLevel:2, domains:['finance','cross'],   actionLabel:'Tạo chứng từ'     },
-  { id:'TIMESHEET',              code:'C2', label:'Bảng công nhân công',        shortLabel:'Bảng công',   icon:<Clock size={13}/>,            group:'finance',   groupLabel:'Kế toán',       color:'violet',  tabId:'manpower',  subTab:'payroll',  minLevel:2, domains:['site','cross'],      actionLabel:'Nộp bảng công'    },
+  { id:'TIMESHEET',              code:'C2', label:'Bảng công nhân công',        shortLabel:'Bảng công',   icon:<Clock size={13}/>,            group:'finance',   groupLabel:'Kế toán',       color:'violet',  tabId:'manpower',  subTab:'site',  minLevel:2, domains:['site','cross'],      actionLabel:'Nộp bảng công'    },
   { id:'OVERTIME_REQUEST',       code:'C3', label:'Đề xuất tăng ca',            shortLabel:'Tăng ca',     icon:<Activity size={13}/>,         group:'finance',   groupLabel:'Kế toán',       color:'violet',  tabId:'manpower',  subTab:'overtime', minLevel:2, domains:[],                    actionLabel:'Đề xuất tăng ca'  },
 
   // ── NHÓM D — Procurement & Vendor ────────────────────────────────────────
@@ -78,14 +78,15 @@ const ACTIONS: WorkspaceAction[] = [
   { id:'CAPA',                   code:'F5', label:'Corrective & Preventive Action',shortLabel:'CAPA',     icon:<CheckCircle2 size={13}/>,    group:'hse',       groupLabel:'An toàn HSE',    color:'orange',  tabId:'hse',       subTab:undefined,      minLevel:2, domains:['hse','qaqc','cross'], actionLabel:'Lập CAPA'         },
 
   // ── NHÓM G — Nhân sự ──────────────────────────────────────────────────────
+  { id:'EMPLOYEE_NEW',           code:'G0', label:'Thêm nhân viên mới',          shortLabel:'Thêm NV',      icon:<Users size={13} className="text-violet-500"/>,   tabId:'resources', group:'hr', groupLabel:'Nhân sự', color:'indigo', subTab:'hr', minLevel:3, domains:['cross'],             actionLabel:'Thêm nhân viên' },
   { id:'LEAVE_REQUEST',          code:'G1', label:'Đề xuất nghỉ phép',          shortLabel:'Xin phép',    icon:<CalendarOff size={13}/>,      group:'hr',        groupLabel:'Nhân sự',        color:'indigo',  tabId:'manpower',  subTab:'leave',    minLevel:1, domains:[],                    actionLabel:'Xin nghỉ phép'   },
   { id:'DISCIPLINE',             code:'G2', label:'Xử lý kỷ luật',              shortLabel:'Kỷ luật',     icon:<UserX size={13}/>,            group:'hr',        groupLabel:'Nhân sự',        color:'indigo',  tabId:'manpower',  subTab:'discipline',minLevel:3, domains:['cross'],             actionLabel:'Lập biên bản KL'  },
 ];
 
 // ─── Permission helper ────────────────────────────────────────────────────────
 function canAccess(action: WorkspaceAction, userLevel: number, userDomains: string[]): boolean {
-  if (userLevel < action.minLevel) return false;
-  if (action.domains.length === 0) return true;
+  if (userLevel < (action.minLevel ?? 1)) return false;
+  if (!action.domains || action.domains.length === 0) return true;
   return action.domains.some(d => userDomains.includes(d));
 }
 
@@ -117,6 +118,8 @@ interface WorkspaceActionBarProps {
   onNavigate: (tabId: string, subTab?: string) => void;
   pendingCount?: number;
   projectName?: string;
+  forceOpen?: boolean;          // Taskbar trigger mở từ ngoài
+  onOpenChange?: (open: boolean) => void; // notify parent
 }
 
 export default function WorkspaceActionBar({
@@ -124,6 +127,8 @@ export default function WorkspaceActionBar({
   onNavigate,
   pendingCount = 0,
   projectName,
+  forceOpen,
+  onOpenChange,
 }: WorkspaceActionBarProps) {
   const [open, setOpen]         = useState(false);
   const [search, setSearch]     = useState('');
@@ -184,13 +189,57 @@ export default function WorkspaceActionBar({
     else { setSearch(''); }
   }, [open]);
 
-  // Navigate and close
+  // forceOpen từ Taskbar trigger
+  useEffect(() => {
+    if (forceOpen === true) { setOpen(true); }
+  }, [forceOpen]);
+
+  // Notify parent khi open thay đổi — trong effect, không trong render/handler
+  useEffect(() => {
+    onOpenChange?.(open);
+  }, [open]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Ctrl+K / Cmd+K shortcut
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
+        e.preventDefault();
+        setOpen(v => !v);
+      }
+      if (e.key === 'Escape') { setOpen(false); }
+    };
+    document.addEventListener('keydown', handler);
+    return () => document.removeEventListener('keydown', handler);
+  }, []);
+
+  // Actions that open modal directly — không cần navigate
+  const MODAL_ACTIONS = new Set([
+    'NCR','RFI','INSPECTION_REQUEST','MATERIAL_APPROVAL','ITP_MANAGEMENT','HSE_INCIDENT','PERMIT_TO_WORK',
+    'WAREHOUSE_EXIT','WAREHOUSE_ENTRY','MATERIAL_REQUEST','PAYMENT_REQUEST',
+    'VARIATION_ORDER','ACCEPTANCE_INTERNAL','OVERTIME_REQUEST',
+    'LEAVE_REQUEST','EMPLOYEE_NEW','TIMESHEET','OVERTIME_REQUEST','HSE_INSPECTION','CAPA',
+  ]);
+
+  // Navigate and close — fire CustomEvent cho modal actions
   const handleAction = useCallback((action: WorkspaceAction) => {
-    onNavigate(action.tabId, action.subTab);
     setOpen(false);
     setSearch('');
     setActiveGroup(null);
-  }, [onNavigate]);
+
+    if (MODAL_ACTIONS.has(action.id)) {
+      // Navigate đến đúng tab trước
+      onNavigate(action.tabId, action.subTab);
+      if (action.subTab) sessionStorage.setItem('gem_action_subtab', action.subTab);
+      // Fire event để dashboard con mở modal
+      setTimeout(() => {
+        window.dispatchEvent(new CustomEvent('gem:open-action', { detail: { actionId: action.id, subTab: action.subTab } }));
+      }, 300);
+    } else {
+      // Navigate only
+      onNavigate(action.tabId, action.subTab);
+      if (action.subTab) sessionStorage.setItem('gem_action_subtab', action.subTab);
+    }
+  }, [onNavigate, onOpenChange]);
 
   // Quick home navigation
   const goHome = useCallback(() => {
@@ -236,6 +285,9 @@ export default function WorkspaceActionBar({
               {permitted.length}
             </span>
           )}
+          <kbd className={`text-[8px] px-1 py-0.5 rounded font-mono ${
+            open ? 'bg-white/15 text-white/70' : 'bg-slate-100 text-slate-400'
+          }`}>⌘K</kbd>
           {open ? <ChevronUp size={11} /> : <ChevronDown size={11} />}
         </button>
       </div>

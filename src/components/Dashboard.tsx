@@ -120,7 +120,7 @@ export default function Dashboard({ onNavigate }: {
         systemInstruction: `Bạn là Nàng GEM Siêu Việt. Xưng "em", gọi "Anh/Chị". Giọng nữ miền Nam, ngắn gọn, thực chiến. 
 Tóm tắt buổi sáng trong 3-4 câu ngắn: nêu điểm nóng khẩn cấp nhất, rủi ro tài chính/tiến độ đáng lo, và 1 lời khuyên cụ thể. 
 KHÔNG dùng ký tự markdown. Câu ngắn. Số liệu cụ thể.`,
-        generationConfig: { maxOutputTokens: 180, temperature: 0.25 },
+        generationConfig: { maxOutputTokens: 512, temperature: 0.25 },
       });
       const ctx = `Hôm nay ${now.toLocaleDateString('vi-VN',{weekday:'long',day:'2-digit',month:'2-digit',year:'numeric'})}. 
 Portfolio: DA Alpha 35% SPI=0.94 (4 NCR, 1 HSE), KĐT Gamma 88% SPI=0.97 (3 NTP chờ TT), TN Delta 20% SPI=0.71 CHẬM NGUY HIỂM (2 NCR, 1 HSE). 

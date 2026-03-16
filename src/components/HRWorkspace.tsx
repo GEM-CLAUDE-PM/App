@@ -1,6 +1,7 @@
 import { useNotification } from './NotificationEngine';
+import ModalForm, { FormRow, FormGrid, FormSection, inputCls, selectCls, BtnCancel, BtnSubmit } from './ModalForm';
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
-import { LayoutDashboard, Folder, TrendingUp, Clock, HardDrive, CheckCircle2, Lock, FileText, Image as ImageIcon, Files, ClipboardList, ExternalLink, BookOpen, UploadCloud, Loader2, Plus, Printer, Users, HardHat, Camera, ShieldAlert, Sun, MessageCircle, Network, HeartPulse, AlertTriangle, Mic, Edit3, Unlock, X, Award, Target, GraduationCap, Briefcase, ChevronRight, ArrowRight, Building2, CheckCircle, CircleDashed, ArrowLeft, ChevronDown, Cloud, Download, Eye, MoreVertical, ChevronLeft, Calendar, ShieldCheck, Trash2, Sparkles, User, Info, ChevronUp, Wrench, Truck, Fuel, Activity, Zap, Settings, AlertCircle, Search, Scan, FileSpreadsheet, Save, Calculator, Copy } from 'lucide-react';
+import { LayoutDashboard, Folder, TrendingUp, Clock, HardDrive, CheckCircle2, Lock, FileText, Image as ImageIcon, Files, ClipboardList, ExternalLink, BookOpen, UploadCloud, Loader2, Plus, Printer, Users, HardHat, Camera, ShieldAlert, Sun, MessageCircle, Network, HeartPulse, AlertTriangle, Mic, Edit3, Unlock, X, Award, Target, GraduationCap, Briefcase, ChevronRight, ArrowRight, Building2, CheckCircle, CircleDashed, ArrowLeft, ChevronDown, Cloud, Download, Eye, MoreVertical, ChevronLeft, Calendar, ShieldCheck, Trash2, Sparkles, User, Info, ChevronUp, Wrench, Truck, Fuel, Activity, Zap, Settings, AlertCircle, Search, Scan, FileSpreadsheet, Save, Calculator, Copy, CalendarOff } from 'lucide-react';
 import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
 import { mockProjects, mockCashFlowData, mockMaterialData, mockLaborData, mockOrgData, COLORS, mockAttendancePayrollData } from '../constants/mockData';
 import { OrgNode } from './dashboard/OrgChart';
@@ -30,13 +31,14 @@ function useLocalCtx(ctxProp?: UserContext, projectIdProp?: string): { ctx: User
 }
 
 export default function HRWorkspace({ project: selectedProject, projectId: projectIdProp, ctx: ctxProp }: HRProps) {
+  const { ok: notifOk, err: notifErr } = useNotification();
   const { ctx, projectId } = useLocalCtx(ctxProp, projectIdProp);
             // ══ HR / NHÂN SỰ WORKSPACE ═══════════════════════════════════════
             const HR_KEYS = {
-    EMPLOYEES:   'gem_hr_employees',
-    CONTRACTS:   'gem_hr_contracts',
-    LEAVES:      'gem_hr_leaves',
-    EVALUATIONS: 'gem_hr_evaluations',
+    EMPLOYEES:   'hr_employees',
+    CONTRACTS:   'hr_contracts',
+    LEAVES:      'hr_leaves',
+    EVALUATIONS: 'hr_evaluations',
   };
 
   type EmpStatus = 'active'|'probation'|'maternity'|'resigned'|'terminated';
@@ -132,11 +134,13 @@ export default function HRWorkspace({ project: selectedProject, projectId: proje
   ];
 
   // ── State ─────────────────────────────────────────────────────
-  const loadHR = <T,>(key:string, seed:T[]):T[] => {
-    try { const s = localStorage.getItem(key); return s ? JSON.parse(s) : seed; } catch { return seed; }
+  // ── HR data layer — uses db.ts key format for Supabase compatibility ──
+  const lsKeyHR = (col: string) => `gem_db__${col}__${projectIdProp || 'default'}`;
+  const loadHR = <T,>(col: string, seed: T[]): T[] => {
+    try { const s = localStorage.getItem(lsKeyHR(col)); return s ? JSON.parse(s) : seed; } catch { return seed; }
   };
-  const saveHR = <T,>(key:string, data:T[]) => {
-    try { localStorage.setItem(key, JSON.stringify(data)); } catch {}
+  const saveHR = <T,>(col: string, data: T[]) => {
+    try { localStorage.setItem(lsKeyHR(col), JSON.stringify(data)); } catch {}
   };
 
   // ── Approval wiring ──────────────────────────────────────────────────────
@@ -158,7 +162,7 @@ export default function HRWorkspace({ project: selectedProject, projectId: proje
   ) => {
     if (!WORKFLOWS[docType]) return;
     const cr = createDocument({ projectId, docType, ctx, title, data });
-    if (!cr.ok) { alert(`❌ ${(cr as any).error}`); return; }
+    if (!cr.ok) { notifErr(`❌ ${(cr as any).error}`); return; }
     const sr = submitDocument(projectId, cr.data!.id, ctx);
     if (sr.ok) {
       refreshHrQueue();
@@ -168,7 +172,7 @@ export default function HRWorkspace({ project: selectedProject, projectId: proje
       document.body.appendChild(el);
       setTimeout(() => el.remove(), 3500);
     } else {
-      alert(`❌ ${(sr as any).error}`);
+      notifErr(`❌ ${(sr as any).error}`);
     }
   }, [projectId, ctx, refreshHrQueue]);
   // ── /Approval wiring ──────────────────────────────────────────────────────
@@ -182,6 +186,23 @@ export default function HRWorkspace({ project: selectedProject, projectId: proje
   const [selectedEmp, setSelectedEmp] = React.useState<Employee|null>(null);
   const [showEmpForm, setShowEmpForm]   = React.useState(false);
   const [showLeaveForm, setShowLeaveForm] = React.useState(false);
+
+  // ── gem:open-action — WorkspaceActionBar trigger ─────────────────────────
+  React.useEffect(() => {
+    const handler = (e: Event) => {
+      const { actionId } = (e as CustomEvent).detail;
+      if (actionId === 'LEAVE_REQUEST') {
+        setHrTab('leaves');
+        setTimeout(() => setShowLeaveForm(true), 150);
+      }
+      if (actionId === 'EMPLOYEE_NEW') {
+        setHrTab('employees');
+        setTimeout(() => setShowEmpForm(true), 150);
+      }
+    };
+    window.addEventListener('gem:open-action', handler);
+    return () => window.removeEventListener('gem:open-action', handler);
+  }, []);
   const [hrSearch, setHrSearch]         = React.useState('');
   const [gemHrLoading, setGemHrLoading] = React.useState(false);
   const [gemHrText, setGemHrText]       = React.useState('');
@@ -453,50 +474,6 @@ export default function HRWorkspace({ project: selectedProject, projectId: proje
           </div>
 
           {/* Add form */}
-          {showEmpForm && (
-            <div className="bg-violet-50 border border-violet-200 rounded-2xl p-4 space-y-3 animate-in slide-in-from-top-2 duration-200">
-              <p className="text-sm font-bold text-violet-800">👤 Thêm nhân viên mới</p>
-              <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
-                {[
-                  { ph:'Họ và tên *', key:'full_name' }, { ph:'Vị trí / Chức danh *', key:'position' },
-                  { ph:'Phòng ban', key:'department' }, { ph:'Số CCCD', key:'cccd' },
-                  { ph:'Số điện thoại', key:'phone' }, { ph:'Email', key:'email' },
-                  { ph:'Ngày sinh (DD/MM/YYYY)', key:'dob' }, { ph:'Ngày vào làm', key:'join_date' },
-                  { ph:'Số BHXH', key:'bhxh' },
-                ].map(({ph,key}) => (
-                  <input key={key} placeholder={ph} value={(empForm as any)[key]||''}
-                    onChange={e=>setEmpForm(f=>({...f,[key]:e.target.value}))}
-                    className="text-xs border border-violet-200 rounded-xl px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-violet-400"/>
-                ))}
-              </div>
-              <div className="grid grid-cols-2 gap-2">
-                <input type="number" placeholder="Lương cơ bản (K đồng)" value={empForm.salary_base||''}
-                  onChange={e=>setEmpForm(f=>({...f,salary_base:Number(e.target.value)}))}
-                  className="text-xs border border-violet-200 rounded-xl px-3 py-2 bg-white focus:outline-none"/>
-                <select value={empForm.status} onChange={e=>setEmpForm(f=>({...f,status:e.target.value as any}))}
-                  className="text-xs border border-violet-200 rounded-xl px-3 py-2 bg-white focus:outline-none">
-                  <option value="active">Đang làm việc</option>
-                  <option value="probation">Thử việc</option>
-                </select>
-              </div>
-              <div className="flex justify-end gap-2">
-                <button onClick={() => setShowEmpForm(false)} className="px-4 py-2 text-xs text-slate-600 bg-white border border-slate-200 rounded-xl">Huỷ</button>
-                <button onClick={() => {
-                  if (!empForm.full_name || !empForm.position) return;
-                  const init = empForm.full_name.split(' ').slice(-2).map(w=>w[0]).join('').toUpperCase();
-                  const newE:Employee = { id:`e${Date.now()}`, full_name:empForm.full_name!, position:empForm.position!,
-                    department:empForm.department||'', cccd:empForm.cccd||'', phone:empForm.phone||'',
-                    email:empForm.email||'', address:'', dob:empForm.dob||'', join_date:empForm.join_date||'',
-                    status:empForm.status||'active', bhxh:empForm.bhxh||'', bhyt:'',
-                    avatar_initial:init, salary_base:empForm.salary_base||0, allowance:0 };
-                  const updated = [...employees, newE];
-                  setEmployees(updated); saveHR(HR_KEYS.EMPLOYEES, updated);
-                  setShowEmpForm(false); setEmpForm({ status:'active', join_date: new Date().toLocaleDateString('vi-VN') });
-                }} className="px-4 py-2 text-xs bg-violet-600 hover:bg-violet-700 text-white rounded-xl font-bold">Lưu</button>
-              </div>
-            </div>
-          )}
-
           <div className="space-y-2">
             {filteredEmps.map(emp => {
               const emp_contract = contracts.find(c=>c.emp_id===emp.id&&c.status==='active');
@@ -611,59 +588,6 @@ export default function HRWorkspace({ project: selectedProject, projectId: proje
               <Plus size={13}/> Tạo đơn nghỉ phép
             </button>
           </div>
-
-          {showLeaveForm && (
-            <div className="bg-blue-50 border border-blue-200 rounded-2xl p-4 space-y-3 animate-in slide-in-from-top-2 duration-200">
-              <p className="text-sm font-bold text-blue-800">📅 Tạo đơn nghỉ phép</p>
-              <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
-                <select value={leaveForm.emp_id||''} onChange={e=>setLeaveForm(f=>({...f,emp_id:e.target.value}))}
-                  className="text-xs border border-blue-200 rounded-xl px-3 py-2 bg-white focus:outline-none">
-                  <option value="">-- Chọn nhân viên --</option>
-                  {employees.filter(e=>e.status!=='resigned'&&e.status!=='terminated').map(e => (
-                    <option key={e.id} value={e.id}>{e.full_name}</option>
-                  ))}
-                </select>
-                <select value={leaveForm.type} onChange={e=>setLeaveForm(f=>({...f,type:e.target.value as any}))}
-                  className="text-xs border border-blue-200 rounded-xl px-3 py-2 bg-white focus:outline-none">
-                  <option value="annual">Phép năm</option>
-                  <option value="sick">Ốm đau</option>
-                  <option value="personal">Việc riêng</option>
-                  <option value="unpaid">Không lương</option>
-                </select>
-                <input type="number" min={1} placeholder="Số ngày" value={leaveForm.days||''}
-                  onChange={e=>setLeaveForm(f=>({...f,days:Number(e.target.value)}))}
-                  className="text-xs border border-blue-200 rounded-xl px-3 py-2 bg-white focus:outline-none"/>
-                <input placeholder="Từ ngày (DD/MM/YYYY)" value={leaveForm.from_date||''}
-                  onChange={e=>setLeaveForm(f=>({...f,from_date:e.target.value}))}
-                  className="text-xs border border-blue-200 rounded-xl px-3 py-2 bg-white focus:outline-none"/>
-                <input placeholder="Đến ngày" value={leaveForm.to_date||''}
-                  onChange={e=>setLeaveForm(f=>({...f,to_date:e.target.value}))}
-                  className="text-xs border border-blue-200 rounded-xl px-3 py-2 bg-white focus:outline-none"/>
-                <input placeholder="Lý do" value={leaveForm.reason||''}
-                  onChange={e=>setLeaveForm(f=>({...f,reason:e.target.value}))}
-                  className="text-xs border border-blue-200 rounded-xl px-3 py-2 bg-white focus:outline-none"/>
-              </div>
-              <div className="flex justify-end gap-2">
-                <button onClick={() => setShowLeaveForm(false)} className="px-4 py-2 text-xs text-slate-600 bg-white border border-slate-200 rounded-xl">Huỷ</button>
-                <button onClick={() => {
-                  if (!leaveForm.emp_id||!leaveForm.from_date) return;
-                  const newL:LeaveRequest = { id:`lv${Date.now()}`, emp_id:leaveForm.emp_id!, type:leaveForm.type||'annual',
-                    from_date:leaveForm.from_date!, to_date:leaveForm.to_date||leaveForm.from_date!,
-                    days:leaveForm.days||1, reason:leaveForm.reason||'', status:'pending', approver:'' };
-                  const updated = [newL, ...leaves];
-                  setLeaves(updated); saveHR(HR_KEYS.LEAVES, updated);
-                  // Gửi vào hàng duyệt
-                  const emp = employees.find(e => e.id === newL.emp_id);
-                  triggerHrDoc(
-                    `Nghỉ phép: ${emp?.full_name || newL.emp_id} — ${newL.days} ngày (${newL.from_date})`,
-                    'LEAVE_REQUEST',
-                    { leave: newL },
-                  );
-                  setShowLeaveForm(false); setLeaveForm({ type:'annual', status:'pending', days:1, from_date: new Date().toLocaleDateString('vi-VN'), to_date: new Date().toLocaleDateString('vi-VN') });
-                }} className="px-4 py-2 text-xs bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-bold">Gửi đơn & Duyệt</button>
-              </div>
-            </div>
-          )}
 
           {/* Leave balance strip */}
           <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
@@ -805,6 +729,184 @@ export default function HRWorkspace({ project: selectedProject, projectId: proje
           </div>
         </div>
       )}
+
+      {/* ── MODALS — DESIGN_SYSTEM: always at end of component ── */}
+
+      {/* ── MODALS — end of component per DESIGN_SYSTEM ── */}
+
+      {/* Modal Thêm / Sửa Nhân viên */}
+      <ModalForm
+        open={showEmpForm}
+        onClose={() => setShowEmpForm(false)}
+        title={selectedEmp ? 'Cập nhật hồ sơ nhân viên' : 'Thêm nhân viên mới'}
+        subtitle="Điền đầy đủ thông tin theo hồ sơ nhân sự"
+        icon={<Users size={18}/>}
+        color="violet"
+        width="lg"
+        footer={<>
+          <BtnCancel onClick={() => setShowEmpForm(false)} />
+          <BtnSubmit label={selectedEmp ? 'Cập nhật' : 'Thêm nhân viên'} color="blue" onClick={() => {
+            if (!empForm.full_name?.trim()) { notifErr('Vui lòng nhập họ tên!'); return; }
+            const emp: Employee = {
+              id: selectedEmp?.id || `e${Date.now()}`,
+              full_name: empForm.full_name || '',
+              position: empForm.position || '',
+              department: empForm.department || '',
+              cccd: empForm.cccd || '',
+              phone: empForm.phone || '',
+              email: empForm.email || '',
+              address: empForm.address || '',
+              dob: empForm.dob || '',
+              join_date: empForm.join_date || new Date().toLocaleDateString('vi-VN'),
+              status: (empForm.status as EmpStatus) || 'probation',
+              bhxh: empForm.bhxh || '',
+              bhyt: empForm.bhyt || '',
+              avatar_initial: (empForm.full_name || 'X')[0].toUpperCase(),
+              salary_base: empForm.salary_base || 0,
+              allowance: empForm.allowance || 0,
+            };
+            const updated = selectedEmp
+              ? employees.map(e => e.id === emp.id ? emp : e)
+              : [emp, ...employees];
+            setEmployees(updated); saveHR(HR_KEYS.EMPLOYEES, updated);
+            setShowEmpForm(false);
+            setEmpForm({});
+            notifOk(selectedEmp ? 'Đã cập nhật hồ sơ!' : 'Đã thêm nhân viên mới!');
+          }} />
+        </>}
+      >
+        <FormSection title="Thông tin cá nhân">
+          <FormGrid cols={2}>
+            <FormRow label="Họ và tên" required>
+              <input className={inputCls} value={empForm.full_name||''} onChange={e=>setEmpForm(v=>({...v,full_name:e.target.value}))} placeholder="Họ tên đầy đủ" />
+            </FormRow>
+            <FormRow label="Ngày sinh">
+              <input className={inputCls} value={empForm.dob||''} onChange={e=>setEmpForm(v=>({...v,dob:e.target.value}))} placeholder="DD/MM/YYYY" />
+            </FormRow>
+            <FormRow label="CCCD / CMND">
+              <input className={inputCls} value={empForm.cccd||''} onChange={e=>setEmpForm(v=>({...v,cccd:e.target.value}))} placeholder="Số CCCD" />
+            </FormRow>
+            <FormRow label="Số điện thoại">
+              <input className={inputCls} value={empForm.phone||''} onChange={e=>setEmpForm(v=>({...v,phone:e.target.value}))} placeholder="0901234567" />
+            </FormRow>
+            <FormRow label="Email">
+              <input className={inputCls} value={empForm.email||''} onChange={e=>setEmpForm(v=>({...v,email:e.target.value}))} placeholder="email@company.vn" />
+            </FormRow>
+            <FormRow label="Địa chỉ">
+              <input className={inputCls} value={empForm.address||''} onChange={e=>setEmpForm(v=>({...v,address:e.target.value}))} placeholder="Địa chỉ thường trú" />
+            </FormRow>
+          </FormGrid>
+        </FormSection>
+        <FormSection title="Thông tin công việc">
+          <FormGrid cols={2}>
+            <FormRow label="Chức vụ" required>
+              <input className={inputCls} value={empForm.position||''} onChange={e=>setEmpForm(v=>({...v,position:e.target.value}))} placeholder="VD: KS Thi công, Thủ kho" />
+            </FormRow>
+            <FormRow label="Bộ phận / Phòng ban">
+              <input className={inputCls} value={empForm.department||''} onChange={e=>setEmpForm(v=>({...v,department:e.target.value}))} placeholder="VD: Ban Chỉ huy, QS, HSE" />
+            </FormRow>
+            <FormRow label="Ngày vào làm">
+              <input className={inputCls} value={empForm.join_date||''} onChange={e=>setEmpForm(v=>({...v,join_date:e.target.value}))} placeholder="DD/MM/YYYY" />
+            </FormRow>
+            <FormRow label="Trạng thái">
+              <select className={selectCls} value={empForm.status||'probation'} onChange={e=>setEmpForm(v=>({...v,status:e.target.value}))}>
+                <option value="active">Đang làm việc</option>
+                <option value="probation">Thử việc</option>
+                <option value="resigned">Đã nghỉ</option>
+              </select>
+            </FormRow>
+          </FormGrid>
+        </FormSection>
+        <FormSection title="Lương & Bảo hiểm">
+          <FormGrid cols={2}>
+            <FormRow label="Lương cơ bản (VNĐ)">
+              <input type="number" className={inputCls} value={empForm.salary_base||''} onChange={e=>setEmpForm(v=>({...v,salary_base:Number(e.target.value)}))} placeholder="VD: 15000000" />
+            </FormRow>
+            <FormRow label="Phụ cấp (VNĐ)">
+              <input type="number" className={inputCls} value={empForm.allowance||''} onChange={e=>setEmpForm(v=>({...v,allowance:Number(e.target.value)}))} placeholder="VD: 3000000" />
+            </FormRow>
+            <FormRow label="Mã BHXH">
+              <input className={inputCls} value={empForm.bhxh||''} onChange={e=>setEmpForm(v=>({...v,bhxh:e.target.value}))} placeholder="Mã số BHXH" />
+            </FormRow>
+            <FormRow label="Mã BHYT">
+              <input className={inputCls} value={empForm.bhyt||''} onChange={e=>setEmpForm(v=>({...v,bhyt:e.target.value}))} placeholder="Mã thẻ BHYT" />
+            </FormRow>
+          </FormGrid>
+        </FormSection>
+      </ModalForm>
+
+      {/* Modal Đề xuất Nghỉ phép */}
+      <ModalForm
+        open={showLeaveForm}
+        onClose={() => setShowLeaveForm(false)}
+        title="Đề xuất Nghỉ phép"
+        subtitle="Gửi đề xuất — quản lý trực tiếp duyệt"
+        icon={<CalendarOff size={18}/>}
+        color="indigo"
+        width="md"
+        footer={<>
+          <BtnCancel onClick={() => setShowLeaveForm(false)} />
+          <BtnSubmit label="Gửi đề xuất" color="blue" onClick={() => {
+            if (!leaveForm.emp_id) { notifErr('Vui lòng chọn nhân viên!'); return; }
+            if (!leaveForm.from_date || !leaveForm.to_date) { notifErr('Vui lòng chọn ngày!'); return; }
+            const req: LeaveRequest = {
+              id: `lv${Date.now()}`,
+              emp_id: leaveForm.emp_id || '',
+              type: (leaveForm.type as LeaveType) || 'annual',
+              from_date: leaveForm.from_date || '',
+              to_date: leaveForm.to_date || '',
+              days: leaveForm.days || 1,
+              reason: leaveForm.reason || '',
+              status: 'pending',
+              approver: leaveForm.approver || '',
+            };
+            const updated = [req, ...leaves];
+            setLeaves(updated); saveHR(HR_KEYS.LEAVES, updated);
+            setShowLeaveForm(false); setLeaveForm({});
+            notifOk('Đã gửi đề xuất nghỉ phép!');
+          }} />
+        </>}
+      >
+        <FormSection title="Thông tin đề xuất">
+          <FormGrid cols={2}>
+            <FormRow label="Nhân viên" required>
+              <select className={selectCls} value={leaveForm.emp_id||''} onChange={e=>setLeaveForm(v=>({...v,emp_id:e.target.value}))}>
+                <option value="">-- Chọn nhân viên --</option>
+                {employees.map(e=><option key={e.id} value={e.id}>{e.full_name} — {e.position}</option>)}
+              </select>
+            </FormRow>
+            <FormRow label="Loại nghỉ phép">
+              <select className={selectCls} value={leaveForm.type||'annual'} onChange={e=>setLeaveForm(v=>({...v,type:e.target.value}))}>
+                <option value="annual">Phép năm</option>
+                <option value="sick">Ốm đau</option>
+                <option value="personal">Việc riêng</option>
+                <option value="unpaid">Không lương</option>
+                <option value="maternity">Thai sản</option>
+              </select>
+            </FormRow>
+            <FormRow label="Từ ngày" required>
+              <input className={inputCls} value={leaveForm.from_date||''} onChange={e=>setLeaveForm(v=>({...v,from_date:e.target.value}))} placeholder="DD/MM/YYYY" />
+            </FormRow>
+            <FormRow label="Đến ngày" required>
+              <input className={inputCls} value={leaveForm.to_date||''} onChange={e=>setLeaveForm(v=>({...v,to_date:e.target.value}))} placeholder="DD/MM/YYYY" />
+            </FormRow>
+            <FormRow label="Số ngày nghỉ">
+              <input type="number" className={inputCls} value={leaveForm.days||1} onChange={e=>setLeaveForm(v=>({...v,days:Number(e.target.value)}))} min={1} />
+            </FormRow>
+            <FormRow label="Người duyệt">
+              <input className={inputCls} value={leaveForm.approver||''} onChange={e=>setLeaveForm(v=>({...v,approver:e.target.value}))} placeholder="Tên quản lý trực tiếp" />
+            </FormRow>
+            <FormRow label="Người phụ trách thay thế">
+              <input className={inputCls} value={(leaveForm as any).nguoiThayThe||''} onChange={e=>setLeaveForm(v=>({...v,nguoiThayThe:e.target.value} as any))} placeholder="Ai xử lý công việc khi vắng" />
+            </FormRow>
+            <FormRow label="Lý do">
+              <input className={inputCls} value={leaveForm.reason||''} onChange={e=>setLeaveForm(v=>({...v,reason:e.target.value}))} placeholder="Lý do xin nghỉ" />
+            </FormRow>
+          </FormGrid>
+        </FormSection>
+      </ModalForm>
+
     </div>
+
   );
 }

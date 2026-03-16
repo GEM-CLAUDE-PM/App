@@ -5,32 +5,58 @@
  */
 
 import React from 'react';
+import ReactDOM from 'react-dom';
 
 // ─── Print CSS inject helper ──────────────────────────────────────────────────
 const PRINT_CSS = `
-  @media print {
-    html, body, #root { visibility: hidden !important; margin: 0 !important; }
-    .gem-print-zone { 
-      visibility: visible !important; 
-      position: fixed !important; 
-      inset: 0 !important; 
-      background: white !important; 
-      padding: 0 !important;
-      z-index: 99999 !important;
+  @media screen {
+    /* Ẩn print zone trên màn hình */
+    .gem-print-zone {
+      position: fixed !important;
+      top: -9999px !important;
+      left: -9999px !important;
+      width: 1px !important;
+      height: 1px !important;
+      overflow: hidden !important;
+      opacity: 0 !important;
+      pointer-events: none !important;
     }
-    .gem-no-print { display: none !important; }
-    .gem-print-hint { display: none !important; }
+  }
+
+  @media print {
+    body > *:not(.gem-print-zone) { display: none !important; }
+    body {
+      margin: 0 !important;
+      padding: 0 !important;
+      background: white !important;
+    }
+    .gem-print-zone {
+      display: block !important;
+      position: static !important;
+      width: 100% !important;
+      height: auto !important;
+      overflow: visible !important;
+      background: white !important;
+      padding: 0 !important;
+      margin: 0 !important;
+      box-shadow: none !important;
+      border: none !important;
+    }
+    .gem-print-zone,
+    .gem-print-zone * { visibility: visible !important; }
+    .gem-no-print, .gem-print-hint { display: none !important; }
     @page {
       size: A4 portrait;
-      margin: 10mm 15mm 15mm 15mm;
+      margin: 12mm 15mm 15mm 15mm;
     }
     html { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-    table { border-collapse: collapse !important; width: 100% !important; page-break-inside: avoid; }
+    table { border-collapse: collapse !important; width: 100% !important; }
     th, td { border: 1px solid #333 !important; padding: 5px 8px !important; font-size: 10pt !important; }
-    thead { background: #f0f0f0 !important; }
+    thead { background: #f0f0f0 !important; display: table-header-group !important; }
     h1 { font-size: 14pt !important; }
     h2 { font-size: 12pt !important; }
-    .page-break { page-break-before: always; }
+    .page-break { page-break-before: always; break-before: page; }
+    tr { page-break-inside: avoid; }
   }
 `;
 
@@ -237,8 +263,8 @@ export function SupervisionLogPrint({ data, onClose }: { data: SupervisionLogPri
     note: { label: 'Lưu ý', color: '#d97706' },
   };
 
-  return (
-    <div className="gem-print-zone" style={{ padding: '12mm 15mm', fontFamily: 'Times New Roman, serif', fontSize: 11, color: '#111' }}>
+  return ReactDOM.createPortal(
+    <div className="gem-print-zone" style={{ fontFamily: 'Times New Roman, serif', fontSize: 11, color: '#111' }}>
       <PrintHeader info={{
         projectName,
         docTitle: 'NHẬT KÝ GIÁM SÁT THI CÔNG',
@@ -317,7 +343,7 @@ export function SupervisionLogPrint({ data, onClose }: { data: SupervisionLogPri
         GEM & CLAUDE PM Pro v1.0 · AI-Powered Construction ERP · In lúc: {new Date().toLocaleString('vi-VN')}
       </div>
     </div>
-  );
+  , document.body);
 }
 
 // ─── 2. In QS Payment Request ─────────────────────────────────────────────────
@@ -352,8 +378,8 @@ export function QSPaymentPrint({ data, onClose }: { data: QSPaymentPrintData; on
   const fmt = (n: number) => n.toLocaleString('vi-VN') + ' đ';
   const fmtB = (n: number) => (n / 1e9).toFixed(3) + ' tỷ';
 
-  return (
-    <div className="gem-print-zone" style={{ padding: '12mm 15mm', fontFamily: 'Times New Roman, serif', fontSize: 11, color: '#111' }}>
+  return ReactDOM.createPortal(
+    <div className="gem-print-zone" style={{ fontFamily: 'Times New Roman, serif', fontSize: 11, color: '#111' }}>
       <PrintHeader info={{
         projectName,
         docTitle: 'GIẤY ĐỀ NGHỊ THANH TOÁN',
@@ -454,7 +480,7 @@ export function QSPaymentPrint({ data, onClose }: { data: QSPaymentPrintData; on
         GEM & CLAUDE PM Pro v1.0 · AI-Powered Construction ERP · In lúc: {new Date().toLocaleString('vi-VN')}
       </div>
     </div>
-  );
+  , document.body);
 }
 
 // ─── 3. In Báo cáo Tiến độ ───────────────────────────────────────────────────
@@ -500,8 +526,8 @@ export function ProgressReportPrint({ data, onClose }: { data: ProgressReportPri
   const spiColor = spi >= 0.95 ? '#16a34a' : spi >= 0.85 ? '#d97706' : '#dc2626';
   const cpiColor = cpi >= 0.95 ? '#16a34a' : cpi >= 0.85 ? '#d97706' : '#dc2626';
 
-  return (
-    <div className="gem-print-zone" style={{ padding: '12mm 15mm', fontFamily: 'Times New Roman, serif', fontSize: 11, color: '#111' }}>
+  return ReactDOM.createPortal(
+    <div className="gem-print-zone" style={{ fontFamily: 'Times New Roman, serif', fontSize: 11, color: '#111' }}>
       <PrintHeader info={{
         projectName,
         docTitle: 'BÁO CÁO TIẾN ĐỘ DỰ ÁN',
@@ -647,28 +673,38 @@ export function ProgressReportPrint({ data, onClose }: { data: ProgressReportPri
         GEM & CLAUDE PM Pro v1.0 · AI-Powered Construction ERP · In lúc: {new Date().toLocaleString('vi-VN')}
       </div>
     </div>
-  );
+  , document.body);
 }
 
 // ─── usePrint hook — helper dùng trong mọi dashboard ─────────────────────────
+// ─── PrintPortal — render gem-print-zone trực tiếp vào body, tách khỏi app tree
+function PrintPortal({ children }: { children: React.ReactNode }) {
+  return ReactDOM.createPortal(children, document.body);
+}
+
 export function usePrint() {
-  const [printComponent, setPrintComponent] = React.useState<React.ReactNode>(null);
+  const [printData, setPrintData] = React.useState<React.ReactNode>(null);
+
+  // printComponent = Portal wrapper — đặt vào cuối JSX bất kỳ dashboard nào
+  const printComponent = printData
+    ? <PrintPortal>{printData}</PrintPortal>
+    : null;
 
   const printSupervisionLog = React.useCallback((data: SupervisionLogPrintData) => {
-    setPrintComponent(
-      <SupervisionLogPrint data={data} onClose={() => setPrintComponent(null)} />
+    setPrintData(
+      <SupervisionLogPrint data={data} onClose={() => setPrintData(null)} />
     );
   }, []);
 
   const printQSPayment = React.useCallback((data: QSPaymentPrintData) => {
-    setPrintComponent(
-      <QSPaymentPrint data={data} onClose={() => setPrintComponent(null)} />
+    setPrintData(
+      <QSPaymentPrint data={data} onClose={() => setPrintData(null)} />
     );
   }, []);
 
   const printProgressReport = React.useCallback((data: ProgressReportPrintData) => {
-    setPrintComponent(
-      <ProgressReportPrint data={data} onClose={() => setPrintComponent(null)} />
+    setPrintData(
+      <ProgressReportPrint data={data} onClose={() => setPrintData(null)} />
     );
   }, []);
 
@@ -711,8 +747,8 @@ export function ITPPrint({ data, onClose }: { data: ITPPrintData; onClose: () =>
     'Không đạt': { label: 'Không đạt', color: '#dc2626' },
   };
 
-  return (
-    <div className="gem-print-zone" style={{ padding: '12mm 15mm', fontFamily: 'Times New Roman, serif', fontSize: 11, color: '#111' }}>
+  return ReactDOM.createPortal(
+    <div className="gem-print-zone" style={{ fontFamily: 'Times New Roman, serif', fontSize: 11, color: '#111' }}>
       <PrintHeader info={{
         projectName,
         projectId,
@@ -790,7 +826,7 @@ export function ITPPrint({ data, onClose }: { data: ITPPrintData; onClose: () =>
         GEM & CLAUDE PM Pro v1.0 · AI-Powered Construction ERP · In lúc: {new Date().toLocaleString('vi-VN')}
       </div>
     </div>
-  );
+  , document.body);
 }
 
 // ─── 5. In Phiếu Không Phù Hợp (NCR) ────────────────────────────────────────
@@ -827,8 +863,8 @@ export function NCRPrint({ data, onClose }: { data: NCRPrintData; onClose: () =>
     Cao: '#dc2626', 'Trung bình': '#d97706', Thấp: '#16a34a',
   };
 
-  return (
-    <div className="gem-print-zone" style={{ padding: '12mm 15mm', fontFamily: 'Times New Roman, serif', fontSize: 11, color: '#111' }}>
+  return ReactDOM.createPortal(
+    <div className="gem-print-zone" style={{ fontFamily: 'Times New Roman, serif', fontSize: 11, color: '#111' }}>
       <PrintHeader info={{
         projectName,
         projectId,
@@ -892,7 +928,7 @@ export function NCRPrint({ data, onClose }: { data: NCRPrintData; onClose: () =>
         GEM & CLAUDE PM Pro v1.0 · AI-Powered Construction ERP · In lúc: {new Date().toLocaleString('vi-VN')}
       </div>
     </div>
-  );
+  , document.body);
 }
 
 // ─── 6. In Phiếu Kho (Nhập/Xuất) ─────────────────────────────────────────────
@@ -936,8 +972,8 @@ export function VoucherPrint({ data, onClose }: { data: VoucherPrintData; onClos
   const title = VOUCHER_TITLE[v.type] || 'PHIẾU KHO';
   const fmt = (n?: number) => n != null ? n.toLocaleString('vi-VN') : '___';
 
-  return (
-    <div className="gem-print-zone" style={{ padding: '12mm 15mm', fontFamily: 'Times New Roman, serif', fontSize: 11, color: '#111' }}>
+  return ReactDOM.createPortal(
+    <div className="gem-print-zone" style={{ fontFamily: 'Times New Roman, serif', fontSize: 11, color: '#111' }}>
       <PrintHeader info={{ projectName, projectId, docTitle: title, docNo: v.id, date: v.date, preparedBy: v.requestedBy }}/>
 
       <table style={{ width: '100%', marginBottom: 14 }}>
@@ -973,7 +1009,7 @@ export function VoucherPrint({ data, onClose }: { data: VoucherPrintData; onClos
         GEM & CLAUDE PM Pro v1.0 · AI-Powered Construction ERP · In lúc: {new Date().toLocaleString('vi-VN')}
       </div>
     </div>
-  );
+  , document.body);
 }
 
 // ─── 7. In Biên bản Kiểm kê Kho (S10-DN) ────────────────────────────────────
@@ -1003,8 +1039,8 @@ export function InventoryPrint({ data, onClose }: { data: InventoryPrintData; on
   const { kiemKe: kk, projectName, projectId, auditRows } = data;
   const fmt = (n: number) => n.toLocaleString('vi-VN');
 
-  return (
-    <div className="gem-print-zone" style={{ padding: '12mm 15mm', fontFamily: 'Times New Roman, serif', fontSize: 11, color: '#111' }}>
+  return ReactDOM.createPortal(
+    <div className="gem-print-zone" style={{ fontFamily: 'Times New Roman, serif', fontSize: 11, color: '#111' }}>
       <PrintHeader info={{ projectName, projectId, docTitle: 'BIÊN BẢN KIỂM KÊ KHO VẬT TƯ (S10-DN)', docNo: kk.id, date: kk.date }}/>
 
       {/* Nếu có items kiểm kê chi tiết */}
@@ -1085,7 +1121,7 @@ export function InventoryPrint({ data, onClose }: { data: InventoryPrintData; on
         GEM & CLAUDE PM Pro v1.0 · AI-Powered Construction ERP · In lúc: {new Date().toLocaleString('vi-VN')}
       </div>
     </div>
-  );
+  , document.body);
 }
 
 // ─── 8. In Báo cáo HSE ────────────────────────────────────────────────────────
@@ -1115,8 +1151,8 @@ export function HSEReportPrint({ data, onClose }: { data: HSEReportPrintData; on
 
   const { reportContent, period, stats, projectName, projectId, preparedBy } = data;
 
-  return (
-    <div className="gem-print-zone" style={{ padding: '12mm 15mm', fontFamily: 'Times New Roman, serif', fontSize: 11, color: '#111' }}>
+  return ReactDOM.createPortal(
+    <div className="gem-print-zone" style={{ fontFamily: 'Times New Roman, serif', fontSize: 11, color: '#111' }}>
       <PrintHeader info={{
         projectName, projectId,
         docTitle: 'BÁO CÁO AN TOÀN LAO ĐỘNG & MÔI TRƯỜNG (HSE)',
@@ -1160,7 +1196,7 @@ export function HSEReportPrint({ data, onClose }: { data: HSEReportPrintData; on
         GEM & CLAUDE PM Pro v1.0 · AI-Powered Construction ERP · In lúc: {new Date().toLocaleString('vi-VN')}
       </div>
     </div>
-  );
+  , document.body);
 }
 
 // ─── 9. In Chi tiết Hợp đồng ─────────────────────────────────────────────────
@@ -1202,8 +1238,8 @@ export function ContractPrint({ data, onClose }: { data: ContractPrintData; onCl
     retention: 'Tiền giữ lại',
   };
 
-  return (
-    <div className="gem-print-zone" style={{ padding: '12mm 15mm', fontFamily: 'Times New Roman, serif', fontSize: 11, color: '#111' }}>
+  return ReactDOM.createPortal(
+    <div className="gem-print-zone" style={{ fontFamily: 'Times New Roman, serif', fontSize: 11, color: '#111' }}>
       <PrintHeader info={{
         projectName, projectId,
         docTitle: 'THÔNG TIN HỢP ĐỒNG',
@@ -1272,7 +1308,7 @@ export function ContractPrint({ data, onClose }: { data: ContractPrintData; onCl
         GEM & CLAUDE PM Pro v1.0 · AI-Powered Construction ERP · In lúc: {new Date().toLocaleString('vi-VN')}
       </div>
     </div>
-  );
+  , document.body);
 }
 
 // ─── 10. In Báo cáo Nhân lực / Bảng công / Bảng lương ───────────────────────
@@ -1320,8 +1356,8 @@ export function ManpowerPrint({ data, onClose }: { data: ManpowerPrintData; onCl
     payroll:   'BẢNG TÍNH LƯƠNG',
   };
 
-  return (
-    <div className="gem-print-zone" style={{ padding: '12mm 15mm', fontFamily: 'Times New Roman, serif', fontSize: 11, color: '#111' }}>
+  return ReactDOM.createPortal(
+    <div className="gem-print-zone" style={{ fontFamily: 'Times New Roman, serif', fontSize: 11, color: '#111' }}>
       <PrintHeader info={{
         projectName, projectId,
         docTitle: TITLE_MAP[type],
@@ -1430,7 +1466,7 @@ export function ManpowerPrint({ data, onClose }: { data: ManpowerPrintData; onCl
         GEM & CLAUDE PM Pro v1.0 · AI-Powered Construction ERP · In lúc: {new Date().toLocaleString('vi-VN')}
       </div>
     </div>
-  );
+  , document.body);
 }
 
 // ─── 11. In Phiếu Công nợ (Accounting) ───────────────────────────────────────
@@ -1468,8 +1504,8 @@ export function DebtPrint({ data, onClose }: { data: DebtPrintData; onClose: () 
     paid: 'Đã thanh toán đủ', overdue: 'Quá hạn',
   };
 
-  return (
-    <div className="gem-print-zone" style={{ padding: '12mm 15mm', fontFamily: 'Times New Roman, serif', fontSize: 11, color: '#111' }}>
+  return ReactDOM.createPortal(
+    <div className="gem-print-zone" style={{ fontFamily: 'Times New Roman, serif', fontSize: 11, color: '#111' }}>
       <PrintHeader info={{
         projectName, projectId,
         docTitle: 'PHIẾU THEO DÕI CÔNG NỢ',
@@ -1515,7 +1551,7 @@ export function DebtPrint({ data, onClose }: { data: DebtPrintData; onClose: () 
         GEM & CLAUDE PM Pro v1.0 · AI-Powered Construction ERP · In lúc: {new Date().toLocaleString('vi-VN')}
       </div>
     </div>
-  );
+  , document.body);
 }
 
 // ─── 12. In Bảng kê Nghĩa vụ Thuế ───────────────────────────────────────────
@@ -1551,8 +1587,8 @@ export function TaxTablePrint({ data, onClose }: { data: TaxTablePrintData; onCl
     declared: 'Đã khai', paid: 'Đã nộp', pending: 'Chờ khai', overdue: 'Quá hạn',
   };
 
-  return (
-    <div className="gem-print-zone" style={{ padding: '12mm 15mm', fontFamily: 'Times New Roman, serif', fontSize: 11, color: '#111' }}>
+  return ReactDOM.createPortal(
+    <div className="gem-print-zone" style={{ fontFamily: 'Times New Roman, serif', fontSize: 11, color: '#111' }}>
       <PrintHeader info={{
         projectName, projectId,
         docTitle: 'BẢNG KÊ NGHĨA VỤ THUẾ',
@@ -1607,5 +1643,5 @@ export function TaxTablePrint({ data, onClose }: { data: TaxTablePrintData; onCl
         GEM & CLAUDE PM Pro v1.0 · AI-Powered Construction ERP · In lúc: {new Date().toLocaleString('vi-VN')}
       </div>
     </div>
-  );
+  , document.body);
 }

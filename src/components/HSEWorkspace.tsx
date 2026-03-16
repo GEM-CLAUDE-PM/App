@@ -1,4 +1,5 @@
 import { useNotification } from './NotificationEngine';
+import ModalForm, { FormRow, FormGrid, inputCls, selectCls, BtnCancel, BtnSubmit } from './ModalForm';
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { LayoutDashboard, Folder, TrendingUp, Clock, HardDrive, CheckCircle2, Lock, FileText, Image as ImageIcon, Files, ClipboardList, ExternalLink, BookOpen, UploadCloud, Loader2, Plus, Printer, Users, HardHat, Camera, ShieldAlert, Sun, MessageCircle, Network, HeartPulse, AlertTriangle, Mic, Edit3, Unlock, X, Award, Target, GraduationCap, Briefcase, ChevronRight, ArrowRight, Building2, CheckCircle, CircleDashed, ArrowLeft, ChevronDown, Cloud, Download, Eye, MoreVertical, ChevronLeft, Calendar, ShieldCheck, Trash2, Sparkles, User, Info, ChevronUp, Wrench, Truck, Fuel, Activity, Zap, Settings, AlertCircle, Search, Scan, FileSpreadsheet, Save, Calculator, Copy, Send } from 'lucide-react';
 import { createDocument, submitDocument, getApprovalQueue, type ApprovalDoc } from './approvalEngine';
@@ -31,6 +32,7 @@ function useLocalCtx(ctxProp?: UserContext, projectIdProp?: string): { ctx: User
 
 export default function HSEWorkspace({ project: selectedProject, projectId: projectIdProp, ctx: ctxProp }: HSEProps) {
   const { ctx, projectId } = useLocalCtx(ctxProp, projectIdProp);
+  const { err: notifErr } = useNotification();
             // ── HSE WORKSPACE ĐẦYĐỦ ─────────────────────────────────────────
   // localStorage helpers removed — persistence via db.ts
 
@@ -152,7 +154,7 @@ export default function HSEWorkspace({ project: selectedProject, projectId: proj
   ) => {
     if (!WORKFLOWS[docType]) return;
     const cr = createDocument({ projectId, docType, ctx, title, data });
-    if (!cr.ok) { alert(`❌ ${(cr as any).error}`); return; }
+    if (!cr.ok) { notifErr(`❌ ${(cr as any).error}`); return; }
     const sr = submitDocument(projectId, cr.data!.id, ctx);
     if (sr.ok) {
       refreshHseQueue();
@@ -162,7 +164,7 @@ export default function HSEWorkspace({ project: selectedProject, projectId: proj
       document.body.appendChild(el);
       setTimeout(() => el.remove(), 3500);
     } else {
-      alert(`❌ ${(sr as any).error}`);
+      notifErr(`❌ ${(sr as any).error}`);
     }
   }, [projectId, ctx, refreshHseQueue]);
   // ── /Approval wiring ──────────────────────────────────────────────────────
@@ -204,6 +206,19 @@ export default function HSEWorkspace({ project: selectedProject, projectId: proj
 
   // Forms
   const [showIncidentForm, setShowIncidentForm] = React.useState(false);
+
+  // gem:open-action — WorkspaceActionBar trigger
+  React.useEffect(() => {
+    const handler = (e: Event) => {
+      const { actionId } = (e as CustomEvent).detail;
+      if (actionId === 'HSE_INCIDENT')   { setHseTab('incidents'); setTimeout(() => setShowIncidentForm(true), 150); }
+      if (actionId === 'PERMIT_TO_WORK') { setHseTab('violations'); setTimeout(() => setShowViolationForm(true), 150); }
+      if (actionId === 'CAPA')           { setHseTab('violations'); setTimeout(() => setShowViolationForm(true), 150); }
+      if (actionId === 'HSE_INSPECTION')  { setHseTab('incidents');  setTimeout(() => setShowIncidentForm(true), 150); }
+    };
+    window.addEventListener('gem:open-action', handler);
+    return () => window.removeEventListener('gem:open-action', handler);
+  }, []);
   const [showTrainingForm, setShowTrainingForm] = React.useState(false);
   const [showViolationForm, setShowViolationForm] = React.useState(false);
   const [showInspectionForm, setShowInspectionForm] = React.useState(false);
@@ -471,66 +486,6 @@ export default function HSEWorkspace({ project: selectedProject, projectId: proj
             </button>
           </div>
 
-          {/* Incident form */}
-          {showIncidentForm && (
-            <div className="bg-rose-50 border border-rose-200 rounded-2xl p-4 space-y-3 animate-in slide-in-from-top-2 duration-200">
-              <div className="flex justify-between items-center">
-                <p className="text-sm font-bold text-rose-800">📋 Ghi nhận sự cố mới</p>
-                <button onClick={() => setShowIncidentForm(false)}><X size={14} className="text-slate-400"/></button>
-              </div>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
-                <input placeholder="Ngày (DD/MM/YYYY)" value={incForm.date||''} onChange={e=>setIncForm(f=>({...f,date:e.target.value}))}
-                  className="text-xs border border-rose-200 rounded-xl px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-rose-400"/>
-                <input placeholder="Giờ (HH:MM)" value={incForm.time||''} onChange={e=>setIncForm(f=>({...f,time:e.target.value}))}
-                  className="text-xs border border-rose-200 rounded-xl px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-rose-400"/>
-                <input placeholder="Vị trí xảy ra" value={incForm.location||''} onChange={e=>setIncForm(f=>({...f,location:e.target.value}))}
-                  className="text-xs border border-rose-200 rounded-xl px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-rose-400"/>
-              </div>
-              <textarea placeholder="Mô tả chi tiết sự cố..." value={incForm.description||''} onChange={e=>setIncForm(f=>({...f,description:e.target.value}))} rows={2}
-                className="w-full text-xs border border-rose-200 rounded-xl px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-rose-400 resize-none"/>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
-                <select value={incForm.level} onChange={e=>setIncForm(f=>({...f,level:e.target.value as any}))}
-                  className="text-xs border border-rose-200 rounded-xl px-3 py-2 bg-white focus:outline-none">
-                  <option value="near_miss">Suýt xảy ra</option>
-                  <option value="minor">Nhẹ</option>
-                  <option value="medium">Trung bình</option>
-                  <option value="major">Nghiêm trọng</option>
-                  <option value="fatal">Tử vong</option>
-                </select>
-                <input placeholder="Người bị nạn (nếu có)" value={incForm.injured||''} onChange={e=>setIncForm(f=>({...f,injured:e.target.value}))}
-                  className="text-xs border border-rose-200 rounded-xl px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-rose-400"/>
-                <input placeholder="Người báo cáo" value={incForm.reporter||''} onChange={e=>setIncForm(f=>({...f,reporter:e.target.value}))}
-                  className="text-xs border border-rose-200 rounded-xl px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-rose-400"/>
-              </div>
-              <input placeholder="Nguyên nhân gốc rễ" value={incForm.root_cause||''} onChange={e=>setIncForm(f=>({...f,root_cause:e.target.value}))}
-                className="w-full text-xs border border-rose-200 rounded-xl px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-rose-400"/>
-              <input placeholder="Biện pháp xử lý / khắc phục" value={incForm.action||''} onChange={e=>setIncForm(f=>({...f,action:e.target.value}))}
-                className="w-full text-xs border border-rose-200 rounded-xl px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-rose-400"/>
-              <div className="flex justify-end gap-2">
-                <button onClick={() => setShowIncidentForm(false)} className="px-4 py-2 text-xs text-slate-600 bg-white border border-slate-200 rounded-xl hover:bg-slate-50">Huỷ</button>
-                <button onClick={() => {
-                  if (!incForm.description || !incForm.date) return;
-                  const newInc:Incident = { id:`i${Date.now()}`, date:incForm.date!, time:incForm.time||'', location:incForm.location||'',
-                    description:incForm.description!, level:incForm.level||'minor', injured:incForm.injured,
-                    root_cause:incForm.root_cause||'', action:incForm.action||'', status:'open', reporter:incForm.reporter||'' };
-                  const updated = [newInc, ...incidents];
-                  setIncidents(updated); saveHSE('hse_incidents', updated);
-                  // Tự động gửi vào hàng duyệt nếu sự cố nghiêm trọng
-                  if (incForm.level === 'serious' || incForm.level === 'fatal') {
-                    triggerHseDoc(
-                      `Sự cố: ${incForm.description?.slice(0, 60)}`,
-                      'HSE_INCIDENT',
-                      { incident: newInc },
-                    );
-                  }
-                  setShowIncidentForm(false); setIncForm({ level:'minor', status:'open', date: new Date().toLocaleDateString('vi-VN') });
-                }} className="px-4 py-2 text-xs bg-rose-600 hover:bg-rose-700 text-white rounded-xl font-bold transition-colors">
-                  Lưu & Báo cáo sự cố
-                </button>
-              </div>
-            </div>
-          )}
-
           {/* Incident detail modal */}
           {selectedIncident && (
             <div className="fixed inset-0 z-[150] flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4" onClick={() => setSelectedIncident(null)}>
@@ -610,54 +565,6 @@ export default function HSEWorkspace({ project: selectedProject, projectId: proj
             </button>
           </div>
 
-          {showViolationForm && (
-            <div className="bg-orange-50 border border-orange-200 rounded-2xl p-4 space-y-3 animate-in slide-in-from-top-2 duration-200">
-              <div className="flex justify-between items-center">
-                <p className="text-sm font-bold text-orange-800">⚠️ Ghi nhận vi phạm</p>
-                <button onClick={() => setShowViolationForm(false)}><X size={14} className="text-slate-400"/></button>
-              </div>
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
-                <input placeholder="Ngày" value={vioForm.date||''} onChange={e=>setVioForm(f=>({...f,date:e.target.value}))}
-                  className="text-xs border border-orange-200 rounded-xl px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-orange-400"/>
-                <input placeholder="Tên công nhân" value={vioForm.worker||''} onChange={e=>setVioForm(f=>({...f,worker:e.target.value}))}
-                  className="text-xs border border-orange-200 rounded-xl px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-orange-400"/>
-                <input placeholder="Nhà thầu" value={vioForm.contractor||''} onChange={e=>setVioForm(f=>({...f,contractor:e.target.value}))}
-                  className="text-xs border border-orange-200 rounded-xl px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-orange-400"/>
-                <select value={vioForm.level} onChange={e=>setVioForm(f=>({...f,level:e.target.value as any}))}
-                  className="text-xs border border-orange-200 rounded-xl px-3 py-2 bg-white focus:outline-none">
-                  <option value="nhe">Nhắc nhở</option>
-                  <option value="trung">Cảnh cáo</option>
-                  <option value="nghiem_trong">Nghiêm trọng</option>
-                </select>
-              </div>
-              <textarea placeholder="Mô tả vi phạm..." value={vioForm.description||''} onChange={e=>setVioForm(f=>({...f,description:e.target.value}))} rows={2}
-                className="w-full text-xs border border-orange-200 rounded-xl px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-orange-400 resize-none"/>
-              <div className="grid grid-cols-2 gap-2">
-                <input placeholder="Biện pháp xử lý" value={vioForm.action||''} onChange={e=>setVioForm(f=>({...f,action:e.target.value}))}
-                  className="text-xs border border-orange-200 rounded-xl px-3 py-2 bg-white focus:outline-none"/>
-                <input type="number" placeholder="Tiền phạt (K đồng)" value={vioForm.fine_amount||''} onChange={e=>setVioForm(f=>({...f,fine_amount:Number(e.target.value)}))}
-                  className="text-xs border border-orange-200 rounded-xl px-3 py-2 bg-white focus:outline-none"/>
-              </div>
-              <label className="flex items-center gap-2 text-xs text-orange-700 cursor-pointer">
-                <input type="checkbox" checked={vioForm.recurrence||false} onChange={e=>setVioForm(f=>({...f,recurrence:e.target.checked}))} className="rounded"/>
-                Đây là vi phạm tái diễn
-              </label>
-              <div className="flex justify-end gap-2">
-                <button onClick={() => setShowViolationForm(false)} className="px-4 py-2 text-xs text-slate-600 bg-white border border-slate-200 rounded-xl hover:bg-slate-50">Huỷ</button>
-                <button onClick={() => {
-                  if (!vioForm.description || !vioForm.worker) return;
-                  const newV:Violation = { id:`v${Date.now()}`, date:vioForm.date!, worker:vioForm.worker!, contractor:vioForm.contractor||'',
-                    description:vioForm.description!, level:vioForm.level||'nhe', photo_note:'', action:vioForm.action||'',
-                    fine_amount:vioForm.fine_amount||0, status:'open', recurrence:vioForm.recurrence||false };
-                  const updated = [newV, ...violations];
-                  setViolations(updated); saveHSE('hse_violations', updated);
-                  setShowViolationForm(false); setVioForm({ level:'nhe', status:'open', fine_amount:0, date: new Date().toLocaleDateString('vi-VN') });
-                }} className="px-4 py-2 text-xs bg-orange-500 hover:bg-orange-600 text-white rounded-xl font-bold">
-                  Lưu vi phạm
-                </button>
-              </div>
-            </div>
-          )}
 
           <div className="space-y-2">
             {violations.map(v => (
@@ -728,39 +635,6 @@ export default function HSEWorkspace({ project: selectedProject, projectId: proj
           {/* ── VIEW: KHÓA HỌC ── */}
           {trainingView === 'classes' && (
             <div className="space-y-3">
-              {showTrainingForm && (
-                <div className="bg-blue-50 border border-blue-200 rounded-2xl p-4 space-y-3 animate-in slide-in-from-top-2 duration-200">
-                  <div className="flex justify-between items-center">
-                    <p className="text-sm font-bold text-blue-800">?? Thêm khóa huấn luyện</p>
-                    <button onClick={() => setShowTrainingForm(false)}><X size={14} className="text-slate-400"/></button>
-                  </div>
-                  <div className="grid grid-cols-2 gap-2">
-                    <input placeholder="Tên khóa học" value={traForm.title||''} onChange={e=>setTraForm(f=>({...f,title:e.target.value}))}
-                      className="text-xs border border-blue-200 rounded-xl px-3 py-2 bg-white col-span-2 focus:outline-none focus:ring-2 focus:ring-blue-400"/>
-                    <input placeholder="Ngày tổ chức" value={traForm.scheduled_date||''} onChange={e=>setTraForm(f=>({...f,scheduled_date:e.target.value}))}
-                      className="text-xs border border-blue-200 rounded-xl px-3 py-2 bg-white focus:outline-none"/>
-                    <input placeholder="Giảng viên" value={traForm.trainer||''} onChange={e=>setTraForm(f=>({...f,trainer:e.target.value}))}
-                      className="text-xs border border-blue-200 rounded-xl px-3 py-2 bg-white focus:outline-none"/>
-                    <input type="number" placeholder="Số giờ" value={traForm.duration_hours||''} onChange={e=>setTraForm(f=>({...f,duration_hours:Number(e.target.value)}))}
-                      className="text-xs border border-blue-200 rounded-xl px-3 py-2 bg-white focus:outline-none"/>
-                    <input type="number" placeholder="Số người tối đa" value={traForm.max_participants||''} onChange={e=>setTraForm(f=>({...f,max_participants:Number(e.target.value)}))}
-                      className="text-xs border border-blue-200 rounded-xl px-3 py-2 bg-white focus:outline-none"/>
-                  </div>
-                  <div className="flex justify-end gap-2">
-                    <button onClick={() => setShowTrainingForm(false)} className="px-4 py-2 text-xs text-slate-600 bg-white border border-slate-200 rounded-xl">Huỷ</button>
-                    <button onClick={() => {
-                      if (!traForm.title) return;
-                      const newT:Training = { id:`t${Date.now()}`, title:traForm.title!, type:'Bắt buộc',
-                        scheduled_date:traForm.scheduled_date||'', duration_hours:traForm.duration_hours||4,
-                        trainer:traForm.trainer||'', participants:[], max_participants:traForm.max_participants||30,
-                        status:'scheduled', pass_count:0, certificate_expiry_months:12, notes:'' };
-                      const updated = [...trainings, newT];
-                      setTrainings(updated); saveHSE('hse_trainings', updated);
-                      setShowTrainingForm(false); setTraForm({ status:'scheduled', duration_hours:4, max_participants:30, certificate_expiry_months:12 });
-                    }} className="px-4 py-2 text-xs bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-bold">Lưu</button>
-                  </div>
-                </div>
-              )}
               <div className="space-y-2">
                 {trainings.map(t => {
                   const passPct = t.pass_count && t.max_participants ? Math.round(t.pass_count/t.max_participants*100) : 0;
@@ -826,62 +700,6 @@ export default function HSEWorkspace({ project: selectedProject, projectId: proj
               )}
 
               {/* Form thêm chứng chỉ */}
-              {showCertForm && (
-                <div className="bg-emerald-50 border border-emerald-200 rounded-2xl p-4 space-y-3 animate-in slide-in-from-top-2 duration-200">
-                  <div className="flex justify-between items-center">
-                    <p className="text-sm font-bold text-emerald-800">?? Thêm chứng chỉ cá nhân</p>
-                    <button onClick={() => setShowCertForm(false)}><X size={14} className="text-slate-400"/></button>
-                  </div>
-                  <div className="grid grid-cols-2 gap-2">
-                    <input placeholder="Họ và tên *" value={certForm.worker_name||''} onChange={e=>setCertForm(f=>({...f,worker_name:e.target.value}))}
-                      className="text-xs border border-emerald-200 rounded-xl px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-emerald-400"/>
-                    <input placeholder="Tổ đội / Nhà thầu" value={certForm.contractor||''} onChange={e=>setCertForm(f=>({...f,contractor:e.target.value}))}
-                      className="text-xs border border-emerald-200 rounded-xl px-3 py-2 bg-white focus:outline-none"/>
-                    <select value={certForm.cert_type||''} onChange={e=>setCertForm(f=>({...f,cert_type:e.target.value}))}
-                      className="text-xs border border-emerald-200 rounded-xl px-3 py-2 bg-white focus:outline-none">
-                      <option value="">Loại chứng chỉ...</option>
-                      <option>An toàn lao động Nhóm 1</option>
-                      <option>An toàn lao động Nhóm 2</option>
-                      <option>An toàn lao động Nhóm 3</option>
-                      <option>An toàn lao động Nhóm 4</option>
-                      <option>An toàn lao động Nhóm 5</option>
-                      <option>Vận hành máy xây dựng</option>
-                      <option>Điện công trường</option>
-                      <option>Làm việc trên cao</option>
-                      <option>PCCC cơ bản</option>
-                      <option>Sơ cứu y tế</option>
-                    </select>
-                    <input placeholder="Số chứng chỉ" value={certForm.cert_no||''} onChange={e=>setCertForm(f=>({...f,cert_no:e.target.value}))}
-                      className="text-xs border border-emerald-200 rounded-xl px-3 py-2 bg-white focus:outline-none"/>
-                    <input placeholder="Ngày cấp (DD/MM/YYYY)" value={certForm.issued||''} onChange={e=>setCertForm(f=>({...f,issued:e.target.value}))}
-                      className="text-xs border border-emerald-200 rounded-xl px-3 py-2 bg-white focus:outline-none"/>
-                    <input placeholder="Ngày hết hạn (DD/MM/YYYY)" value={certForm.expiry||''} onChange={e=>setCertForm(f=>({...f,expiry:e.target.value}))}
-                      className="text-xs border border-emerald-200 rounded-xl px-3 py-2 bg-white focus:outline-none"/>
-                    <input placeholder="Nơi cấp" value={certForm.issued_by||''} onChange={e=>setCertForm(f=>({...f,issued_by:e.target.value}))}
-                      className="text-xs border border-emerald-200 rounded-xl px-3 py-2 bg-white col-span-2 focus:outline-none"/>
-                  </div>
-                  <div className="flex justify-end gap-2">
-                    <button onClick={() => setShowCertForm(false)} className="px-4 py-2 text-xs text-slate-600 bg-white border border-slate-200 rounded-xl">Huỷ</button>
-                    <button onClick={() => {
-                      if (!certForm.worker_name || !certForm.cert_type) return;
-                      const newC:WorkerCert = {
-                        id: `wc${Date.now()}`,
-                        worker_name: certForm.worker_name!,
-                        contractor: certForm.contractor||'',
-                        cert_type: certForm.cert_type!,
-                        cert_no: certForm.cert_no||'',
-                        issued: certForm.issued||'',
-                        expiry: certForm.expiry||'',
-                        issued_by: certForm.issued_by||'',
-                      };
-                      const updated = [...workerCerts, newC];
-                      setWorkerCerts(updated);
-                      saveHSE('hse_worker_certs', updated);
-                      setShowCertForm(false); setCertForm({});
-                    }} className="px-4 py-2 text-xs bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-bold">Lưu</button>
-                  </div>
-                </div>
-              )}
 
               {/* Bộ lọc */}
               <div className="flex items-center gap-2">
@@ -1068,6 +886,218 @@ export default function HSEWorkspace({ project: selectedProject, projectId: proj
         </div>
       )}
 
+
+
+
+      {/* ── VIOLATION FORM MODAL ── */}
+      <ModalForm
+        open={showViolationForm}
+        onClose={() => setShowViolationForm(false)}
+        title="Ghi nhận vi phạm an toàn"
+        subtitle="Ghi nhận vi phạm của công nhân/nhà thầu tại công trường"
+        icon={<AlertTriangle size={18}/>} color="orange" width="md"
+        footer={<>
+          <BtnCancel onClick={() => setShowViolationForm(false)}/>
+          <BtnSubmit label="Lưu vi phạm" color="orange" onClick={() => {
+            if (!vioForm.description || !vioForm.worker) { notifErr('Vui lòng nhập tên công nhân và mô tả vi phạm!'); return; }
+            const newV:Violation = { id:`v${Date.now()}`, date:vioForm.date||new Date().toLocaleDateString('vi-VN'),
+              worker:vioForm.worker!, contractor:vioForm.contractor||'',
+              description:vioForm.description!, level:vioForm.level||'nhe', photo_note:'', action:vioForm.action||'',
+              fine_amount:vioForm.fine_amount||0, status:'open', recurrence:vioForm.recurrence||false };
+            const updated = [newV, ...violations];
+            setViolations(updated); saveHSE('hse_violations', updated);
+            setShowViolationForm(false); setVioForm({ level:'nhe', status:'open', fine_amount:0 });
+            notifOk('Đã ghi nhận vi phạm!');
+          }}/>
+        </>}
+      >
+        <FormGrid cols={2}>
+          <FormRow label="Ngày vi phạm">
+            <input value={vioForm.date||''} onChange={e=>setVioForm(f=>({...f,date:e.target.value}))}
+              className={inputCls} placeholder="DD/MM/YYYY"/>
+          </FormRow>
+          <FormRow label="Tên công nhân *">
+            <input value={vioForm.worker||''} onChange={e=>setVioForm(f=>({...f,worker:e.target.value}))}
+              className={inputCls} placeholder="Họ và tên"/>
+          </FormRow>
+          <FormRow label="Nhà thầu">
+            <input value={vioForm.contractor||''} onChange={e=>setVioForm(f=>({...f,contractor:e.target.value}))}
+              className={inputCls} placeholder="Tên nhà thầu/tổ đội"/>
+          </FormRow>
+          <FormRow label="Mức độ vi phạm">
+            <select value={vioForm.level||'nhe'} onChange={e=>setVioForm(f=>({...f,level:e.target.value}))} className={selectCls}>
+              <option value="nhe">Nhắc nhở</option>
+              <option value="trung">Cảnh cáo</option>
+              <option value="nghiem_trong">Nghiêm trọng</option>
+            </select>
+          </FormRow>
+        </FormGrid>
+        <FormRow label="Mô tả vi phạm *">
+          <textarea value={vioForm.description||''} onChange={e=>setVioForm(f=>({...f,description:e.target.value}))}
+            className={inputCls} rows={3} placeholder="Mô tả chi tiết hành vi vi phạm..."/>
+        </FormRow>
+        <FormGrid cols={2}>
+          <FormRow label="Biện pháp xử lý">
+            <input value={vioForm.action||''} onChange={e=>setVioForm(f=>({...f,action:e.target.value}))}
+              className={inputCls} placeholder="Hướng xử lý"/>
+          </FormRow>
+          <FormRow label="Tiền phạt (K đồng)">
+            <input type="number" value={vioForm.fine_amount||''} onChange={e=>setVioForm(f=>({...f,fine_amount:+e.target.value}))}
+              className={inputCls} placeholder="0"/>
+          </FormRow>
+        </FormGrid>
+        <label className="flex items-center gap-2 text-xs text-slate-600 cursor-pointer mt-1">
+          <input type="checkbox" checked={vioForm.recurrence||false} onChange={e=>setVioForm(f=>({...f,recurrence:e.target.checked}))}/>
+          Đây là vi phạm tái diễn
+        </label>
+      </ModalForm>
+      {/* ── TRAINING FORM MODAL ── */}
+      <ModalForm
+        open={showTrainingForm}
+        onClose={() => setShowTrainingForm(false)}
+        title="Thêm khóa huấn luyện"
+        subtitle="Lên kế hoạch khóa đào tạo an toàn lao động"
+        icon={<BookOpen size={18}/>} color="blue" width="md"
+        footer={<>
+          <BtnCancel onClick={() => setShowTrainingForm(false)}/>
+          <BtnSubmit label="Lưu khóa học" color="blue" onClick={() => {
+            if (!traForm.title) { notifErr('Vui lòng nhập tên khóa học!'); return; }
+            const newT:Training = { id:`t${Date.now()}`, title:traForm.title!, type:'Bắt buộc',
+              scheduled_date:traForm.scheduled_date||'', duration_hours:traForm.duration_hours||4,
+              trainer:traForm.trainer||'', participants:[], max_participants:traForm.max_participants||30,
+              status:'scheduled', pass_count:0, certificate_expiry_months:12, notes:'' };
+            const updated = [...trainings, newT];
+            setTrainings(updated); saveHSE('hse_trainings', updated);
+            setShowTrainingForm(false); setTraForm({ status:'scheduled', duration_hours:4, max_participants:30 });
+            notifOk('Đã thêm khóa huấn luyện!');
+          }}/>
+        </>}
+      >
+        <FormRow label="Tên khóa học *">
+          <input value={traForm.title||''} onChange={e=>setTraForm(f=>({...f,title:e.target.value}))}
+            className={inputCls} placeholder="VD: An toàn lao động cơ bản"/>
+        </FormRow>
+        <FormGrid cols={2}>
+          <FormRow label="Ngày tổ chức">
+            <input value={traForm.scheduled_date||''} onChange={e=>setTraForm(f=>({...f,scheduled_date:e.target.value}))}
+              className={inputCls} placeholder="DD/MM/YYYY"/>
+          </FormRow>
+          <FormRow label="Giảng viên">
+            <input value={traForm.trainer||''} onChange={e=>setTraForm(f=>({...f,trainer:e.target.value}))}
+              className={inputCls} placeholder="Họ và tên giảng viên"/>
+          </FormRow>
+          <FormRow label="Số giờ học">
+            <input type="number" value={traForm.duration_hours||''} onChange={e=>setTraForm(f=>({...f,duration_hours:+e.target.value}))}
+              className={inputCls} placeholder="4"/>
+          </FormRow>
+          <FormRow label="Số người tối đa">
+            <input type="number" value={traForm.max_participants||''} onChange={e=>setTraForm(f=>({...f,max_participants:+e.target.value}))}
+              className={inputCls} placeholder="30"/>
+          </FormRow>
+        </FormGrid>
+      </ModalForm>
+      {/* ── CERT FORM MODAL ── */}
+      <ModalForm
+        open={showCertForm}
+        onClose={() => setShowCertForm(false)}
+        title="Thêm chứng chỉ cá nhân"
+        subtitle="Ghi nhận chứng chỉ an toàn của công nhân"
+        icon={<Award size={18}/>} color="teal" width="md"
+        footer={<>
+          <BtnCancel onClick={() => setShowCertForm(false)}/>
+          <BtnSubmit label="Lưu chứng chỉ" color="teal" onClick={() => {
+            if (!certForm.worker_name || !certForm.cert_type) { notifErr('Vui lòng nhập tên và loại chứng chỉ!'); return; }
+            const newC:WorkerCert = { id:`wc${Date.now()}`,
+              worker_name:certForm.worker_name!, contractor:certForm.contractor||'',
+              cert_type:certForm.cert_type!, cert_no:certForm.cert_no||'',
+              issued:certForm.issued||'', expiry:certForm.expiry||'', issued_by:certForm.issued_by||'' };
+            const updated = [...workerCerts, newC];
+            setWorkerCerts(updated); saveHSE('hse_worker_certs', updated);
+            setShowCertForm(false); setCertForm({});
+            notifOk('Đã thêm chứng chỉ!');
+          }}/>
+        </>}
+      >
+        <FormGrid cols={2}>
+          <FormRow label="Họ và tên *">
+            <input value={certForm.worker_name||''} onChange={e=>setCertForm(f=>({...f,worker_name:e.target.value}))}
+              className={inputCls} placeholder="Họ và tên công nhân"/>
+          </FormRow>
+          <FormRow label="Tổ đội / Nhà thầu">
+            <input value={certForm.contractor||''} onChange={e=>setCertForm(f=>({...f,contractor:e.target.value}))}
+              className={inputCls} placeholder="Tên tổ đội hoặc nhà thầu"/>
+          </FormRow>
+          <FormRow label="Loại chứng chỉ *">
+            <select value={certForm.cert_type||''} onChange={e=>setCertForm(f=>({...f,cert_type:e.target.value}))} className={selectCls}>
+              <option value="">Chọn loại...</option>
+              <option>An toàn lao động Nhóm 1</option>
+              <option>An toàn lao động Nhóm 2</option>
+              <option>An toàn lao động Nhóm 3</option>
+              <option>An toàn lao động Nhóm 4</option>
+              <option>An toàn lao động Nhóm 5</option>
+              <option>Vận hành máy xây dựng</option>
+              <option>Điện công trường</option>
+              <option>Làm việc trên cao</option>
+              <option>PCCC cơ bản</option>
+              <option>Sơ cứu y tế</option>
+            </select>
+          </FormRow>
+          <FormRow label="Số chứng chỉ">
+            <input value={certForm.cert_no||''} onChange={e=>setCertForm(f=>({...f,cert_no:e.target.value}))}
+              className={inputCls} placeholder="Số hiệu chứng chỉ"/>
+          </FormRow>
+          <FormRow label="Ngày cấp">
+            <input value={certForm.issued||''} onChange={e=>setCertForm(f=>({...f,issued:e.target.value}))}
+              className={inputCls} placeholder="DD/MM/YYYY"/>
+          </FormRow>
+          <FormRow label="Ngày hết hạn">
+            <input value={certForm.expiry||''} onChange={e=>setCertForm(f=>({...f,expiry:e.target.value}))}
+              className={inputCls} placeholder="DD/MM/YYYY"/>
+          </FormRow>
+          <FormRow label="Nơi cấp" className="col-span-2">
+            <input value={certForm.issued_by||''} onChange={e=>setCertForm(f=>({...f,issued_by:e.target.value}))}
+              className={inputCls} placeholder="Đơn vị cấp chứng chỉ"/>
+          </FormRow>
+        </FormGrid>
+      </ModalForm>
+
+      {/* ── INCIDENT FORM MODAL (DESIGN_SYSTEM: modals at end) ── */}
+      {/* Incident form */}
+      <ModalForm
+        open={showIncidentForm}
+        onClose={() => setShowIncidentForm(false)}
+        title="Báo cáo Sự cố An toàn"
+        subtitle="Ghi nhận và báo cáo ngay khi phát hiện sự cố"
+        icon={<AlertTriangle size={18}/>}
+        color="rose" width="md"
+        footer={<>
+          <BtnCancel onClick={() => setShowIncidentForm(false)} />
+          <BtnSubmit label="Lưu & Báo cáo" color="rose" onClick={() => {
+              if (!incForm.description || !incForm.date) return;
+              const newInc:Incident = { id:`i${Date.now()}`, date:incForm.date!, time:incForm.time||'', location:incForm.location||'',
+            description:incForm.description!, level:incForm.level||'minor', injured:incForm.injured,
+            root_cause:incForm.root_cause||'', action:incForm.action||'', status:'open', reporter:incForm.reporter||'' };
+              const updated = [newInc, ...incidents];
+              setIncidents(updated); saveHSE('hse_incidents', updated);
+              if (incForm.level === 'major' || incForm.level === 'fatal') {
+            triggerHseDoc(`Sự cố: ${incForm.description?.slice(0, 60)}`, 'HSE_INCIDENT', { incident: newInc });
+              }
+              setShowIncidentForm(false); setIncForm({ level:'minor', status:'open', date: new Date().toLocaleDateString('vi-VN') });
+          }} />
+        </>}
+      >
+        <FormGrid cols={2}>
+          <FormRow label="Ngày xảy ra" required><input className={inputCls} placeholder="DD/MM/YYYY" value={incForm.date||''} onChange={e=>setIncForm(f=>({...f,date:e.target.value}))}/></FormRow>
+          <FormRow label="Giờ"><input className={inputCls} placeholder="HH:MM" value={incForm.time||''} onChange={e=>setIncForm(f=>({...f,time:e.target.value}))}/></FormRow>
+          <FormRow label="Vị trí xảy ra"><input className={inputCls} placeholder="Khu vực, tầng, vị trí cụ thể" value={incForm.location||''} onChange={e=>setIncForm(f=>({...f,location:e.target.value}))}/></FormRow>
+          <FormRow label="Mức độ nghiêm trọng"><select className={selectCls} value={incForm.level} onChange={e=>setIncForm(f=>({...f,level:e.target.value as any}))}><option value="near_miss">Suýt xảy ra</option><option value="minor">Nhẹ</option><option value="medium">Trung bình</option><option value="major">Nghiêm trọng</option><option value="fatal">Tử vong</option></select></FormRow>
+          <FormRow label="Người báo cáo" required><input className={inputCls} placeholder="Họ tên người báo cáo" value={incForm.reporter||''} onChange={e=>setIncForm(f=>({...f,reporter:e.target.value}))}/></FormRow>
+          <FormRow label="Người bị nạn (nếu có)"><input className={inputCls} placeholder="Họ tên" value={incForm.injured||''} onChange={e=>setIncForm(f=>({...f,injured:e.target.value}))}/></FormRow>
+        </FormGrid>
+        <FormRow label="Mô tả chi tiết sự cố" required><textarea rows={3} className={inputCls + " resize-none"} placeholder="Mô tả đầy đủ sự cố..." value={incForm.description||''} onChange={e=>setIncForm(f=>({...f,description:e.target.value}))}/></FormRow>
+        <FormRow label="Nguyên nhân gốc rễ"><input className={inputCls} placeholder="Nguyên nhân sơ bộ" value={incForm.root_cause||''} onChange={e=>setIncForm(f=>({...f,root_cause:e.target.value}))}/></FormRow>
+        <FormRow label="Biện pháp xử lý / khắc phục"><input className={inputCls} placeholder="Biện pháp đã thực hiện hoặc đề xuất" value={incForm.action||''} onChange={e=>setIncForm(f=>({...f,action:e.target.value}))}/></FormRow>
+      </ModalForm>
 
       {/* ── APPROVAL QUEUE DRAWER ── */}
       {showApprovalPanel && (

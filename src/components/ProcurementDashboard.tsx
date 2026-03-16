@@ -2,6 +2,7 @@
 // Mua sắm: RFQ → 3 báo giá → PO approval → auto-update Materials
 // Workflow: Công trình/Cung ứng → CHT → PM → (GĐ nếu vượt ngưỡng)
 
+import ModalForm, { FormRow, FormGrid, FormSection, inputCls, selectCls, BtnCancel, BtnSubmit } from './ModalForm';
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   ShoppingCart, Plus, Search, FileText, CheckCircle2, X,
@@ -345,59 +346,6 @@ export default function ProcurementDashboard({ project }: DashboardProps) {
             </button>
           </div>
 
-          {/* RFQ Create Form */}
-          {showRFQForm && (
-            <div className="bg-teal-50 border border-teal-200 rounded-2xl p-5 space-y-3">
-              <h3 className="font-bold text-teal-800 text-sm">Tạo yêu cầu mua sắm (RFQ)</h3>
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
-                <input placeholder="Tiêu đề RFQ *" value={rfqForm.title || ''} onChange={e => setRfqForm(p => ({...p, title: e.target.value}))}
-                  className="col-span-2 border border-slate-200 rounded-lg px-2 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-teal-200"/>
-                <select value={rfqForm.category} onChange={e => setRfqForm(p => ({...p, category: e.target.value as ProcurementCat}))}
-                  className="border border-slate-200 rounded-lg px-2 py-1.5 text-xs bg-white">
-                  {Object.entries(PROCUREMENT_CAT).map(([k, v]) => <option key={k} value={k}>{v.icon} {v.label}</option>)}
-                </select>
-                <input type="date" value={rfqForm.deadline || ''} onChange={e => setRfqForm(p => ({...p, deadline: e.target.value}))}
-                  className="border border-slate-200 rounded-lg px-2 py-1.5 text-xs focus:outline-none"/>
-              </div>
-
-              {/* Items */}
-              <div className="space-y-2">
-                <p className="text-[11px] font-bold text-teal-700 uppercase tracking-wide">Hạng mục cần mua</p>
-                {rfqForm.items?.map((item, idx) => (
-                  <div key={idx} className="flex gap-2">
-                    <input placeholder="Tên hàng hoá/dịch vụ *" value={item.description}
-                      onChange={e => setRfqForm(p => ({ ...p, items: p.items!.map((it, i) => i === idx ? {...it, description: e.target.value} : it) }))}
-                      className="flex-1 border border-slate-200 rounded-lg px-2 py-1.5 text-xs focus:outline-none"/>
-                    <input placeholder="ĐVT" value={item.unit}
-                      onChange={e => setRfqForm(p => ({ ...p, items: p.items!.map((it, i) => i === idx ? {...it, unit: e.target.value} : it) }))}
-                      className="w-16 border border-slate-200 rounded-lg px-2 py-1.5 text-xs focus:outline-none"/>
-                    <input type="number" placeholder="SL" value={item.qty || ''}
-                      onChange={e => setRfqForm(p => ({ ...p, items: p.items!.map((it, i) => i === idx ? {...it, qty: +e.target.value} : it) }))}
-                      className="w-16 border border-slate-200 rounded-lg px-2 py-1.5 text-xs focus:outline-none"/>
-                    <button onClick={() => setRfqForm(p => ({ ...p, items: p.items!.filter((_, i) => i !== idx) }))}
-                      className="p-1.5 hover:bg-red-100 rounded text-red-500"><X size={12}/></button>
-                  </div>
-                ))}
-                <button onClick={() => setRfqForm(p => ({ ...p, items: [...(p.items || []), { description: '', unit: '', qty: 0 }] }))}
-                  className="text-xs text-teal-600 hover:underline flex items-center gap-1">
-                  <Plus size={11}/> Thêm hạng mục
-                </button>
-              </div>
-
-              <input placeholder="Ghi chú" value={rfqForm.notes || ''} onChange={e => setRfqForm(p => ({...p, notes: e.target.value}))}
-                className="w-full border border-slate-200 rounded-lg px-2 py-1.5 text-xs focus:outline-none"/>
-
-              <div className="flex gap-2">
-                <button onClick={createRFQ}
-                  className="px-3 py-1.5 bg-teal-600 text-white rounded-lg text-xs font-bold hover:bg-teal-700 flex items-center gap-1">
-                  <Save size={11}/> Lưu RFQ
-                </button>
-                <button onClick={() => setShowRFQForm(false)}
-                  className="px-3 py-1.5 bg-slate-200 text-slate-600 rounded-lg text-xs font-bold">Huỷ</button>
-              </div>
-            </div>
-          )}
-
           {/* RFQ List */}
           <div className="space-y-3">
             {filteredRFQs.map(rfq => {
@@ -684,40 +632,6 @@ export default function ProcurementDashboard({ project }: DashboardProps) {
             </button>
           </div>
 
-          {/* Add supplier form */}
-          {showSupplierForm && (
-            <div className="bg-teal-50 border border-teal-200 rounded-2xl p-4 space-y-3">
-              <h3 className="font-bold text-teal-800 text-sm">Thêm nhà cung cấp</h3>
-              <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
-                <input placeholder="Tên công ty *" value={supplierForm.name || ''} onChange={e => setSupplierForm(p => ({...p, name: e.target.value}))}
-                  className="col-span-2 border border-slate-200 rounded-lg px-2 py-1.5 text-xs focus:outline-none"/>
-                <input placeholder="Mã số thuế" value={supplierForm.tax_code || ''} onChange={e => setSupplierForm(p => ({...p, tax_code: e.target.value}))}
-                  className="border border-slate-200 rounded-lg px-2 py-1.5 text-xs focus:outline-none"/>
-                <input placeholder="Điện thoại" value={supplierForm.phone || ''} onChange={e => setSupplierForm(p => ({...p, phone: e.target.value}))}
-                  className="border border-slate-200 rounded-lg px-2 py-1.5 text-xs focus:outline-none"/>
-                <input placeholder="Email" value={supplierForm.email || ''} onChange={e => setSupplierForm(p => ({...p, email: e.target.value}))}
-                  className="border border-slate-200 rounded-lg px-2 py-1.5 text-xs focus:outline-none"/>
-                <input placeholder="Địa chỉ" value={supplierForm.address || ''} onChange={e => setSupplierForm(p => ({...p, address: e.target.value}))}
-                  className="col-span-2 border border-slate-200 rounded-lg px-2 py-1.5 text-xs focus:outline-none"/>
-                <div className="flex items-center gap-2">
-                  <span className="text-xs text-slate-500">Đánh giá:</span>
-                  {[1,2,3,4,5].map(n => (
-                    <button key={n} onClick={() => setSupplierForm(p => ({...p, rating: n}))}
-                      className={`text-lg ${n <= (supplierForm.rating || 3) ? 'text-amber-400' : 'text-slate-200'}`}>★</button>
-                  ))}
-                </div>
-              </div>
-              <div className="flex gap-2">
-                <button onClick={addSupplier}
-                  className="px-3 py-1.5 bg-teal-600 text-white rounded-lg text-xs font-bold hover:bg-teal-700 flex items-center gap-1">
-                  <Save size={11}/> Lưu
-                </button>
-                <button onClick={() => setShowSupplierForm(false)}
-                  className="px-3 py-1.5 bg-slate-200 text-slate-600 rounded-lg text-xs font-bold">Huỷ</button>
-              </div>
-            </div>
-          )}
-
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
             {suppliers
               .filter(s => !searchQ || s.name.toLowerCase().includes(searchQ.toLowerCase()))
@@ -750,6 +664,93 @@ export default function ProcurementDashboard({ project }: DashboardProps) {
           </div>
         </div>
       )}
+
+      {/* ── MODALS — DESIGN_SYSTEM: always at end of component ── */}
+
+      {/* ── MODALS — end of component per DESIGN_SYSTEM ── */}
+
+      {/* RFQ Create Form */}
+      <ModalForm open={showRFQForm} onClose={() => setShowRFQForm(false)}
+        title="Yêu cầu Mua sắm (RFQ)"
+        subtitle="Tạo RFQ — gửi nhà cung cấp báo giá"
+        icon={<ShoppingCart size={18}/>} color="teal" width="lg"
+        footer={<><BtnCancel onClick={() => setShowRFQForm(false)}/><BtnSubmit label="Lưu RFQ" color="blue" onClick={createRFQ}/></>}
+      >
+        <FormSection title="Thông tin chung">
+          <FormGrid cols={2}>
+            <FormRow label="Người yêu cầu" required><input className={inputCls} placeholder="Họ tên người lập RFQ" /></FormRow>
+            <FormRow label="Mức độ khẩn cấp"><select className={selectCls}><option>Bình thường</option><option>Khẩn cấp</option><option>Rất khẩn</option></select></FormRow>
+          </FormGrid>
+        </FormSection>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+            <input placeholder="Tiêu đề RFQ *" value={rfqForm.title || ''} onChange={e => setRfqForm(p => ({...p, title: e.target.value}))}
+              className="col-span-2 border border-slate-200 rounded-lg px-2 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-teal-200"/>
+            <select value={rfqForm.category} onChange={e => setRfqForm(p => ({...p, category: e.target.value as ProcurementCat}))}
+              className="border border-slate-200 rounded-lg px-2 py-1.5 text-xs bg-white">
+              {Object.entries(PROCUREMENT_CAT).map(([k, v]) => <option key={k} value={k}>{v.icon} {v.label}</option>)}
+            </select>
+            <input type="date" value={rfqForm.deadline || ''} onChange={e => setRfqForm(p => ({...p, deadline: e.target.value}))}
+              className="border border-slate-200 rounded-lg px-2 py-1.5 text-xs focus:outline-none"/>
+          </div>
+
+          {/* Items */}
+          <div className="space-y-2">
+            <p className="text-[11px] font-bold text-teal-700 uppercase tracking-wide">Hạng mục cần mua</p>
+            {rfqForm.items?.map((item, idx) => (
+              <div key={idx} className="flex gap-2">
+                <input placeholder="Tên hàng hoá/dịch vụ *" value={item.description}
+                  onChange={e => setRfqForm(p => ({ ...p, items: p.items!.map((it, i) => i === idx ? {...it, description: e.target.value} : it) }))}
+                  className="flex-1 border border-slate-200 rounded-lg px-2 py-1.5 text-xs focus:outline-none"/>
+                <input placeholder="ĐVT" value={item.unit}
+                  onChange={e => setRfqForm(p => ({ ...p, items: p.items!.map((it, i) => i === idx ? {...it, unit: e.target.value} : it) }))}
+                  className="w-16 border border-slate-200 rounded-lg px-2 py-1.5 text-xs focus:outline-none"/>
+                <input type="number" placeholder="SL" value={item.qty || ''}
+                  onChange={e => setRfqForm(p => ({ ...p, items: p.items!.map((it, i) => i === idx ? {...it, qty: +e.target.value} : it) }))}
+                  className="w-16 border border-slate-200 rounded-lg px-2 py-1.5 text-xs focus:outline-none"/>
+                <button onClick={() => setRfqForm(p => ({ ...p, items: p.items!.filter((_, i) => i !== idx) }))}
+                  className="p-1.5 hover:bg-red-100 rounded text-red-500"><X size={12}/></button>
+              </div>
+            ))}
+            <button onClick={() => setRfqForm(p => ({ ...p, items: [...(p.items || []), { description: '', unit: '', qty: 0 }] }))}
+              className="text-xs text-teal-600 hover:underline flex items-center gap-1">
+              <Plus size={11}/> Thêm hạng mục
+            </button>
+          </div>
+
+          <input placeholder="Ghi chú" value={rfqForm.notes || ''} onChange={e => setRfqForm(p => ({...p, notes: e.target.value}))}
+            className="w-full border border-slate-200 rounded-lg px-2 py-1.5 text-xs focus:outline-none"/>
+
+      </ModalForm>
+
+      {/* Add supplier form */}
+      <ModalForm open={showSupplierForm} onClose={() => setShowSupplierForm(false)}
+        title="Thêm Nhà cung cấp"
+        subtitle="Đăng ký NCC mới vào danh sách"
+        icon={<Building2 size={18}/>} color="teal" width="md"
+        footer={<><BtnCancel onClick={() => setShowSupplierForm(false)}/><BtnSubmit label="Lưu NCC" color="blue" onClick={addSupplier}/></>}
+      >
+          <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
+            <input placeholder="Tên công ty *" value={supplierForm.name || ''} onChange={e => setSupplierForm(p => ({...p, name: e.target.value}))}
+              className="col-span-2 border border-slate-200 rounded-lg px-2 py-1.5 text-xs focus:outline-none"/>
+            <input placeholder="Mã số thuế" value={supplierForm.tax_code || ''} onChange={e => setSupplierForm(p => ({...p, tax_code: e.target.value}))}
+              className="border border-slate-200 rounded-lg px-2 py-1.5 text-xs focus:outline-none"/>
+            <input placeholder="Điện thoại" value={supplierForm.phone || ''} onChange={e => setSupplierForm(p => ({...p, phone: e.target.value}))}
+              className="border border-slate-200 rounded-lg px-2 py-1.5 text-xs focus:outline-none"/>
+            <input placeholder="Email" value={supplierForm.email || ''} onChange={e => setSupplierForm(p => ({...p, email: e.target.value}))}
+              className="border border-slate-200 rounded-lg px-2 py-1.5 text-xs focus:outline-none"/>
+            <input placeholder="Địa chỉ" value={supplierForm.address || ''} onChange={e => setSupplierForm(p => ({...p, address: e.target.value}))}
+              className="col-span-2 border border-slate-200 rounded-lg px-2 py-1.5 text-xs focus:outline-none"/>
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-slate-500">Đánh giá:</span>
+              {[1,2,3,4,5].map(n => (
+                <button key={n} onClick={() => setSupplierForm(p => ({...p, rating: n}))}
+                  className={`text-lg ${n <= (supplierForm.rating || 3) ? 'text-amber-400' : 'text-slate-200'}`}>★</button>
+              ))}
+            </div>
+          </div>
+      </ModalForm>
+
     </div>
+
   );
 }

@@ -6,6 +6,7 @@ import { createDocument, processApproval, submitDocument, verifyPin, seedApprova
 import type { SeedVoucherInput, ApprovalDoc } from './approvalEngine';
 import { DEFAULT_THRESHOLDS, canActOnStep, WORKFLOWS, ROLES } from './permissions';
 import { VoucherPrint, InventoryPrint } from "./PrintService";
+import ModalForm, { FormRow, FormGrid, FormSection, inputCls, selectCls, BtnCancel, BtnSubmit } from './ModalForm';
 import {
   Package, FileText, BarChart2, Plus, Search, AlertTriangle, Pencil, Trash2,
   CheckCircle2, Loader2, Sparkles, X, ChevronDown, ChevronUp,
@@ -30,18 +31,25 @@ interface MaterialItem {
 }
 interface MRItem { matHangId: string; tenMatHang: string; donVi: string; soLuong: number; ghiChu: string; }
 interface MaterialRequest {
-  id: string; code: string; ngay: string; nguoiLap: string;
+  id: string; code: string; ngay: string;
+  nguoiLap: string; nguoiNhan: string; chucVuNguoiLap: string;
   hangMuc: string; lyDo: string; canNgay: string;
+  uuTien: 'normal' | 'urgent' | 'critical';
+  nccGoiY: string;
   status: 'draft' | 'pending' | 'approved' | 'rejected';
   items: MRItem[]; totalEstimate: number; docId?: string;
 }
 interface VoucherItem { matHang: string; donVi: string; soLuong: number; donGia: number; thanhTien: number; }
 interface Voucher {
   id: string; type: VoucherType; code: string; ngay: string;
-  nguoiLap: string; nguoiDuyet: string; status: VoucherStatus;
+  nguoiLap: string; chucVuNguoiLap: string;
+  nguoiNhan: string; nguoiGiao?: string;
+  nguoiDuyet: string; status: VoucherStatus;
+  kho: string; soHoaDon?: string;
+  mucDich?: string; phuongTien?: string;
   ghiChu: string; items: VoucherItem[];
   hoaDonVAT?: string; nhaCungCap?: string;
-  butToan?: string; // TK kế toán
+  butToan?: string;
   totalAmount: number;
 }
 interface KiemKeItem { matHangId: string; tenMatHang: string; donVi: string; soSach: number; thucTe: number; chenhLech: number; ghiChu: string; }
@@ -137,6 +145,7 @@ const SEED_KIEMKE: KiemKe[] = [
 
 // ── Component ─────────────────────────────────────────────────────────────────
 export default function MaterialsDashboard({ project, onAlert, currentRole = 'chi_huy_truong' }: Props) {
+  const { ok: notifOk, err: notifErr, info: notifInfo } = useNotification();
   // Derive UserContext from legacy role
   const legacyRoleMap: Record<string, string> = {
     giam_doc:'giam_doc', ke_toan:'ke_toan_site', ke_toan_kho:'ke_toan_kho',
@@ -163,7 +172,12 @@ export default function MaterialsDashboard({ project, onAlert, currentRole = 'ch
   const projectName = project?.name ?? 'Dự án';
 
   // ── State — ALL hooks first ──────────────────────────────────────────────
-  const [matTab, setMatTab]         = useState<MatTab>('kho');
+  const [matTab, setMatTab] = useState<MatTab>(() => {
+    const saved = sessionStorage.getItem('gem_action_subtab');
+    const valid: MatTab[] = ['kho','chungtu','kiemsoat','dexuat'];
+    if (saved && (valid as string[]).includes(saved)) { sessionStorage.removeItem('gem_action_subtab'); return saved as MatTab; }
+    return 'kho';
+  });
   const [materials, setMaterials]   = useState<MaterialItem[]>(SEED_MATERIALS);
   const [vouchers, setVouchers]     = useState<Voucher[]>(SEED_VOUCHERS);
   const [kiemKes, setKiemKes]       = useState<KiemKe[]>(SEED_KIEMKE);
@@ -171,6 +185,11 @@ export default function MaterialsDashboard({ project, onAlert, currentRole = 'ch
   // MATERIAL_REQUEST state
   const [mrList, setMrList]         = useState<MaterialRequest[]>([]);
   const [showMRForm, setShowMRForm] = useState(false);
+  const [mrForm2, setMrForm2] = useState({
+    nguoiLap: '', chucVuNguoiLap: '', nguoiNhan: '',
+    uuTien: 'normal' as 'normal'|'urgent'|'critical',
+    nccGoiY: '',
+  });
   const [mrHangMuc, setMrHangMuc]   = useState('');
   const [mrLyDo, setMrLyDo]         = useState('');
   const [mrCanNgay, setMrCanNgay]   = useState('');
@@ -182,6 +201,25 @@ export default function MaterialsDashboard({ project, onAlert, currentRole = 'ch
   const [khoFilter, setKhoFilter]   = useState<'all' | 'low' | 'ok' | 'excess'>('all');
   const [showNhapNhanh, setShowNhapNhanh] = useState(false);
   const [showXuatNhanh, setShowXuatNhanh] = useState(false);
+  // Extended form fields
+  const [vForm, setVForm] = useState({
+    nguoiLap: '', chucVuNguoiLap: '', nguoiNhan: '', nguoiGiao: '',
+    kho: 'Kho chính', soHoaDon: '', nhaCungCap: '',
+    mucDich: '', phuongTien: '', ghiChu: '',
+    items: [{ matHangId:'', matHang:'', donVi:'', soLuong:1, donGia:0, thanhTien:0 }],
+  });
+
+  // gem:open-action — WorkspaceActionBar trigger
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const { actionId } = (e as CustomEvent).detail;
+      if (actionId === 'WAREHOUSE_EXIT')   { setMatTab('chungtu'); setShowXuatNhanh(true); }
+      if (actionId === 'WAREHOUSE_ENTRY')  { setMatTab('chungtu'); setShowNhapNhanh(true); }
+      if (actionId === 'MATERIAL_REQUEST') { setMatTab('dexuat');  setShowMRForm(true); }
+    };
+    window.addEventListener('gem:open-action', handler);
+    return () => window.removeEventListener('gem:open-action', handler);
+  }, []);
   const [nhanhMat, setNhanhMat]     = useState('');
   const [nhanhSL, setNhanhSL]       = useState('');
   const [nhanhGhiChu, setNhanhGhiChu] = useState('');
@@ -460,13 +498,13 @@ export default function MaterialsDashboard({ project, onAlert, currentRole = 'ch
         ctx: matCtx, pin: isReviewStep ? undefined : pin,
         comment: `Duyệt đề xuất VT — ${mr.hangMuc}`,
       });
-      if (!result.ok) { alert((result as any).error); return; }
+      if (!result.ok) { notifErr((result as any).error); return; }
       const isApproved = result.data.status === 'APPROVED' || result.data.status === 'COMPLETED';
       const upd = mrList.map(r => r.id === mrId ? { ...r, status: isApproved ? 'approved' as const : 'pending' as const } : r);
       setMrList(upd); saveMR(upd);
       if (selectedMR?.id === mrId) setSelectedMR({ ...selectedMR, status: isApproved ? 'approved' : 'pending' });
-      if (!isApproved) alert(`✅ Đã xem xét. Đề xuất đang chờ cấp cao hơn phê duyệt tiếp.`);
-    } catch (e) { alert('Lỗi xử lý: ' + e); }
+      if (!isApproved) notifOk(`✅ Đã xem xét. Đề xuất đang chờ cấp cao hơn phê duyệt tiếp.`);
+    } catch (e) { notifErr(`Lỗi xử lý: ${e}`); }
   };
 
   // ── Submit / Approve voucher — wired to approvalEngine ─────────────────
@@ -504,7 +542,7 @@ export default function MaterialsDashboard({ project, onAlert, currentRole = 'ch
     if (matLevel <= 1) {
       const existing = findExistingDoc(id);
       if (existing && existing.status !== 'DRAFT' && existing.status !== 'RETURNED') {
-        alert(`Phiếu đã được nộp duyệt (${existing.status}). Vui lòng chờ người có thẩm quyền xử lý.`);
+        notifOk(`Phiếu đã được nộp duyệt (${existing.status}). Vui lòng chờ người có thẩm quyền xử lý.`);
         return;
       }
       // Tạo context Thủ kho
@@ -518,11 +556,11 @@ export default function MaterialsDashboard({ project, onAlert, currentRole = 'ch
           amount, thresholds,
           data: { voucherId: id, type: v.type, voucher: v },
         });
-        if (!created.ok) { alert('Lỗi tạo chứng từ: ' + (created as any).error); return; }
+        if (!created.ok) { notifErr(`Lỗi tạo chứng từ: ${(created as any).error}`); return; }
         docId = created.data.id;
       }
       const submitted = submitDocument(projectId, docId, thuKhoCtx, 'Nộp duyệt từ tab Vật tư');
-      if (!submitted.ok) { alert('Lỗi nộp duyệt: ' + (submitted as any).error); return; }
+      if (!submitted.ok) { notifErr(`Lỗi nộp duyệt: ${(submitted as any).error}`); return; }
       // Đổi local status → 'pending' để hiện nhãn "Chờ duyệt"
       const upd = vouchers.map(x => x.id === id ? { ...x, status: 'pending' as VoucherStatus } : x);
       setVouchers(upd);
@@ -553,13 +591,13 @@ export default function MaterialsDashboard({ project, onAlert, currentRole = 'ch
         amount, thresholds,
         data: { voucherId: id, type: v.type, voucher: v },
       });
-      if (!created.ok) { alert('Lỗi tạo chứng từ: ' + (created as any).error); return; }
+      if (!created.ok) { notifErr(`Lỗi tạo chứng từ: ${(created as any).error}`); return; }
       const sub = submitDocument(projectId, created.data.id, thuKhoCtx);
-      if (!sub.ok) { alert('Lỗi nộp: ' + (sub as any).error); return; }
+      if (!sub.ok) { notifErr(`Lỗi nộp: ${(sub as any).error}`); return; }
       existing = sub.data;
     } else if (existing.status === 'DRAFT') {
       const sub = submitDocument(projectId, existing.id, thuKhoCtx);
-      if (!sub.ok) { alert('Lỗi nộp: ' + (sub as any).error); return; }
+      if (!sub.ok) { notifErr(`Lỗi nộp: ${(sub as any).error}`); return; }
       existing = sub.data;
     }
 
@@ -607,7 +645,7 @@ export default function MaterialsDashboard({ project, onAlert, currentRole = 'ch
     setPinError2('');
 
     if (!isFullyApproved) {
-      alert(`✅ Đã ${isReviewStep ? 'xem xét' : 'duyệt'} bước này. Phiếu đang chờ cấp cao hơn (${finalStatus}).`);
+      notifOk(`✅ Đã ${isReviewStep ? 'xem xét' : 'duyệt'} bước này. Phiếu đang chờ cấp cao hơn (${finalStatus}).`);
     }
   };
 
@@ -732,98 +770,6 @@ export default function MaterialsDashboard({ project, onAlert, currentRole = 'ch
             </div>
           </div>
 
-          {/* Nhập nhanh form */}
-          {showNhapNhanh && (
-            <div className="bg-emerald-50 border border-emerald-200 rounded-2xl p-4 space-y-3 animate-in slide-in-from-top-2 duration-200">
-              <p className="text-sm font-bold text-emerald-800 flex items-center gap-2"><Plus size={14} /> Nhập kho nhanh → tạo Phiếu Nhập Kho (chờ duyệt)</p>
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
-                <select value={nhanhMat} onChange={e => setNhanhMat(e.target.value)}
-                  className="text-xs border border-emerald-200 rounded-xl px-3 py-2 bg-white focus:outline-none col-span-2 md:col-span-1">
-                  <option value="">-- Chọn vật tư --</option>
-                  {materials.map(m => <option key={m.id} value={m.id}>{m.code} — {m.name}</option>)}
-                </select>
-                <input type="number" placeholder="Số lượng" value={nhanhSL} onChange={e => setNhanhSL(e.target.value)}
-                  className="text-xs border border-emerald-200 rounded-xl px-3 py-2 bg-white focus:outline-none" />
-                <input placeholder="Ghi chú / Nhà cung cấp" value={nhanhGhiChu} onChange={e => setNhanhGhiChu(e.target.value)}
-                  className="text-xs border border-emerald-200 rounded-xl px-3 py-2 bg-white focus:outline-none col-span-2" />
-              </div>
-              <div className="flex justify-end gap-2">
-                <button onClick={() => { setShowNhapNhanh(false); setNhanhMat(''); setNhanhSL(''); setNhanhGhiChu(''); }}
-                  className="px-4 py-2 text-xs text-slate-600 bg-white border border-slate-200 rounded-xl">Huỷ</button>
-                <button onClick={() => {
-                  if (!nhanhMat || !nhanhSL) return;
-                  const mat = materials.find(m => m.id === nhanhMat); if (!mat) return;
-                  const sl = Number(nhanhSL);
-                  const newV: Voucher = {
-                    id: `v${Date.now()}`, type: 'PN', code: `PN-${Date.now()}`,
-                    ngay: new Date().toLocaleDateString('vi-VN'),
-                    nguoiLap: 'Thủ kho', nguoiDuyet: '', status: 'pending',
-                    ghiChu: nhanhGhiChu || `Nhập nhanh ${mat.name}`,
-                    nhaCungCap: nhanhGhiChu, butToan: 'Nợ TK152 / Có TK331',
-                    totalAmount: sl * mat.donGia,
-                    items: [{ matHang: mat.name, donVi: mat.unit, soLuong: sl, donGia: mat.donGia, thanhTien: sl * mat.donGia }],
-                  };
-                  const updV = [newV, ...vouchers]; setVouchers(updV); save('mat_vouchers', updV);
-                  // Cập nhật tồn kho tạm (sau khi duyệt mới ghi chính thức)
-                  setShowNhapNhanh(false); setNhanhMat(''); setNhanhSL(''); setNhanhGhiChu('');
-                  setMatTab('chungtu');
-                }} className="px-4 py-2 text-xs bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-bold">
-                  Tạo Phiếu Nhập
-                </button>
-              </div>
-            </div>
-          )}
-
-          {/* Xuất nhanh form */}
-          {showXuatNhanh && (
-            <div className="bg-blue-50 border border-blue-200 rounded-2xl p-4 space-y-3 animate-in slide-in-from-top-2 duration-200">
-              <p className="text-sm font-bold text-blue-800 flex items-center gap-2"><Truck size={14} /> Xuất kho nhanh → tạo Phiếu Xuất Kho (chờ duyệt)</p>
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
-                <select value={nhanhMat} onChange={e => setNhanhMat(e.target.value)}
-                  className="text-xs border border-blue-200 rounded-xl px-3 py-2 bg-white focus:outline-none col-span-2 md:col-span-1">
-                  <option value="">-- Chọn vật tư --</option>
-                  {materials.map(m => <option key={m.id} value={m.id}>{m.code} — {m.name} (tồn: {m.tonKho} {m.unit})</option>)}
-                </select>
-                <input type="number" placeholder="Số lượng xuất" value={nhanhSL} onChange={e => setNhanhSL(e.target.value)}
-                  className="text-xs border border-blue-200 rounded-xl px-3 py-2 bg-white focus:outline-none" />
-                <input placeholder="Hạng mục thi công" value={nhanhGhiChu} onChange={e => setNhanhGhiChu(e.target.value)}
-                  className="text-xs border border-blue-200 rounded-xl px-3 py-2 bg-white focus:outline-none col-span-2" />
-              </div>
-              <div className="flex justify-end gap-2">
-                <button onClick={() => { setShowXuatNhanh(false); setNhanhMat(''); setNhanhSL(''); setNhanhGhiChu(''); }}
-                  className="px-4 py-2 text-xs text-slate-600 bg-white border border-slate-200 rounded-xl">Huỷ</button>
-                <button onClick={() => {
-                  if (!nhanhMat || !nhanhSL) return;
-                  const mat = materials.find(m => m.id === nhanhMat); if (!mat) return;
-                  const sl = Number(nhanhSL);
-                  if (sl > mat.tonKho) { alert(`Không đủ hàng! Tồn kho hiện tại: ${mat.tonKho} ${mat.unit}`); return; }
-                  // Prerequisite: cần có MATERIAL_REQUEST approved cho vật tư này
-                  if (!hasApprovedMR(nhanhMat)) {
-                    const confirmed = window.confirm(
-                      `⚠️ Chưa có Đề xuất cấp vật tư được duyệt cho "${mat.name}".\n\nTheo quy trình, Thủ kho cần có Phiếu đề xuất được CH Phó duyệt trước khi xuất.\n\nVẫn tạo phiếu xuất? (Phiếu sẽ bị gắn cờ "Không có MR")`
-                    );
-                    if (!confirmed) return;
-                  }
-                  const newV: Voucher = {
-                    id: `v${Date.now()}`, type: 'PX', code: `PX-${Date.now()}`,
-                    ngay: new Date().toLocaleDateString('vi-VN'),
-                    nguoiLap: 'Thủ kho', nguoiDuyet: '', status: 'pending',
-                    ghiChu: nhanhGhiChu || `Xuất nhanh ${mat.name}`,
-                    butToan: 'Nợ TK621 / Có TK152',
-                    totalAmount: sl * mat.donGia,
-                    items: [{ matHang: mat.name, donVi: mat.unit, soLuong: sl, donGia: mat.donGia, thanhTien: sl * mat.donGia }],
-                  };
-                  const updV = [newV, ...vouchers]; setVouchers(updV); save('mat_vouchers', updV);
-                  setShowXuatNhanh(false); setNhanhMat(''); setNhanhSL(''); setNhanhGhiChu('');
-                  setMatTab('chungtu');
-                }} className="px-4 py-2 text-xs bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-bold">
-                  Tạo Phiếu Xuất
-                </button>
-              </div>
-            </div>
-          )}
-
-          {/* Materials table */}
           <div className="bg-white border border-slate-200 rounded-2xl overflow-hidden">
             <div className="px-4 py-3 bg-slate-50 border-b border-slate-100 flex items-center justify-between">
               <p className="text-xs font-bold text-slate-700">{filteredMaterials.length} mặt hàng</p>
@@ -910,64 +856,6 @@ export default function MaterialsDashboard({ project, onAlert, currentRole = 'ch
             </button>
           </div>
 
-          {/* Form tạo MR */}
-          {showMRForm && (
-            <div className="bg-emerald-50 border border-emerald-200 rounded-2xl p-4 space-y-3">
-              <p className="text-xs font-bold text-emerald-800 flex items-center gap-2"><Plus size={12} /> Tạo Đề xuất cấp vật tư</p>
-              <div className="grid grid-cols-2 gap-2">
-                <input value={mrHangMuc} onChange={e => setMrHangMuc(e.target.value)}
-                  placeholder="Hạng mục thi công *"
-                  className="col-span-2 text-xs border border-emerald-200 rounded-xl px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-emerald-300" />
-                <input value={mrLyDo} onChange={e => setMrLyDo(e.target.value)}
-                  placeholder="Lý do / Ghi chú"
-                  className="text-xs border border-emerald-200 rounded-xl px-3 py-2 bg-white focus:outline-none" />
-                <input type="date" value={mrCanNgay} onChange={e => setMrCanNgay(e.target.value)}
-                  className="text-xs border border-emerald-200 rounded-xl px-3 py-2 bg-white focus:outline-none"
-                  title="Cần nhận vật tư trước ngày" />
-              </div>
-              {/* MR Items */}
-              <div className="space-y-1.5">
-                <p className="text-[10px] font-bold text-slate-600 uppercase tracking-wider">Danh sách vật tư cần xuất</p>
-                {mrItems.map((item, idx) => (
-                  <div key={idx} className="grid grid-cols-12 gap-1.5 items-center">
-                    <select value={item.matHangId} onChange={e => {
-                      const mat = materials.find(m => m.id === e.target.value);
-                      const upd = mrItems.map((it, i) => i === idx ? { ...it, matHangId: e.target.value, tenMatHang: mat?.name || '', donVi: mat?.unit || '' } : it);
-                      setMrItems(upd);
-                    }} className="col-span-5 text-[10px] border border-slate-200 rounded-lg px-2 py-1.5 bg-white focus:outline-none">
-                      <option value="">-- Chọn vật tư --</option>
-                      {materials.map(m => <option key={m.id} value={m.id}>{m.code} — {m.name}</option>)}
-                    </select>
-                    <input type="number" placeholder="SL" value={item.soLuong} min={1}
-                      onChange={e => { const upd = mrItems.map((it,i) => i===idx ? {...it, soLuong: Number(e.target.value)} : it); setMrItems(upd); }}
-                      className="col-span-2 text-[10px] border border-slate-200 rounded-lg px-2 py-1.5 bg-white focus:outline-none text-center" />
-                    <span className="col-span-1 text-[10px] text-slate-400 text-center">{item.donVi}</span>
-                    <input placeholder="Ghi chú" value={item.ghiChu}
-                      onChange={e => { const upd = mrItems.map((it,i) => i===idx ? {...it, ghiChu: e.target.value} : it); setMrItems(upd); }}
-                      className="col-span-3 text-[10px] border border-slate-200 rounded-lg px-2 py-1.5 bg-white focus:outline-none" />
-                    <button onClick={() => setMrItems(mrItems.filter((_,i) => i !== idx))}
-                      className="col-span-1 text-rose-400 hover:text-rose-600 flex justify-center">
-                      <X size={12} />
-                    </button>
-                  </div>
-                ))}
-                <button onClick={() => setMrItems([...mrItems, { matHangId:'', tenMatHang:'', donVi:'', soLuong:1, ghiChu:'' }])}
-                  className="text-[10px] text-emerald-600 font-bold hover:underline flex items-center gap-1">
-                  <Plus size={10} /> Thêm vật tư
-                </button>
-              </div>
-              <div className="flex justify-end gap-2 pt-1">
-                <button onClick={() => setShowMRForm(false)}
-                  className="px-4 py-2 text-xs text-slate-600 bg-white border border-slate-200 rounded-xl hover:bg-slate-50">Hủy</button>
-                <button onClick={submitMR}
-                  className="px-4 py-2 text-xs bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-bold">
-                  Nộp đề xuất
-                </button>
-              </div>
-            </div>
-          )}
-
-          {/* MR List */}
           {mrList.length === 0 ? (
             <div className="bg-white border border-slate-200 rounded-2xl p-8 text-center">
               <ClipboardCheck size={32} className="text-slate-300 mx-auto mb-2" />
@@ -1651,13 +1539,305 @@ export default function MaterialsDashboard({ project, onAlert, currentRole = 'ch
       )}
 
       {/* Print components */}
+
+      {/* ── MODALS — DESIGN_SYSTEM: always at end of component ── */}
+
+      {/* Nhập nhanh form */}
+      {/* Modal Phiếu Nhập Kho */}
+      <ModalForm
+        open={showNhapNhanh}
+        onClose={() => setShowNhapNhanh(false)}
+        title="Phiếu Nhập Kho"
+        subtitle="Tạo phiếu nhập — chờ duyệt"
+        icon={<Package size={18}/>}
+        color="emerald"
+        width="lg"
+        footer={<>
+          <BtnCancel onClick={() => setShowNhapNhanh(false)} />
+          <BtnSubmit label="Tạo Phiếu Nhập" onClick={() => {
+            if (!nhanhMat || !nhanhSL) return;
+            const mat = materials.find(m => m.id === nhanhMat); if (!mat) return;
+            const sl = Number(nhanhSL);
+            const newV: Voucher = {
+              id: `v${Date.now()}`, type: 'PN', code: `PN-${Date.now()}`,
+              ngay: vForm.kho ? new Date().toLocaleDateString('vi-VN') : new Date().toLocaleDateString('vi-VN'),
+              nguoiLap: vForm.nguoiLap || 'Thủ kho',
+              chucVuNguoiLap: vForm.chucVuNguoiLap || 'Thủ kho',
+              nguoiNhan: vForm.nguoiNhan || '',
+              nguoiGiao: vForm.nguoiGiao || '',
+              nguoiDuyet: '', status: 'pending',
+              kho: vForm.kho || 'Kho chính',
+              soHoaDon: vForm.soHoaDon,
+              nhaCungCap: vForm.nhaCungCap || nhanhGhiChu,
+              ghiChu: vForm.ghiChu || `Nhập ${mat.name}`,
+              butToan: 'Nợ TK152 / Có TK331',
+              totalAmount: sl * mat.donGia,
+              items: [{ matHang: mat.name, donVi: mat.unit, soLuong: sl, donGia: mat.donGia, thanhTien: sl * mat.donGia }],
+            };
+            const updV = [newV, ...vouchers]; setVouchers(updV); save('mat_vouchers', updV);
+            setShowNhapNhanh(false); setNhanhMat(''); setNhanhSL(''); setNhanhGhiChu('');
+            setVForm(v => ({...v, nguoiLap:'', nguoiNhan:'', nguoiGiao:'', soHoaDon:'', nhaCungCap:'', ghiChu:''}));
+            setMatTab('chungtu'); notifOk('Đã tạo Phiếu Nhập Kho!');
+          }} />
+        </>}
+      >
+        <FormSection title="Thông tin phiếu">
+          <FormGrid cols={2}>
+            <FormRow label="Người lập phiếu" required>
+              <input className={inputCls} value={vForm.nguoiLap} onChange={e => setVForm(v=>({...v,nguoiLap:e.target.value}))} placeholder="Họ tên người lập" />
+            </FormRow>
+            <FormRow label="Chức vụ">
+              <input className={inputCls} value={vForm.chucVuNguoiLap} onChange={e => setVForm(v=>({...v,chucVuNguoiLap:e.target.value}))} placeholder="VD: Thủ kho, KS Vật tư" />
+            </FormRow>
+            <FormRow label="Người nhận hàng" required>
+              <input className={inputCls} value={vForm.nguoiNhan} onChange={e => setVForm(v=>({...v,nguoiNhan:e.target.value}))} placeholder="Người trực tiếp nhận hàng" />
+            </FormRow>
+            <FormRow label="Người giao hàng (NCC)">
+              <input className={inputCls} value={vForm.nguoiGiao} onChange={e => setVForm(v=>({...v,nguoiGiao:e.target.value}))} placeholder="Tên người giao từ nhà cung cấp" />
+            </FormRow>
+            <FormRow label="Kho nhập">
+              <select className={selectCls} value={vForm.kho} onChange={e => setVForm(v=>({...v,kho:e.target.value}))}>
+                <option>Kho chính</option><option>Kho phụ A</option><option>Kho phụ B</option><option>Kho vật tư tầng hầm</option>
+              </select>
+            </FormRow>
+            <FormRow label="Số hóa đơn / chứng từ">
+              <input className={inputCls} value={vForm.soHoaDon} onChange={e => setVForm(v=>({...v,soHoaDon:e.target.value}))} placeholder="VD: HD-2026-0312" />
+            </FormRow>
+            <FormRow label="Nhà cung cấp">
+              <input className={inputCls} value={vForm.nhaCungCap} onChange={e => setVForm(v=>({...v,nhaCungCap:e.target.value}))} placeholder="Tên công ty / cá nhân NCC" />
+            </FormRow>
+            <FormRow label="Ghi chú">
+              <input className={inputCls} value={vForm.ghiChu} onChange={e => setVForm(v=>({...v,ghiChu:e.target.value}))} placeholder="Ghi chú thêm nếu có" />
+            </FormRow>
+          </FormGrid>
+        </FormSection>
+        <FormSection title="Vật tư nhập kho">
+          <FormGrid cols={2}>
+            <FormRow label="Vật tư" required>
+              <select className={selectCls} value={nhanhMat} onChange={e => setNhanhMat(e.target.value)}>
+                <option value="">-- Chọn vật tư --</option>
+                {materials.map(m => <option key={m.id} value={m.id}>{m.code} — {m.name} ({m.unit})</option>)}
+              </select>
+            </FormRow>
+            <FormRow label="Số lượng" required>
+              <input type="number" className={inputCls} value={nhanhSL} onChange={e => setNhanhSL(e.target.value)} placeholder="Nhập số lượng" min={1} />
+            </FormRow>
+          </FormGrid>
+        </FormSection>
+      </ModalForm>
+
+      {/* Modal Phiếu Xuất Kho */}
+      <ModalForm
+        open={showXuatNhanh}
+        onClose={() => setShowXuatNhanh(false)}
+        title="Phiếu Xuất Kho"
+        subtitle="Tạo phiếu xuất — chờ duyệt"
+        icon={<Truck size={18}/>}
+        color="blue"
+        width="lg"
+        footer={<>
+          <BtnCancel onClick={() => setShowXuatNhanh(false)} />
+          <BtnSubmit label="Tạo Phiếu Xuất" color="blue" onClick={() => {
+            if (!nhanhMat || !nhanhSL) return;
+            const mat = materials.find(m => m.id === nhanhMat); if (!mat) return;
+            const sl = Number(nhanhSL);
+            if (sl > mat.tonKho) { notifErr(`Không đủ hàng! Tồn: ${mat.tonKho} ${mat.unit}`); return; }
+            const newV: Voucher = {
+              id: `v${Date.now()}`, type: 'PX', code: `PX-${Date.now()}`,
+              ngay: new Date().toLocaleDateString('vi-VN'),
+              nguoiLap: vForm.nguoiLap || 'Thủ kho',
+              chucVuNguoiLap: vForm.chucVuNguoiLap || 'Thủ kho',
+              nguoiNhan: vForm.nguoiNhan || '',
+              nguoiDuyet: '', status: 'pending',
+              kho: vForm.kho || 'Kho chính',
+              mucDich: vForm.mucDich || nhanhGhiChu,
+              phuongTien: vForm.phuongTien,
+              ghiChu: vForm.ghiChu || nhanhGhiChu,
+              butToan: 'Nợ TK621 / Có TK152',
+              totalAmount: sl * mat.donGia,
+              items: [{ matHang: mat.name, donVi: mat.unit, soLuong: sl, donGia: mat.donGia, thanhTien: sl * mat.donGia }],
+            };
+            const updV = [newV, ...vouchers]; setVouchers(updV); save('mat_vouchers', updV);
+            setShowXuatNhanh(false); setNhanhMat(''); setNhanhSL(''); setNhanhGhiChu('');
+            setVForm(v => ({...v, nguoiLap:'', nguoiNhan:'', mucDich:'', phuongTien:'', ghiChu:''}));
+            setMatTab('chungtu'); notifOk('Đã tạo Phiếu Xuất Kho!');
+          }} />
+        </>}
+      >
+        <FormSection title="Thông tin phiếu">
+          <FormGrid cols={2}>
+            <FormRow label="Người đề xuất / lập phiếu" required>
+              <input className={inputCls} value={vForm.nguoiLap} onChange={e => setVForm(v=>({...v,nguoiLap:e.target.value}))} placeholder="Họ tên người lập" />
+            </FormRow>
+            <FormRow label="Chức vụ">
+              <input className={inputCls} value={vForm.chucVuNguoiLap} onChange={e => setVForm(v=>({...v,chucVuNguoiLap:e.target.value}))} placeholder="VD: KS Thi công, CH Phó" />
+            </FormRow>
+            <FormRow label="Người nhận trực tiếp" required>
+              <input className={inputCls} value={vForm.nguoiNhan} onChange={e => setVForm(v=>({...v,nguoiNhan:e.target.value}))} placeholder="Người nhận để thi công" />
+            </FormRow>
+            <FormRow label="Kho xuất">
+              <select className={selectCls} value={vForm.kho} onChange={e => setVForm(v=>({...v,kho:e.target.value}))}>
+                <option>Kho chính</option><option>Kho phụ A</option><option>Kho phụ B</option><option>Kho vật tư tầng hầm</option>
+              </select>
+            </FormRow>
+            <FormRow label="Mục đích xuất / hạng mục thi công" required>
+              <input className={inputCls} value={vForm.mucDich} onChange={e => setVForm(v=>({...v,mucDich:e.target.value}))} placeholder="VD: Đổ BT sàn tầng 3 block A" />
+            </FormRow>
+            <FormRow label="Phương tiện vận chuyển">
+              <input className={inputCls} value={vForm.phuongTien} onChange={e => setVForm(v=>({...v,phuongTien:e.target.value}))} placeholder="VD: Xe cẩu, xe tải biển số..." />
+            </FormRow>
+            <FormRow label="Ghi chú" >
+              <input className={inputCls} value={vForm.ghiChu} onChange={e => setVForm(v=>({...v,ghiChu:e.target.value}))} placeholder="Ghi chú thêm nếu có" />
+            </FormRow>
+          </FormGrid>
+        </FormSection>
+        <FormSection title="Vật tư xuất kho">
+          <FormGrid cols={2}>
+            <FormRow label="Vật tư" required>
+              <select className={selectCls} value={nhanhMat} onChange={e => setNhanhMat(e.target.value)}>
+                <option value="">-- Chọn vật tư --</option>
+                {materials.map(m => <option key={m.id} value={m.id}>{m.code} — {m.name} (tồn: {m.tonKho} {m.unit})</option>)}
+              </select>
+            </FormRow>
+            <FormRow label="Số lượng xuất" required>
+              <input type="number" className={inputCls} value={nhanhSL} onChange={e => setNhanhSL(e.target.value)} placeholder="Số lượng" min={1} />
+            </FormRow>
+          </FormGrid>
+        </FormSection>
+      </ModalForm>
+
+      {/* Form tạo MR */}
+      {/* Modal Đề xuất Vật tư */}
+      <ModalForm
+        open={showMRForm}
+        onClose={() => setShowMRForm(false)}
+        title="Đề xuất Cấp Vật tư"
+        subtitle="Lập phiếu đề xuất — gửi CH Phó duyệt"
+        icon={<ClipboardCheck size={18}/>}
+        color="emerald"
+        width="lg"
+        footer={<>
+          <BtnCancel onClick={() => setShowMRForm(false)} />
+          <BtnSubmit label="Nộp đề xuất" onClick={() => {
+            if (!mrHangMuc.trim()) { notifErr('Vui lòng nhập hạng mục!'); return; }
+            if (mrItems.some(i => !i.matHangId)) { notifErr('Vui lòng chọn đủ vật tư!'); return; }
+            submitMR();
+            setShowMRForm(false);
+          }} />
+        </>}
+      >
+        <FormSection title="Thông tin chung">
+          <FormGrid cols={2}>
+            <FormRow label="Người đề xuất" required>
+              <input className={inputCls} value={mrForm2.nguoiLap} onChange={e => setMrForm2(v=>({...v,nguoiLap:e.target.value}))} placeholder="Họ tên người đề xuất" />
+            </FormRow>
+            <FormRow label="Chức vụ">
+              <input className={inputCls} value={mrForm2.chucVuNguoiLap} onChange={e => setMrForm2(v=>({...v,chucVuNguoiLap:e.target.value}))} placeholder="VD: KS Thi công, CH Phó" />
+            </FormRow>
+            <FormRow label="Người nhận vật tư (trực tiếp)" required>
+              <input className={inputCls} value={mrForm2.nguoiNhan} onChange={e => setMrForm2(v=>({...v,nguoiNhan:e.target.value}))} placeholder="Người trực tiếp nhận để thi công" />
+            </FormRow>
+            <FormRow label="Mức ưu tiên">
+              <select className={selectCls} value={mrForm2.uuTien} onChange={e => setMrForm2(v=>({...v,uuTien:e.target.value as any}))}>
+                <option value="normal">Bình thường</option>
+                <option value="urgent">Khẩn cấp</option>
+                <option value="critical">Rất khẩn — ảnh hưởng tiến độ</option>
+              </select>
+            </FormRow>
+            <FormRow label="Hạng mục thi công" required>
+              <input className={inputCls} value={mrHangMuc} onChange={e => setMrHangMuc(e.target.value)} placeholder="Hạng mục cần vật tư" />
+            </FormRow>
+            <FormRow label="Lý do / Ghi chú">
+              <input className={inputCls} value={mrLyDo} onChange={e => setMrLyDo(e.target.value)} placeholder="Lý do đề xuất" />
+            </FormRow>
+            <FormRow label="Cần nhận trước ngày">
+              <input type="date" className={inputCls} value={mrCanNgay} onChange={e => setMrCanNgay(e.target.value)} />
+            </FormRow>
+            <FormRow label="NCC gợi ý (nếu có)">
+              <input className={inputCls} value={mrForm2.nccGoiY} onChange={e => setMrForm2(v=>({...v,nccGoiY:e.target.value}))} placeholder="Tên nhà cung cấp gợi ý" />
+            </FormRow>
+          </FormGrid>
+        </FormSection>
+        <FormSection title="Danh sách vật tư cần xuất">
+          <div className="space-y-2">
+            {mrItems.map((item, idx) => (
+              <div key={idx} className="grid grid-cols-12 gap-1.5 items-center bg-slate-50 rounded-xl px-3 py-2">
+                <select value={item.matHangId} onChange={e => {
+                  const mat = materials.find(m => m.id === e.target.value);
+                  setMrItems(mrItems.map((it,i) => i===idx ? {...it, matHangId:e.target.value, tenMatHang:mat?.name||'', donVi:mat?.unit||''} : it));
+                }} className={`col-span-5 ${selectCls}`}>
+                  <option value="">-- Chọn vật tư --</option>
+                  {materials.map(m => <option key={m.id} value={m.id}>{m.code} — {m.name}</option>)}
+                </select>
+                <input type="number" placeholder="SL" value={item.soLuong} min={1}
+                  onChange={e => setMrItems(mrItems.map((it,i) => i===idx ? {...it,soLuong:Number(e.target.value)} : it))}
+                  className={`col-span-2 ${inputCls} text-center`} />
+                <span className="col-span-1 text-[10px] text-slate-400 text-center">{item.donVi}</span>
+                <input placeholder="Ghi chú" value={item.ghiChu}
+                  onChange={e => setMrItems(mrItems.map((it,i) => i===idx ? {...it,ghiChu:e.target.value} : it))}
+                  className={`col-span-3 ${inputCls}`} />
+                <button onClick={() => setMrItems(mrItems.filter((_,i) => i!==idx))}
+                  className="col-span-1 text-rose-400 hover:text-rose-600 flex justify-center"><X size={14}/></button>
+              </div>
+            ))}
+            <button onClick={() => setMrItems([...mrItems, {matHangId:'',tenMatHang:'',donVi:'',soLuong:1,ghiChu:''}])}
+              className="text-xs text-emerald-600 font-bold hover:underline flex items-center gap-1">
+              <Plus size={12}/> Thêm dòng vật tư
+            </button>
+          </div>
+        </FormSection>
+      </ModalForm>
+
       {printVoucher && <VoucherPrint
-        data={{ voucher: printVoucher, projectName, projectId }}
+        data={{
+          voucher: {
+            id: printVoucher.code || printVoucher.id,
+            type: printVoucher.type === 'PN' ? 'entry' : printVoucher.type === 'PX' ? 'exit' : 'return',
+            date: printVoucher.ngay,
+            material: printVoucher.items.map(i => i.matHang).join(', '),
+            unit: printVoucher.items.length === 1 ? printVoucher.items[0].donVi : 'nhiều loại',
+            qty: printVoucher.items.reduce((s, i) => s + i.soLuong, 0),
+            unitPrice: printVoucher.items.length === 1 ? printVoucher.items[0].donGia : undefined,
+            totalValue: printVoucher.totalAmount,
+            supplier: printVoucher.nhaCungCap,
+            requestedBy: printVoucher.nguoiLap,
+            approvedBy: printVoucher.nguoiDuyet,
+            notes: printVoucher.ghiChu,
+            status: printVoucher.status,
+            hangMuc: printVoucher.mucDich,
+          },
+          projectName,
+          projectId,
+        }}
         onClose={() => setPrintVoucher(null)}
       />}
       {printInventory && <InventoryPrint
-        data={{ kiemKe: printInventory, projectName, projectId,
-          auditRows: [...vouchers].sort((a,b)=>b.id.localeCompare(a.id)).slice(0,20) }}
+        data={{
+          kiemKe: {
+            id: printInventory.id,
+            date: printInventory.ngay,
+            approvedBy: printInventory.nguoiDuyet,
+            items: printInventory.items.map(i => ({
+              name: i.tenMatHang,
+              unit: i.donVi,
+              soSach: i.soSach,
+              thucTe: i.thucTe,
+              chenhLech: i.chenhLech,
+            })),
+            notes: printInventory.ghiChu,
+            status: printInventory.status,
+          },
+          projectName,
+          projectId,
+          auditRows: [...vouchers].sort((a,b) => b.id.localeCompare(a.id)).slice(0, 20).map(v => ({
+            id: v.code || v.id,
+            type: v.type,
+            date: v.ngay,
+            material: v.items.map(i => i.matHang).join(', '),
+            unit: v.items[0]?.donVi || '',
+            qty: v.items.reduce((s, i) => s + i.soLuong, 0),
+          })),
+        }}
         onClose={() => setPrintInventory(null)}
       />}
     </div>

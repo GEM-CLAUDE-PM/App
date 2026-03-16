@@ -2,6 +2,7 @@
 // Variation Orders tab — tách từ QSDashboard.tsx
 
 import React from "react";
+import { useNotification } from './NotificationEngine';
 import {
   Plus, X, Save, Send, Sparkles, Loader2, ChevronDown, ChevronRight,
   Check, Clock, TrendingUp, Hash, Calculator, Printer, Download,
@@ -9,6 +10,8 @@ import {
 } from "lucide-react";
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import type { UserContext } from "./permissions";
+import { seedApprovalDocs, canApproveDoc, processApproval } from "./approvalEngine";
+import type { SeedVoucherInput } from "./approvalEngine";
 import {
   type VariationOrder, type VOStatus, type VOType,
   MOCK_VOS, VO_STATUS, VO_TYPE_CFG, fmt, fmtB
@@ -28,10 +31,21 @@ function VariationOrdersTab({ fmtB, fmt, projectId, qsCtx, qsLevel, submitQSDoc,
   triggerApproval: (docId:string, voucherId:string, type:'VO'|'ACCEPTANCE'|'PAYMENT', onApproved:(fa:boolean)=>void) => void;
   onVOApprovedRef: React.MutableRefObject<((voucherId:string)=>void)|null>;
 }) {
+  const { ok: notifOk, err: notifErr } = useNotification();
   const [vos, setVos] = React.useState<VariationOrder[]>(MOCK_VOS);
   const [filterStatus, setFilterStatus] = React.useState<string>("all");
   const [filterType, setFilterType]     = React.useState<string>("all");
   const [showForm, setShowForm]         = React.useState(false);
+
+  // ── gem:open-action trigger ───────────────────────────────────────────────
+  React.useEffect(() => {
+    const handler = (e: Event) => {
+      const { actionId } = (e as CustomEvent).detail;
+      if (actionId === 'VARIATION_ORDER') setShowForm(true);
+    };
+    window.addEventListener('gem:open-action', handler);
+    return () => window.removeEventListener('gem:open-action', handler);
+  }, []);
   const [expandedId, setExpandedId]     = React.useState<string|null>(null);
   const [gemLoading, setGemLoading]     = React.useState(false);
   const [gemText, setGemText]           = React.useState("");
@@ -401,7 +415,7 @@ function VariationOrdersTab({ fmtB, fmt, projectId, qsCtx, qsLevel, submitQSDoc,
             <div className="flex gap-3 mt-6">
               <button onClick={()=>setShowForm(false)} className="flex-1 px-4 py-2.5 bg-slate-100 text-slate-700 rounded-xl text-sm font-semibold hover:bg-slate-200">Hủy</button>
               <button onClick={()=>{
-                if(!newVO.vo_no||!newVO.title) return alert("Vui lòng điền Số VO và Tiêu đề!");
+                if(!newVO.vo_no||!newVO.title) return notifErr("Vui lòng điền Số VO và Tiêu đề!");
                 const vo: VariationOrder = {
                   id: "vo_"+Date.now(), vo_no: newVO.vo_no, title: newVO.title,
                   type: newVO.type, status:"draft", date_issued: new Date().toLocaleDateString("vi-VN"),
@@ -413,7 +427,7 @@ function VariationOrdersTab({ fmtB, fmt, projectId, qsCtx, qsLevel, submitQSDoc,
                 setVos(p=>[vo,...p]);
                 setNewVO({ vo_no:"", title:"", type:"scope_addition", description:"", reason:"", value_change:"", submitted_by:"" });
                 setShowForm(false);
-                alert("✅ Đã tạo VO mới!");
+                notifOk("✅ Đã tạo VO mới!");
               }} className="flex-1 px-4 py-2.5 bg-blue-600 text-white rounded-xl text-sm font-semibold hover:bg-blue-700 flex items-center justify-center gap-2">
                 <Save size={14}/> Tạo Variation Order
               </button>

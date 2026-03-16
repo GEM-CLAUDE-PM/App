@@ -866,10 +866,10 @@ export default function OfficeDashboard({ project }: Props) {
   const triggerOffDoc = useCallback((title: string, docType: any, data = {}) => {
     if (!WORKFLOWS[docType as keyof typeof WORKFLOWS]) return;
     const cr = createDocument({ projectId: pid, docType, ctx, title, data });
-    if (!cr.ok) { alert('❌ ' + (cr as any).error); return; }
+    if (!cr.ok) { notifErr(`❌ ${(cr as any).error}`); return; }
     const sr = submitDocument(pid, (cr as any).data!.id, ctx);
     if (sr.ok) refreshOffQueue();
-    else alert('❌ ' + (sr as any).error);
+    else notifErr(`❌ ${(sr as any).error}`);
   }, [pid, ctx, refreshOffQueue]);
 
   const tabs = [

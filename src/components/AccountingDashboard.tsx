@@ -104,6 +104,125 @@ const CFTooltip = ({ active, payload, label }: any) => {
   );
 };
 
+
+// ── DebtPrint — modal in phiếu công nợ ────────────────────────────────────────
+function DebtPrint({ data, onClose }: {
+  data: { debt: DebtItem; projectName: string; projectId: string };
+  onClose: () => void;
+}) {
+  const { debt, projectName } = data;
+  const remaining = debt.total - debt.paid;
+  return (
+    <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={onClose}>
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg" onClick={e=>e.stopPropagation()}>
+        <div className="p-6 border-b border-slate-100 flex justify-between items-start">
+          <div>
+            <h2 className="text-lg font-bold text-slate-800">PHIẾU CÔNG NỢ</h2>
+            <p className="text-xs text-slate-500 mt-0.5">{projectName}</p>
+          </div>
+          <button onClick={onClose} className="p-2 hover:bg-slate-100 rounded-xl"><X size={16}/></button>
+        </div>
+        <div className="p-6 space-y-3">
+          <div className="grid grid-cols-2 gap-3 text-sm">
+            <div><span className="text-slate-400 text-xs">Đối tác:</span><p className="font-semibold text-slate-800">{debt.name}</p></div>
+            <div><span className="text-slate-400 text-xs">Loại:</span><p className="font-semibold">{debt.type==='receivable'?'Phải thu':'Phải trả'}</p></div>
+            <div><span className="text-slate-400 text-xs">Số hoá đơn:</span><p className="font-mono text-sm">{debt.invoiceNo}</p></div>
+            <div><span className="text-slate-400 text-xs">Hạn thanh toán:</span><p className="font-semibold text-rose-600">{debt.dueDate}</p></div>
+            <div><span className="text-slate-400 text-xs">Tổng giá trị:</span><p className="font-bold text-slate-800">{debt.total.toFixed(2)} tỷ</p></div>
+            <div><span className="text-slate-400 text-xs">Đã thanh toán:</span><p className="font-bold text-emerald-700">{debt.paid.toFixed(2)} tỷ</p></div>
+          </div>
+          <div className="bg-rose-50 rounded-xl p-4 border border-rose-100 text-center">
+            <p className="text-xs text-rose-500 font-semibold uppercase tracking-wide">Còn lại phải {debt.type==='receivable'?'thu':'trả'}</p>
+            <p className="text-2xl font-black text-rose-700 mt-1">{remaining.toFixed(2)} tỷ đồng</p>
+          </div>
+          {debt.description && <p className="text-xs text-slate-500 bg-slate-50 rounded-xl p-3">{debt.description}</p>}
+          <div className="flex gap-3 pt-2">
+            <button onClick={()=>window.print()} className="flex-1 py-2.5 bg-slate-800 text-white rounded-xl text-sm font-bold hover:bg-slate-900 flex items-center justify-center gap-2">
+              <Printer size={14}/>In phiếu
+            </button>
+            <button onClick={onClose} className="px-5 py-2.5 border border-slate-200 text-slate-600 rounded-xl text-sm hover:bg-slate-50">Đóng</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── TaxTablePrint — modal in bảng kê thuế ─────────────────────────────────────
+function TaxTablePrint({ data, onClose }: {
+  data: {
+    taxes: { period: string; type: string; description: string; base: number; rate: number; taxAmount: number; status: string; dueDate: string }[];
+    projectName: string; projectId: string; period: string;
+  };
+  onClose: () => void;
+}) {
+  const { taxes, projectName, period } = data;
+  const totalTax = taxes.reduce((s,t) => s + t.taxAmount, 0);
+  const TAX_LABELS: Record<string,string> = {
+    vat_out:'VAT đầu ra', vat_in:'VAT đầu vào', cit:'Thuế TNDN',
+    pit:'Thuế TNCN', pit_contractor:'Thuế TNCN thầu phụ', other:'Khác',
+  };
+  const STATUS_CLS: Record<string,string> = {
+    declared:'bg-amber-100 text-amber-700',
+    paid:'bg-emerald-100 text-emerald-700',
+    pending:'bg-slate-100 text-slate-600',
+  };
+  const STATUS_LBL: Record<string,string> = { declared:'Đã kê khai', paid:'Đã nộp', pending:'Chờ kê khai' };
+  return (
+    <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={onClose}>
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto" onClick={e=>e.stopPropagation()}>
+        <div className="p-6 border-b border-slate-100 flex justify-between items-start sticky top-0 bg-white">
+          <div>
+            <h2 className="text-lg font-bold text-slate-800">BẢNG KÊ THUẾ</h2>
+            <p className="text-xs text-slate-500 mt-0.5">{projectName} · Kỳ: {period}</p>
+          </div>
+          <button onClick={onClose} className="p-2 hover:bg-slate-100 rounded-xl"><X size={16}/></button>
+        </div>
+        <div className="p-6 space-y-4">
+          <div className="overflow-x-auto">
+            <table className="w-full text-xs border-collapse">
+              <thead>
+                <tr className="bg-slate-50">
+                  {['Kỳ','Loại thuế','Mô tả','Căn cứ tính','Thuế suất','Số thuế','Hạn nộp','Trạng thái'].map(h=>(
+                    <th key={h} className="px-3 py-2.5 text-left font-bold text-slate-500 uppercase text-[10px] border-b border-slate-200">{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {taxes.map((t,i)=>(
+                  <tr key={i} className="hover:bg-slate-50">
+                    <td className="px-3 py-2.5 font-medium text-slate-700">{t.period}</td>
+                    <td className="px-3 py-2.5"><span className="px-2 py-0.5 bg-blue-100 text-blue-700 rounded-md font-semibold">{TAX_LABELS[t.type]||t.type}</span></td>
+                    <td className="px-3 py-2.5 text-slate-600 max-w-[180px] truncate">{t.description}</td>
+                    <td className="px-3 py-2.5 text-right font-mono">{(t.base/1e9).toFixed(2)}B</td>
+                    <td className="px-3 py-2.5 text-center">{(t.rate*100).toFixed(0)}%</td>
+                    <td className="px-3 py-2.5 text-right font-bold text-rose-700">{(t.taxAmount/1e9).toFixed(3)}B</td>
+                    <td className="px-3 py-2.5 text-slate-500">{t.dueDate}</td>
+                    <td className="px-3 py-2.5"><span className={`px-2 py-0.5 rounded-md text-[10px] font-bold ${STATUS_CLS[t.status]||''}`}>{STATUS_LBL[t.status]||t.status}</span></td>
+                  </tr>
+                ))}
+              </tbody>
+              <tfoot>
+                <tr className="bg-slate-50 border-t-2 border-slate-300">
+                  <td colSpan={5} className="px-3 py-3 font-black text-slate-700 text-right text-sm">TỔNG THUẾ</td>
+                  <td className="px-3 py-3 font-black text-rose-700 text-right text-sm">{(totalTax/1e9).toFixed(3)}B</td>
+                  <td colSpan={2}/>
+                </tr>
+              </tfoot>
+            </table>
+          </div>
+          <div className="flex gap-3 pt-2">
+            <button onClick={()=>window.print()} className="flex-1 py-2.5 bg-slate-800 text-white rounded-xl text-sm font-bold hover:bg-slate-900 flex items-center justify-center gap-2">
+              <Printer size={14}/>In bảng kê
+            </button>
+            <button onClick={onClose} className="px-5 py-2.5 border border-slate-200 text-slate-600 rounded-xl text-sm hover:bg-slate-50">Đóng</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function AccountingDashboard({ project, projectId }: Props) {
   const pid            = projectId ?? project?.id ?? 'p1';
   const projName       = project?.name ?? 'Dự án';
@@ -642,8 +761,8 @@ export default function AccountingDashboard({ project, projectId }: Props) {
             period: t.period,
             type: t.type,
             description: t.description || '',
-            base: t.base ?? 0,
-            rate: t.rate ?? 0,
+            base: t.taxBase ?? 0,
+            rate: t.taxRate ?? 0,
             taxAmount: t.taxAmount,
             status: t.status,
             dueDate: t.dueDate || '',

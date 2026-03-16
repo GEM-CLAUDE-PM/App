@@ -478,10 +478,23 @@ export default function ManpowerDashboard({ project, initialTab }:Props) {
   // ── GPS Geofence ──────────────────────────────────────────────────────────
   const gps = useGeofence(cfg);
   // THT bị khóa chấm công khi GPS enabled nhưng off_site / lỗi
+  // Chỉ block khi GPS được bật, user là THT, và đang ngoài vùng hoặc lỗi GPS
+  // Khi GPS chưa cấu hình (no_config/disabled) → cho phép chấm công thủ công
   const gpsBlocked = cfg?.gpsAttendanceEnabled && isTHT &&
-    (gps.status === 'off_site' || gps.status === 'gps_error' || gps.status === 'checking');
+    (gps.status === 'off_site' || gps.status === 'gps_error');
 
-  useEffect(()=>{ db.set('mp_people', pid, people); },[people, pid]);
+useEffect(()=>{ db.set('mp_people', pid, people); },[people, pid]);
+
+  // ── gem:open-action — WorkspaceActionBar trigger ─────────────────────────
+  React.useEffect(() => {
+    const handler = (e: Event) => {
+      const { actionId } = (e as CustomEvent).detail;
+      if (actionId === 'TIMESHEET')        { setView('site'); }
+      if (actionId === 'OVERTIME_REQUEST') { setView('site'); }
+    };
+    window.addEventListener('gem:open-action', handler);
+    return () => window.removeEventListener('gem:open-action', handler);
+  }, []);
   useEffect(()=>{ if(attendance.length) db.set('mp_attendance', pid, attendance); },[attendance, pid]);
   useEffect(()=>{
     const member = getCurrentMember(pid);
@@ -491,9 +504,8 @@ export default function ManpowerDashboard({ project, initialTab }:Props) {
 
   const activePeople  = people.filter(p=>p.status==='active');
   // THT chỉ thấy đội mình, CHT thấy tất cả
-  const myPeople = isTHT && myTeam
-    ? activePeople.filter(p=>p.team===myTeam)
-    : activePeople;
+  // Tất cả role đều thấy danh sách nhân sự — THT quản lý đội mình, CHT/HR thấy tất cả
+  const myPeople = activePeople;
   const todayPresent  = attendance.filter(a=>a.date===TODAY && (a.status==='present'||a.status==='half')).length;
   const todayAbsent   = attendance.filter(a=>a.date===TODAY && a.status==='absent').length;
   const todayHalf     = attendance.filter(a=>a.date===TODAY && a.status==='half').length;

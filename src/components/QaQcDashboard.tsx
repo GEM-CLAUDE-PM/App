@@ -1,3 +1,4 @@
+import ModalForm, { FormRow, FormGrid, FormSection, inputCls, selectCls, BtnCancel, BtnSubmit } from './ModalForm';
 import { db } from "./db";
 import { getProjectTemplate, PROJECT_TEMPLATES } from "./projectTemplates";
 import { useNotification } from './NotificationEngine';
@@ -413,7 +414,7 @@ function FormTemplateManager({ projectId, projectName, projectAddress }: { proje
       };
       setCustomTmpls(prev => [tmpl, ...prev]);
       setEditingTmpl({...tmpl}); setTmplView("editor");
-      alert(`✅ Nàng GEM đã đọc "${file.name}"!\n\nEm nhận diện được ${tmpl.fields.length} vùng điền. Anh chỉnh sửa thêm trong trình soạn thảo nhé!`);
+      notifOk(`✅ Nàng GEM đã đọc "${file.name}"!\n\nEm nhận diện được ${tmpl.fields.length} vùng điền. Anh chỉnh sửa thêm trong trình soạn thảo nhé!`);
     }, 2200);
     e.target.value = "";
   };
@@ -1215,15 +1216,15 @@ export default function QaQcDashboard({ onNavigate, projectId: _projectId, proje
     amount?: number,
   ) => {
     if (!ctx) { notifInfo('Chưa đăng nhập'); return; }
-    if (!WORKFLOWS[docType]) { alert(`DocType ${docType} chưa có workflow`); return; }
+    if (!WORKFLOWS[docType]) { notifInfo(`DocType ${docType} chưa có workflow`); return; }
     const createResult = createDocument({ projectId, docType, ctx, title, data, amount });
-    if (!createResult.ok) { alert(`❌ ${(createResult as any).error}`); return; }
+    if (!createResult.ok) { notifErr(`❌ ${(createResult as any).error}`); return; }
     const submitResult = submitDocument(projectId, createResult.data!.id, ctx);
     if (submitResult.ok) {
       refreshQaQueue();
       notifOk('... "..." đã nộp vào hàng duyệt');
     } else {
-      alert(`❌ Lỗi: ${(submitResult as any).error}`);
+      notifErr(`❌ Lỗi: ${(submitResult as any).error}`);
     }
   }, [projectId, ctx, refreshQaQueue]);
 
@@ -1233,10 +1234,30 @@ export default function QaQcDashboard({ onNavigate, projectId: _projectId, proje
   }, [triggerQaDoc]);
   // ── /Approval wiring ───────────────────────────────────────────────────────
 
-  const [activeTab, setActiveTab]               = useState("overview");
+  const [activeTab, setActiveTab] = useState(() => {
+    const saved = sessionStorage.getItem('gem_action_subtab');
+    const validTabs = ['ncr','rfi','inspection','itp','method','drawings','audit','lab'];
+    if (saved && validTabs.includes(saved)) { sessionStorage.removeItem('gem_action_subtab'); return saved; }
+    return "overview";
+  });
   const [showGemChat, setShowGemChat]           = useState(false);
   const [showDefectForm, setShowDefectForm]     = useState(false);
   const [showFeedbackForm, setShowFeedbackForm] = useState(false);
+  // gem:open-action — WorkspaceActionBar trigger
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const { actionId } = (e as CustomEvent).detail;
+      if (actionId === 'NCR') { setActiveTab('defects'); setTimeout(() => setShowDefectForm(true), 200); }
+      if (actionId === 'RFI') { setActiveTab('defects'); setTimeout(() => setShowDefectForm(true), 200); }
+      if (actionId === 'INSPECTION_REQUEST') { setActiveTab('checklists'); setTimeout(() => setShowChecklistForm(true), 200); }
+      if (actionId === 'MATERIAL_APPROVAL') { setActiveTab('feedbacks'); setTimeout(() => setShowFeedbackForm(true), 200); }
+      if (actionId === 'ITP_MANAGEMENT') { setActiveTab('checklists'); setTimeout(() => setShowChecklistForm(true), 200); }
+      if (actionId === 'QUALITY_AUDIT') { setActiveTab('checklists'); setTimeout(() => setShowChecklistForm(true), 200); }
+      if (actionId === 'HSE_INSPECTION') { setActiveTab('overview'); }
+    };
+    window.addEventListener('gem:open-action', handler);
+    return () => window.removeEventListener('gem:open-action', handler);
+  }, []);
   const [showChecklistForm, setShowChecklistForm] = useState(false);
 
   // Data
@@ -1387,7 +1408,7 @@ export default function QaQcDashboard({ onNavigate, projectId: _projectId, proje
     const upcoming=PROJECT_SCHEDULE_ITEMS.filter(s=>s.planDate>=today);
     if (upcoming.length) {
       setChecklists(prev=>[...upcoming.map(s=>({id:Date.now()+Math.random(),name:`[TỰ ĐỘNG] ${s.task}`,status:"Chưa bắt đầu",progress:0,date:s.planDate.split("-").reverse().join("/"),docType:"ITP",location:"Xem tiến độ"})),...prev]);
-      alert(`Nàng GEM: Đã tạo ${upcoming.length} biên bản nháp!`);
+      notifOk(`Nàng GEM: Đã tạo ${upcoming.length} biên bản nháp!`);
     } else notifInfo('Tiến độ ổn định, không có hạng mục cần khởi tạo gấp.');
   };
 
@@ -1848,182 +1869,8 @@ export default function QaQcDashboard({ onNavigate, projectId: _projectId, proje
       {/* ══════════════════ MODALS ══════════════════════════════════════════ */}
 
       {/* Modal: Tạo checklist QA/QC */}
-      {showChecklistForm && (
-        <div className="fixed inset-0 bg-slate-900/70 backdrop-blur-sm z-[10000] flex items-center justify-center p-4">
-          <div className="bg-white w-full max-w-2xl rounded-3xl shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200">
-            <div className={`p-6 flex justify-between items-center text-white ${selectedDocType==="NCR"?"bg-rose-600":selectedDocType==="MIR"?"bg-blue-600":selectedDocType==="HSE"?"bg-orange-600":"bg-emerald-600"}`}>
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 bg-white/20 rounded-xl flex items-center justify-center"><ClipboardCheck size={22}/></div>
-                <div>
-                  <h3 className="font-bold text-lg">{DOC_TYPES_QAQC.find(d=>d.id===selectedDocType)?.label}</h3>
-                  <p className="text-white/70 text-xs">Tạo checklist nghiệm thu nhanh</p>
-                </div>
-              </div>
-              <button onClick={()=>setShowChecklistForm(false)} className="hover:rotate-90 transition-transform bg-black/10 p-2 rounded-full"><X size={20}/></button>
-            </div>
-            <div className="p-6 space-y-4 max-h-[70vh] overflow-y-auto">
-              <div>
-                <label className="block text-xs font-black text-slate-400 uppercase mb-2">Loại hồ sơ</label>
-                <select value={selectedDocType} onChange={e=>{setSelectedDocType(e.target.value);setCustomItems(getTemplateByDocType(e.target.value));}}
-                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm outline-none focus:border-emerald-500">
-                  {DOC_TYPES_QAQC.map(d=><option key={d.id} value={d.id}>{d.id} — {d.label}</option>)}
-                </select>
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-xs font-black text-slate-400 uppercase mb-2">Vị trí / Hạng mục</label>
-                  <input value={formLocation} onChange={e=>setFormLocation(e.target.value)} placeholder="VD: Sàn tầng 5 - Block A"
-                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm outline-none focus:border-emerald-500"/>
-                </div>
-                <div>
-                  <label className="block text-xs font-black text-slate-400 uppercase mb-2">Ngày thực hiện</label>
-                  <input type="date" value={formDate} onChange={e=>setFormDate(e.target.value)}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm outline-none focus:border-emerald-500"/>
-                </div>
-              </div>
-              <div>
-                <div className="flex justify-between items-center mb-2">
-                  <label className="text-xs font-black text-slate-400 uppercase">Danh mục kiểm tra ({customItems.length} mục)</label>
-                  <button onClick={()=>setCustomItems([...customItems,{l:"Hạng mục mới",d:"Tiêu chuẩn..."}])}
-                    className="text-[10px] bg-emerald-600 text-white px-3 py-1.5 rounded-lg font-bold hover:bg-emerald-700">+ Thêm dòng</button>
-                </div>
-                <div className="space-y-2 max-h-52 overflow-y-auto">
-                  {customItems.map((item,i)=>(
-                    <div key={i} className="flex items-start gap-2 p-3 bg-slate-50 border border-slate-200 rounded-xl group">
-                      <div className="flex-1 space-y-1">
-                        <input value={item.l} onChange={e=>{const n=[...customItems];n[i].l=e.target.value;setCustomItems(n);}}
-                          className="w-full text-sm font-medium text-slate-700 bg-transparent outline-none border-b border-transparent focus:border-emerald-400"/>
-                        <input value={item.d} onChange={e=>{const n=[...customItems];n[i].d=e.target.value;setCustomItems(n);}}
-                          className="w-full text-[11px] text-slate-400 bg-transparent outline-none"/>
-                      </div>
-                      <button onClick={()=>setCustomItems(customItems.filter((_,idx)=>idx!==i))}
-                        className="text-rose-400 opacity-0 group-hover:opacity-100 transition-opacity p-1 hover:bg-rose-50 rounded-lg"><X size={13}/></button>
-                    </div>
-                  ))}
-                </div>
-              </div>
-              <div className="bg-blue-50 border border-blue-100 rounded-xl p-3 text-xs text-blue-700 flex gap-2">
-                <Info size={14} className="shrink-0 mt-0.5"/>
-                Muốn dùng mẫu biên bản đầy đủ hơn? Vào tab <strong>Thư viện Biểu mẫu</strong> để chọn mẫu có sẵn hoặc upload mẫu Word/Excel của anh lên!
-              </div>
-            </div>
-            <div className="p-5 border-t border-slate-100 bg-slate-50 flex gap-3">
-              <button onClick={()=>{
-                const cl = checklists.find(c=>c.id===viewingChecklist);
-                if (cl) setPrintITP({
-                  id: cl.id,
-                  name: cl.name,
-                  date: cl.date,
-                  location: cl.location,
-                  docType: cl.docType,
-                  items: [],
-                });
-              }} className="flex items-center gap-2 px-4 py-2.5 bg-white border border-slate-200 text-slate-600 rounded-xl text-sm">
-                <Printer size={15}/> In biên bản
-              </button>
-              <button onClick={saveChecklist} className="flex-1 bg-emerald-600 text-white py-2.5 rounded-xl font-bold text-sm hover:bg-emerald-700 flex items-center justify-center gap-2 shadow-lg shadow-emerald-100">
-                <Sparkles size={15}/> Lưu hồ sơ
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
       {/* Modal: Ghi nhận NCR */}
-      {showDefectForm && (
-        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[10000] flex items-center justify-center p-4">
-          <div className="bg-white w-full max-w-lg rounded-3xl shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200">
-            <div className="p-5 border-b border-slate-100 flex justify-between items-center bg-rose-50">
-              <h3 className="text-lg font-bold text-rose-900 flex items-center gap-2"><AlertCircle size={20}/>Ghi nhận NCR mới</h3>
-              <button onClick={()=>setShowDefectForm(false)} className="hover:rotate-90 transition-transform text-rose-400"><XCircle size={24}/></button>
-            </div>
-            <div className="p-6 space-y-4">
-              <div>
-                <label className="block text-xs font-black text-slate-400 uppercase mb-2">Mô tả lỗi / Sai phạm *</label>
-                <textarea value={defectTitle} onChange={e=>setDefectTitle(e.target.value)} rows={3}
-                  placeholder="Mô tả rõ vị trí và tình trạng lỗi..."
-                  className="w-full border border-slate-200 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-rose-400 outline-none resize-none"/>
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-xs font-black text-slate-400 uppercase mb-2">Mức độ</label>
-                  <select value={defectSeverity} onChange={e=>setDefectSeverity(e.target.value)}
-                    className="w-full border border-slate-200 rounded-xl px-4 py-3 text-sm bg-slate-50 outline-none">
-                    <option>Cao (Dừng thi công)</option><option>Trung bình</option><option>Thấp (Khắc phục sau)</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-xs font-black text-slate-400 uppercase mb-2">Hạn khắc phục</label>
-                  <input type="date" value={defectDeadline} onChange={e=>setDefectDeadline(e.target.value)}
-                    className="w-full border border-slate-200 rounded-xl px-4 py-3 text-sm bg-slate-50 outline-none"/>
-                </div>
-              </div>
-              <div>
-                <label className="block text-xs font-black text-slate-400 uppercase mb-2">Vị trí cụ thể</label>
-                <input value={defectLocation} onChange={e=>setDefectLocation(e.target.value)} placeholder="VD: Cột C1 - Tầng 3 - Block A"
-                  className="w-full border border-slate-200 rounded-xl px-4 py-3 text-sm outline-none focus:border-rose-400"/>
-              </div>
-              <div className="p-4 border-2 border-dashed border-slate-200 rounded-xl text-center hover:bg-rose-50/50 hover:border-rose-200 cursor-pointer transition-all">
-                <Camera className="mx-auto text-slate-400 mb-2" size={26}/>
-                <p className="text-sm font-bold text-slate-600">Chụp ảnh / Đính kèm ảnh lỗi</p>
-                <p className="text-xs text-slate-400">JPG, PNG — Tối đa 10MB</p>
-              </div>
-              <button onClick={saveDefect} className="w-full bg-rose-600 text-white py-3 rounded-xl font-bold hover:bg-rose-700 transition-all shadow-lg shadow-rose-100">
-                Gửi báo cáo NCR
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
       {/* Modal: Phản hồi */}
-      {showFeedbackForm && (
-        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[10000] flex items-center justify-center p-4">
-          <div className="bg-white w-full max-w-lg rounded-3xl shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200">
-            <div className="p-5 border-b border-slate-100 flex justify-between items-center bg-blue-600 text-white">
-              <h3 className="text-lg font-bold flex items-center gap-2"><Mic size={20}/>Ghi nhận Phản hồi mới</h3>
-              <button onClick={()=>setShowFeedbackForm(false)} className="hover:rotate-90 transition-transform opacity-70 hover:opacity-100"><XCircle size={24}/></button>
-            </div>
-            <div className="p-6 space-y-4">
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-xs font-black text-slate-400 uppercase mb-2">Bên gửi</label>
-                  <select value={fbSender} onChange={e=>setFbSender(e.target.value)} className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm outline-none">
-                    <option>Chủ đầu tư</option><option>TVGS</option><option>Tổ đội</option><option>Khác</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-xs font-black text-slate-400 uppercase mb-2">Loại ý kiến</label>
-                  <select value={fbType} onChange={e=>setFbType(e.target.value)} className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm outline-none">
-                    <option>Kiến nghị</option><option>Khiếu nại</option><option>Báo cáo</option>
-                  </select>
-                </div>
-              </div>
-              <div>
-                <label className="block text-xs font-black text-slate-400 uppercase mb-2">Nội dung chi tiết *</label>
-                <textarea value={fbContent} onChange={e=>setFbContent(e.target.value)} rows={4}
-                  placeholder="Nhập nội dung phản hồi hoặc kiến nghị..."
-                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-blue-400 resize-none"/>
-              </div>
-              <div>
-                <label className="block text-xs font-black text-slate-400 uppercase mb-2">Mức độ ưu tiên</label>
-                <div className="flex gap-2">
-                  {["Cao","Trung bình","Thấp"].map(p=>(
-                    <button key={p} onClick={()=>setFbPriority(p)}
-                      className={`flex-1 py-2 rounded-xl text-xs font-bold transition-all border ${fbPriority===p?"bg-blue-600 text-white border-blue-600":"bg-slate-50 text-slate-500 border-slate-200 hover:bg-slate-100"}`}>
-                      {p}
-                    </button>
-                  ))}
-                </div>
-              </div>
-              <button onClick={saveFeedback} className="w-full bg-blue-600 text-white py-3 rounded-xl font-bold hover:bg-blue-700 shadow-lg shadow-blue-100">
-                Gửi & Lưu vào hệ thống
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
       {/* ── Print components ── */}
       {printITP && <ITPPrint
         data={{ checklist: printITP, projectName: projectName || '', projectId }}
@@ -2033,6 +1880,143 @@ export default function QaQcDashboard({ onNavigate, projectId: _projectId, proje
         data={{ ncr: printNCR, projectName: projectName || '', projectId }}
         onClose={() => setPrintNCR(null)}
       />}
+
+      {/* ── CHECKLIST FORM MODAL ── */}
+      <ModalForm
+        open={showChecklistForm}
+        onClose={() => setShowChecklistForm(false)}
+        title="Tạo hồ sơ nghiệm thu"
+        subtitle="Tạo checklist nghiệm thu nhanh"
+        icon={<ClipboardCheck size={18}/>} color="teal" width="lg"
+        footer={<>
+          <BtnCancel onClick={() => setShowChecklistForm(false)}/>
+          <button onClick={() => {
+            const cl = checklists.find(c=>c.id===viewingChecklist);
+            if (cl) setPrintITP({ id:cl.id, name:cl.name, date:cl.date, location:cl.location, docType:cl.docType, items:[] });
+          }} className="px-4 py-2 text-xs font-bold text-slate-600 bg-white border border-slate-200 rounded-xl flex items-center gap-1.5">
+            <Printer size={13}/> In biên bản
+          </button>
+          <BtnSubmit label="Lưu hồ sơ" color="teal" onClick={saveChecklist}/>
+        </>}
+      >
+        <FormRow label="Loại hồ sơ">
+          <select value={selectedDocType} onChange={e=>{setSelectedDocType(e.target.value);setCustomItems(getTemplateByDocType(e.target.value));}}
+            className={selectCls}>
+            {DOC_TYPES_QAQC.map(d=><option key={d.id} value={d.id}>{d.id} — {d.label}</option>)}
+          </select>
+        </FormRow>
+        <FormGrid cols={2}>
+          <FormRow label="Vị trí / Hạng mục">
+            <input value={formLocation} onChange={e=>setFormLocation(e.target.value)}
+              placeholder="VD: Cột C3, tầng 2..." className={inputCls}/>
+          </FormRow>
+          <FormRow label="Ngày thực hiện">
+            <input type="date" value={formDate} onChange={e=>setFormDate(e.target.value)} className={inputCls}/>
+          </FormRow>
+        </FormGrid>
+        <FormSection label={`Danh mục kiểm tra (${customItems.length} mục)`}>
+          <div className="space-y-2 max-h-52 overflow-y-auto">
+            {customItems.map((item,i)=>(
+              <div key={i} className="flex items-start gap-2 p-3 bg-slate-50 border border-slate-200 rounded-xl group">
+                <div className="flex-1 space-y-1">
+                  <input value={item.l} onChange={e=>{const n=[...customItems];n[i].l=e.target.value;setCustomItems(n);}}
+                    className="w-full text-sm font-medium text-slate-700 bg-transparent outline-none"/>
+                  <input value={item.d} onChange={e=>{const n=[...customItems];n[i].d=e.target.value;setCustomItems(n);}}
+                    className="w-full text-[11px] text-slate-400 bg-transparent outline-none"/>
+                </div>
+                <button onClick={()=>setCustomItems(customItems.filter((_,idx)=>idx!==i))}
+                  className="text-rose-400 opacity-0 group-hover:opacity-100 transition-opacity">
+                  <X size={14}/>
+                </button>
+              </div>
+            ))}
+          </div>
+          <button onClick={()=>setCustomItems([...customItems,{l:"Hạng mục mới",d:"Tiêu chuẩn áp dụng"}])}
+            className="text-[10px] bg-emerald-600 text-white px-3 py-1.5 rounded-lg font-bold mt-2">
+            + Thêm mục
+          </button>
+        </FormSection>
+      </ModalForm>
+      {/* ── DEFECT FORM MODAL ── */}
+      <ModalForm
+        open={showDefectForm}
+        onClose={() => setShowDefectForm(false)}
+        title="Báo cáo NCR / Lỗi"
+        subtitle="Ghi nhận lỗi không phù hợp tại công trường"
+        icon={<AlertCircle size={18}/>} color="red" width="md"
+        footer={<>
+          <BtnCancel onClick={() => setShowDefectForm(false)}/>
+          <BtnSubmit label="Gửi báo cáo NCR" color="red" onClick={saveDefect}/>
+        </>}
+      >
+        <FormRow label="Mô tả lỗi *">
+          <textarea value={defectTitle} onChange={e=>setDefectTitle(e.target.value)} rows={3}
+            placeholder="Mô tả rõ vị trí và tình trạng lỗi..." className={inputCls}/>
+        </FormRow>
+        <FormGrid cols={2}>
+          <FormRow label="Mức độ">
+            <select value={defectSeverity} onChange={e=>setDefectSeverity(e.target.value)} className={selectCls}>
+              <option>Cao (Dừng thi công)</option>
+              <option>Trung bình</option>
+              <option>Thấp (Khắc phục luôn)</option>
+            </select>
+          </FormRow>
+          <FormRow label="Hạn khắc phục">
+            <input type="date" value={defectDeadline} onChange={e=>setDefectDeadline(e.target.value)} className={inputCls}/>
+          </FormRow>
+        </FormGrid>
+        <FormRow label="Vị trí cụ thể">
+          <input value={defectLocation} onChange={e=>setDefectLocation(e.target.value)}
+            placeholder="VD: Cột B2, tầng 3..." className={inputCls}/>
+        </FormRow>
+        <div className="p-4 border-2 border-dashed border-slate-200 rounded-xl text-center cursor-pointer hover:border-rose-300 transition-colors">
+          <Camera className="mx-auto text-slate-400 mb-2" size={26}/>
+          <p className="text-sm font-bold text-slate-600">Chụp ảnh / Đính kèm ảnh lỗi</p>
+          <p className="text-xs text-slate-400">JPG, PNG — Tối đa 10MB</p>
+        </div>
+      </ModalForm>
+      {/* ── FEEDBACK FORM MODAL ── */}
+      <ModalForm
+        open={showFeedbackForm}
+        onClose={() => setShowFeedbackForm(false)}
+        title="Ghi nhận phản hồi / kiến nghị"
+        subtitle="Ghi nhận ý kiến từ chủ đầu tư, TVGS hoặc nhà thầu"
+        icon={<Mic size={18}/>} color="blue" width="md"
+        footer={<>
+          <BtnCancel onClick={() => setShowFeedbackForm(false)}/>
+          <BtnSubmit label="Gửi & Lưu" color="blue" onClick={saveFeedback}/>
+        </>}
+      >
+        <FormGrid cols={2}>
+          <FormRow label="Bên gửi">
+            <select value={fbSender} onChange={e=>setFbSender(e.target.value)} className={selectCls}>
+              <option>Chủ đầu tư</option><option>TVGS</option>
+              <option>Tổ đội</option><option>Kỹ thuật</option>
+            </select>
+          </FormRow>
+          <FormRow label="Loại ý kiến">
+            <select value={fbType} onChange={e=>setFbType(e.target.value)} className={selectCls}>
+              <option>Kiến nghị</option><option>Khiếu nại</option><option>Báo cáo</option>
+            </select>
+          </FormRow>
+        </FormGrid>
+        <FormRow label="Nội dung">
+          <textarea value={fbContent} onChange={e=>setFbContent(e.target.value)} rows={4}
+            placeholder="Nhập nội dung phản hồi hoặc kiến nghị..." className={inputCls}/>
+        </FormRow>
+        <FormRow label="Mức độ ưu tiên">
+          <div className="flex gap-2">
+            {["Cao","Trung bình","Thấp"].map(p=>(
+              <button key={p} onClick={()=>setFbPriority(p)}
+                className={`flex-1 py-2 rounded-xl text-xs font-bold transition-all border ${fbPriority===p?'bg-blue-600 text-white border-blue-600':'bg-white text-slate-600 border-slate-200 hover:border-blue-300'}`}>
+                {p}
+              </button>
+            ))}
+          </div>
+        </FormRow>
+      </ModalForm>
+
     </div>
+
   );
 }

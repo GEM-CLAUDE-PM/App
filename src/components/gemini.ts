@@ -13,12 +13,12 @@ const _client = new GoogleGenerativeAI(
 // ── Defaults toàn app ─────────────────────────────────────────────────────────
 export const GEM_MODEL         = 'gemini-3-flash-preview';
 export const GEM_MODEL_VISION  = 'gemini-3-flash-preview'; // vision-capable
-export const GEM_MODEL_QUALITY = 'gemini-2.5-flash-preview-04-17'; // QA/QC cao hơn — chỉ dùng khi cần
+export const GEM_MODEL_QUALITY = 'gemini-3-flash-preview'; // QA/QC — dùng model chính khi quality model không available
 
 const DEFAULT_CONFIG = {
   temperature: 0.25,  // thấp = chính xác, không hallucinate
-  topP: 0.8,
-  topK: 20,
+  maxOutputTokens: 8192,  // đủ cho báo cáo dài, nhật ký, phân tích
+  // topP, topK removed — Gemini 3 Flash dùng defaults của model
 };
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -46,16 +46,17 @@ function _buildModel(opts: GemModelOptions): GemModel {
   const m = _client.getGenerativeModel({
     model: modelName,
     generationConfig: mergedConfig,
+    ...(opts.systemInstruction && {
+      systemInstruction: opts.systemInstruction,
+    }),
   });
 
   return {
     generateContent: async (prompt: string | any[]) => {
       let contents: any;
       if (typeof prompt === 'string') {
-        // Text-only — inject systemInstruction inline nếu có
-        contents = opts.systemInstruction
-          ? [{ role: 'user', parts: [{ text: `${opts.systemInstruction}\n\n${prompt}` }] }]
-          : prompt;
+        // Text-only — systemInstruction đã pass vào SDK, không inject inline
+        contents = prompt;
       } else {
         // Multipart (ảnh, file, mixed) — pass thẳng
         contents = prompt;
@@ -65,11 +66,9 @@ function _buildModel(opts: GemModelOptions): GemModel {
     },
 
     startChat: (options?: { history?: any[] }) => {
+      // systemInstruction đã set ở getGenerativeModel level — không set lại ở startChat
       return m.startChat({
         history: options?.history || [],
-        ...(opts.systemInstruction && {
-          systemInstruction: { role: 'system', parts: [{ text: opts.systemInstruction }] }
-        }),
       });
     },
   };

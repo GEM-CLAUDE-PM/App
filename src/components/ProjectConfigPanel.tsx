@@ -123,6 +123,7 @@ const EMPTY_CONFIG = (projectId: string): ProjectConfig => ({
 const CONTRACT_TYPES = ["Trọn gói", "Đơn giá điều chỉnh", "Theo thời gian", "Hỗn hợp", "Khác"];
 
 import { db } from './db';
+import { useNotification } from './NotificationEngine';
 
 // ── Storage helpers ───────────────────────────────────────────────────────────
 // ── Storage helpers: async via db.ts, sync shims for legacy callers ──────────
@@ -238,7 +239,7 @@ function LogoUploader({ projectId }: { projectId: string }) {
     const file = e.target.files?.[0];
     if (!file) return;
     if (file.size > 500 * 1024) {
-      alert("Logo tối đa 500KB. Vui lòng nén ảnh trước.");
+      notifErr("Logo tối đa 500KB. Vui lòng nén ảnh trước.");
       return;
     }
     const reader = new FileReader();
@@ -303,6 +304,7 @@ interface Props {
 }
 
 export default function ProjectConfigPanel({ projectId, projectName, currentUser = "Admin", onSave }: Props) {
+  const { err: notifErr } = useNotification();
   const [cfg, setCfg] = useState<ProjectConfig>(() => loadProjectConfig(projectId));
   const [saved, setSaved] = useState(false);
   const [dirty, setDirty] = useState(false);
@@ -671,7 +673,7 @@ export default function ProjectConfigPanel({ projectId, projectName, currentUser
                 navigator.geolocation.getCurrentPosition(pos=>{
                   set('siteLatitude', pos.coords.latitude.toFixed(6));
                   set('siteLongitude', pos.coords.longitude.toFixed(6));
-                }, ()=>alert('Không lấy được GPS. Vui lòng bật quyền định vị.'));
+                }, ()=>notifErr('Không lấy được GPS. Vui lòng bật quyền định vị.'));
               }}
               className="flex items-center gap-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold transition-colors">
               <MapPin size={13}/> Lấy vị trí hiện tại của tôi

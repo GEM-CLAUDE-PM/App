@@ -1,10 +1,12 @@
 // QSSubcontractorTab.tsx — GEM&CLAUDE PM Pro
 // Subcontractor management tab — tách từ QSDashboard.tsx
 
-import React, { useState, useMemo, useCallback } from "react";
+import React, { useState, useEffect, useMemo, useCallback, useRef } from "react";
+import { useNotification } from './NotificationEngine';
+import { db } from "./db";
 import {
   BarChart2, TrendingUp, TrendingDown, FileText, Plus, X,
-  ChevronDown, ChevronRight, Edit3, Trash2, Save, Eye,
+  ChevronDown, ChevronRight, ChevronUp, Edit3, Trash2, Save, Eye, Activity,
   DollarSign, Building2, Hash, Calculator, Clock, Check,
   CheckCircle2, AlertTriangle, AlertCircle, Search, Filter,
   Download, Send, Info, ArrowUpRight, ArrowDownRight, Minus,
@@ -12,21 +14,79 @@ import {
 } from "lucide-react";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from "recharts";
 import {
+  type BOQItem, type AcceptanceLot, type PaymentRequest,
   type SubContractor, type SubPayment, type SubType,
   type PayMechanism, type SubPayStatus,
   INIT_SUBS, INIT_SUB_PAYMENTS,
   SUB_TYPE_CFG, MECH_CFG, SUB_PAY_STATUS,
+  CHAPTERS, CHAPTER_NAMES, calcBOQValue, calcDoneValue,
   fmt, fmtB, pct
 } from "./QSTypes";
+import { seedApprovalDocs } from "./approvalEngine";
+import type { SeedVoucherInput } from "./approvalEngine";
 
-interface SubcontractorTabProps { projectId: string; }
+// ── Local KpiCard (mirror of QSDashboard) ────────────────────────────────────
+const KpiCard = ({ label, value, sub, icon, color = "emerald", trend }: {
+  label: string; value: string; sub: string; icon: React.ReactNode;
+  color?: string; trend?: "up"|"down"|"flat"; key?: string;
+}) => (
+  <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5 flex flex-col gap-3">
+    <div className="flex items-center justify-between">
+      <div className={`p-2.5 rounded-xl bg-${color}-50 text-${color}-600`}>{icon}</div>
+      {trend && (
+        <span className={`flex items-center gap-0.5 text-xs font-bold ${trend==="up"?"text-emerald-600":trend==="down"?"text-rose-500":"text-slate-400"}`}>
+          {trend==="up"?<ArrowUpRight size={14}/>:trend==="down"?<ArrowDownRight size={14}/>:<Minus size={14}/>}
+        </span>
+      )}
+    </div>
+    <div>
+      <div className="text-2xl font-bold text-slate-800 leading-tight">{value}</div>
+      <div className="text-xs font-semibold text-slate-500 mt-0.5">{label}</div>
+      <div className="text-[10px] text-slate-400 mt-0.5">{sub}</div>
+    </div>
+  </div>
+);
 
-export default function SubcontractorTab({ projectId }: SubcontractorTabProps) {
+const ProgressBar = ({ value, max, color = "emerald", showLabel = true }: {
+  value: number; max: number; color?: string; showLabel?: boolean;
+}) => {
+  const p = pct(value, max);
+  const warn = p > 100;
+  return (
+    <div className="w-full">
+      {showLabel && (
+        <div className="flex justify-between text-[10px] font-bold mb-1">
+          <span className={warn ? "text-rose-600" : "text-slate-500"}>{p}%</span>
+          {warn && <span className="text-rose-500 flex items-center gap-0.5"><AlertTriangle size={9}/>Vượt KL</span>}
+        </div>
+      )}
+      <div className="h-2 bg-slate-100 rounded-full overflow-hidden">
+        <div
+          className={`h-full rounded-full transition-all duration-500 ${warn ? "bg-rose-500" : p >= 90 ? `bg-${color}-500` : p >= 50 ? `bg-${color}-400` : `bg-${color}-300`}`}
+          style={{ width: `${Math.min(p, 100)}%` }}
+        />
+      </div>
+    </div>
+  );
+};
+
+interface SubcontractorTabProps {
+  projectId: string;
+  boqItems: BOQItem[];
+  acceptanceLots: AcceptanceLot[];
+  payments: PaymentRequest[];
+}
+
+export default function SubcontractorTab({ projectId, boqItems, acceptanceLots, payments }: SubcontractorTabProps) {
+  const { err: notifErr, info: notifInfo } = useNotification();
   const [subs, setSubs]                   = useState<SubContractor[]>(INIT_SUBS);
   const [subPayments, setSubPayments]     = useState<SubPayment[]>(INIT_SUB_PAYMENTS);
   const [subTab, setSubTab]               = useState<"overview"|"contracts"|"payments">("overview");
   const [selectedSubId, setSelectedSubId] = useState<string|null>(null);
   const [subTypeFilter, setSubTypeFilter] = useState<SubType|"all">("all");
+  const [subSearch, setSubSearch]         = useState("");
+  const [paySearch, setPaySearch]         = useState("");
+  const [payStatusFilter, setPayStatusFilter] = useState<string>("all");
   const [showNewSubPay, setShowNewSubPay] = useState(false);
   const [showNewSub, setShowNewSub]       = useState(false);
   const [newSubPayMech, setNewSubPayMech] = useState<PayMechanism>("progress");
@@ -42,6 +102,7 @@ export default function SubcontractorTab({ projectId }: SubcontractorTabProps) {
 
   // AI chat
   const [aiPrompt, setAiPrompt]         = useState("");
+  const [expandedSubPayId, setExpandedSubPayId] = useState<string|null>(null);
   const [aiResponse, setAiResponse]     = useState("");
   const [isAiLoading, setIsAiLoading]   = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
@@ -52,17 +113,11 @@ export default function SubcontractorTab({ projectId }: SubcontractorTabProps) {
 
   useEffect(() => {
     (async () => {
-      const [items, accept, pays, s, sp, matVouchers] = await Promise.all([
-        db.get('qs_items',        projectId, boqItems),
-        db.get('qs_acceptance',   projectId, acceptanceLots),
-        db.get('qs_payments',     projectId, payments),
+      const [s, sp, matVouchers] = await Promise.all([
         db.get('qs_subs',         projectId, subs),
         db.get('qs_sub_payments', projectId, subPayments),
         db.get('mat_vouchers',    projectId, []),
       ]);
-      if ((items as any[]).length)  setBoqItems(items as any);
-      if ((accept as any[]).length) setAcceptanceLots(accept as any);
-      if ((pays as any[]).length)   setPayments(pays as any);
       if ((s as any[]).length)      setSubs(s as any);
       if ((sp as any[]).length)     setSubPayments(sp as any);
 
@@ -105,9 +160,7 @@ export default function SubcontractorTab({ projectId }: SubcontractorTabProps) {
   }, [projectId, acceptanceLots.length, payments.length]);
 
   // ── db.ts: lưu khi data thay đổi ────────────────────────────────────────
-  useEffect(() => { db.set('qs_items',        projectId, boqItems);       }, [boqItems]);
-  useEffect(() => { db.set('qs_acceptance',   projectId, acceptanceLots); }, [acceptanceLots]);
-  useEffect(() => { db.set('qs_payments',     projectId, payments);       }, [payments]);
+
   useEffect(() => { db.set('qs_subs',         projectId, subs);           }, [subs]);
   useEffect(() => { db.set('qs_sub_payments', projectId, subPayments);    }, [subPayments]);
 
@@ -154,6 +207,92 @@ export default function SubcontractorTab({ projectId }: SubcontractorTabProps) {
     const plan     = items.reduce((s,i) => s + i.qty_plan_current * i.unit_price, 0);
     return { ch, name: CHAPTER_NAMES[ch], contract, done, plan, pctDone: pct(done, contract), pctPlan: pct(plan, contract) };
   }), [nonChapter]);
+
+  // enrichedSubs: subs với computed payment stats
+  const enrichedSubs = useMemo(() => subs.map(sub => {
+    const pays = subPayments.filter(p => p.sub_id === sub.id);
+    const totalPaidSub   = pays.filter(p => p.status === 'paid').reduce((s,p) => s + p.net_payable, 0);
+    const totalApprovedS = pays.filter(p => ['paid','approved'].includes(p.status)).reduce((s,p) => s + p.net_payable, 0);
+    const totalRetention = pays.filter(p => ['paid','approved'].includes(p.status)).reduce((s,p) => s + p.retention_amt, 0);
+    const pctPaidSub     = pct(totalPaidSub, sub.contract_value);
+    const remaining      = sub.contract_value - totalApprovedS;
+    const isOverBudget   = totalApprovedS > sub.contract_value * 1.001;
+    return { ...sub, totalPaid: totalPaidSub, totalApproved: totalApprovedS, totalRetention, pctPaid: pctPaidSub, remaining, isOverBudget, pays };
+  }), [subs, subPayments]);
+
+  // subStats: aggregate stats
+  const subStats = useMemo(() => ({
+    totalContractValue: enrichedSubs.reduce((s,x) => s + x.contract_value, 0),
+    totalPaid:          enrichedSubs.reduce((s,x) => s + x.totalPaid, 0),
+    totalRetention:     enrichedSubs.reduce((s,x) => s + x.totalRetention, 0),
+    overBudgetCount:    enrichedSubs.filter(x => x.isOverBudget).length,
+    pendingCount:       subPayments.filter(p => p.status === 'submitted').length,
+  }), [enrichedSubs, subPayments]);
+
+
+  // ── Handler: Lưu hợp đồng phụ mới ──────────────────────────────────────────
+  const saveNewSub = () => {
+    if (!newSub.name || !newSub.code) { notifErr('Vui lòng nhập mã và tên đối tác!'); return; }
+    const sub: SubContractor = {
+      id: `sub${Date.now()}`,
+      code: newSub.code || '',
+      name: newSub.name || '',
+      type: newSub.type || 'subcontractor',
+      scope: newSub.scope || '',
+      contract_value: newSub.contract_value || 0,
+      contract_no: newSub.contract_no || `HD-${Date.now()}`,
+      start_date: newSub.start_date || '',
+      end_date: newSub.end_date || '',
+      pay_mechanism: newSub.pay_mechanism || 'progress',
+      retention_pct: newSub.retention_pct ?? 5,
+      advance_paid: newSub.advance_paid || 0,
+      contact: newSub.contact || '',
+      bank_account: newSub.bank_account,
+    };
+    setSubs(prev => [...prev, sub]);
+    setShowNewSub(false);
+    setNewSub({ type: 'subcontractor', pay_mechanism: 'progress', retention_pct: 5 });
+  };
+
+  // ── Handler: Lưu phiếu thanh toán NTP mới ───────────────────────────────────
+  const saveNewSubPayment = () => {
+    const sub = subs.find(s => s.id === newSubPaySubId);
+    if (!sub) { notifInfo('Chọn đối tác!'); return; }
+    let subtotal = 0;
+    if (newSubPayMech === 'progress')  subtotal = sub.contract_value * newSubPayPct / 100;
+    if (newSubPayMech === 'lump_sum')  subtotal = newSubPayLumpItems.reduce((s,r) => s + r.value, 0);
+    if (newSubPayMech === 'manhour')   subtotal = newSubPayManrows.reduce((s,r) => s + r.qty * r.unit_price, 0);
+    if (newSubPayMech === 'unit_rate') subtotal = newSubPayUnitrows.reduce((s,r) => s + r.qty * r.unit_price, 0);
+    const retention_amt = subtotal * sub.retention_pct / 100;
+    const net_payable = subtotal - retention_amt - newSubPayAdvance;
+    const pay: SubPayment = {
+      id: `sp${Date.now()}`,
+      sub_id: newSubPaySubId,
+      pay_no: `TT-${sub.code}-${String(subPayments.filter(p => p.sub_id === newSubPaySubId).length + 1).padStart(2,'0')}`,
+      date: new Date().toLocaleDateString('vi-VN'),
+      period: newSubPayPeriod,
+      mechanism: newSubPayMech,
+      lump_items: newSubPayMech === 'lump_sum' ? newSubPayLumpItems : undefined,
+      progress_pct: newSubPayMech === 'progress' ? newSubPayPct : undefined,
+      manhour_rows: newSubPayMech === 'manhour' ? newSubPayManrows : undefined,
+      unit_rows: newSubPayMech === 'unit_rate' ? newSubPayUnitrows : undefined,
+      subtotal, retention_amt,
+      advance_deduct: newSubPayAdvance,
+      net_payable,
+      status: 'draft',
+      note: newSubPayNote,
+    };
+    setSubPayments(prev => [...prev, pay]);
+    setShowNewSubPay(false);
+    setNewSubPaySubId('');
+    setNewSubPayPct(0);
+    setNewSubPayNote('');
+    setNewSubPayPeriod('');
+    setNewSubPayAdvance(0);
+    setNewSubPayLumpItems([{name:'',value:0}]);
+    setNewSubPayManrows([{description:'',qty:0,unit:'Công',unit_price:0}]);
+    setNewSubPayUnitrows([{boq_ref:'',qty:0,unit:'m³',unit_price:0}]);
+  };
 
   // Alerts: items with >10% variance or >100% done
 
@@ -224,7 +363,15 @@ export default function SubcontractorTab({ projectId }: SubcontractorTabProps) {
               {/* Per-partner summary table */}
               <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
                 <div className="px-5 py-4 border-b border-slate-100 flex items-center justify-between flex-wrap gap-3">
-                  <h3 className="font-bold text-slate-800">Tình hình thanh toán từng đối tác</h3>
+                  <div className="flex items-center gap-3 flex-1 min-w-0">
+                    <h3 className="font-bold text-slate-800 shrink-0">Tình hình thanh toán từng đối tác</h3>
+                    <div className="relative flex-1 max-w-xs">
+                      <Search size={12} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400"/>
+                      <input value={subSearch} onChange={e=>setSubSearch(e.target.value)}
+                        placeholder="Tìm đối tác..."
+                        className="w-full pl-8 pr-3 py-1.5 text-xs border border-slate-200 rounded-lg focus:outline-none focus:border-orange-400"/>
+                    </div>
+                  </div>
                   <div className="flex gap-1.5 flex-wrap">
                     {(["all","subcontractor","team","supplier","consultant"] as const).map(t=>(
                       <button key={t} onClick={()=>setSubTypeFilter(t)}
@@ -242,7 +389,10 @@ export default function SubcontractorTab({ projectId }: SubcontractorTabProps) {
                       ))}</tr>
                     </thead>
                     <tbody className="divide-y divide-slate-50">
-                      {enrichedSubs.filter(s=>subTypeFilter==="all"||s.type===subTypeFilter).map(sub=>(
+                      {enrichedSubs
+                        .filter(s => subTypeFilter==="all" || s.type===subTypeFilter)
+                        .filter(s => !subSearch || s.name.toLowerCase().includes(subSearch.toLowerCase()) || s.code.toLowerCase().includes(subSearch.toLowerCase()) || s.scope.toLowerCase().includes(subSearch.toLowerCase()))
+                        .map(sub=>(
                         <tr key={sub.id} className={`hover:bg-slate-50 transition-colors cursor-pointer ${sub.isOverBudget?"bg-rose-50/40":""}`}
                           onClick={()=>{setSelectedSubId(sub.id);setSubTab("payments");}}>
                           <td className="px-3 py-3 font-mono text-[10px] text-slate-400">{sub.code}</td>
@@ -375,7 +525,10 @@ export default function SubcontractorTab({ projectId }: SubcontractorTabProps) {
               )}
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {enrichedSubs.map(sub=>(
+                {enrichedSubs
+                        .filter(s=>subTypeFilter==="all"||s.type===subTypeFilter)
+                        .filter(s=>!subSearch||s.name.toLowerCase().includes(subSearch.toLowerCase())||s.code.toLowerCase().includes(subSearch.toLowerCase()))
+                        .map(sub=>(
                   <div key={sub.id} className={`bg-white rounded-2xl border shadow-sm hover:shadow-md transition-all overflow-hidden ${sub.isOverBudget?"border-rose-300":"border-slate-200"}`}>
                     <div className="p-4 border-b border-slate-100">
                       <div className="flex items-start justify-between gap-3">
@@ -597,8 +750,27 @@ export default function SubcontractorTab({ projectId }: SubcontractorTabProps) {
               )}
 
               <div className="space-y-3">
+                {/* Payment search + status filter */}
+                <div className="flex gap-2 mb-3">
+                  <div className="relative flex-1">
+                    <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"/>
+                    <input value={paySearch} onChange={e=>setPaySearch(e.target.value)}
+                      placeholder="Tìm theo mã phiếu, ghi chú..."
+                      className="w-full pl-9 pr-4 py-2 text-xs border border-slate-200 rounded-xl focus:outline-none focus:border-orange-400"/>
+                  </div>
+                  <select value={payStatusFilter} onChange={e=>setPayStatusFilter(e.target.value)}
+                    className="px-3 py-2 text-xs border border-slate-200 rounded-xl bg-white focus:outline-none focus:border-orange-400">
+                    <option value="all">Tất cả TT</option>
+                    <option value="draft">Nháp</option>
+                    <option value="submitted">Đã gửi</option>
+                    <option value="approved">Đã duyệt</option>
+                    <option value="paid">Đã chi</option>
+                  </select>
+                </div>
                 {subPayments
                   .filter(p=>!selectedSubId||p.sub_id===selectedSubId)
+                  .filter(p=>payStatusFilter==="all"||p.status===payStatusFilter)
+                  .filter(p=>!paySearch||p.pay_no.toLowerCase().includes(paySearch.toLowerCase())||(p.note||"").toLowerCase().includes(paySearch.toLowerCase()))
                   .sort((a,b)=>b.id.localeCompare(a.id))
                   .map(pay=>{
                     const sub=subs.find(s=>s.id===pay.sub_id);
@@ -633,8 +805,8 @@ export default function SubcontractorTab({ projectId }: SubcontractorTabProps) {
                             ))}
                           </div>
                         </div>
-                        {(pay.unit_rows||pay.manhour_rows||pay.lump_items)&&(
-                          <div className="border-t border-slate-100 overflow-x-auto">
+                        {expandedSubPayId === pay.id && (pay.unit_rows||pay.manhour_rows||pay.lump_items) && (
+                          <div className="border-t border-slate-100 overflow-x-auto animate-in fade-in duration-200">
                             <table className="w-full text-xs">
                               <tbody className="divide-y divide-slate-50">
                                 {pay.unit_rows?.map((r,i)=><tr key={i} className="hover:bg-slate-50"><td className="px-4 py-1.5 text-slate-600">{r.boq_ref}</td><td className="px-4 py-1.5 text-right">{fmt(r.qty)} {r.unit}</td><td className="px-4 py-1.5 text-right text-slate-400">× {fmt(r.unit_price)}</td><td className="px-4 py-1.5 text-right font-semibold text-emerald-600 whitespace-nowrap">{fmtB(r.qty*r.unit_price)}</td></tr>)}
@@ -651,6 +823,11 @@ export default function SubcontractorTab({ projectId }: SubcontractorTabProps) {
                             {pay.status==="approved"&&<button onClick={()=>setSubPayments(p=>p.map(x=>x.id===pay.id?{...x,status:"paid" as SubPayStatus}:x))} className="px-3 py-1 bg-emerald-50 text-emerald-700 text-[10px] font-bold rounded-lg hover:bg-emerald-100">Xác nhận đã chi</button>}
                           </div>
                           <div className="flex gap-2">
+                            <button onClick={() => setExpandedSubPayId(prev => prev === pay.id ? null : pay.id)}
+                              className="flex items-center gap-1 px-3 py-1 text-slate-600 text-[10px] font-bold hover:bg-slate-100 rounded-lg border border-slate-200">
+                              {expandedSubPayId === pay.id ? <ChevronUp size={10}/> : <ChevronDown size={10}/>}
+                              {expandedSubPayId === pay.id ? 'Thu gọn' : 'Xem chi tiết'}
+                            </button>
                             <button className="flex items-center gap-1 px-3 py-1 text-slate-500 text-[10px] font-bold hover:bg-slate-200 rounded-lg"><Printer size={10}/>In phiếu</button>
                             <button className="flex items-center gap-1 px-3 py-1 text-slate-500 text-[10px] font-bold hover:bg-slate-200 rounded-lg"><Download size={10}/>Excel</button>
                           </div>

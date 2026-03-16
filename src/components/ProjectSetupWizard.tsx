@@ -457,7 +457,7 @@ export default function ProjectSetupWizard({ onConfirm, onCancel }: ProjectSetup
 
     // Lưu thresholds
     const thresholds = PROJECT_TEMPLATES[templateId].thresholds;
-    localStorage.setItem(`gem_thresholds_${id}`, JSON.stringify({
+    localStorage.setItem(`gem_db__project_config__${id}`, JSON.stringify({
       L3_max:        thresholds.L3_max,
       L4_max:        thresholds.L4_max,
       warehouse_exit:thresholds.warehouse_exit,

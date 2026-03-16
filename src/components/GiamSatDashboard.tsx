@@ -1,11 +1,13 @@
 import { db } from "./db";
 import { useNotification } from './NotificationEngine';
+import ModalForm, { FormRow, FormGrid, FormSection, inputCls, selectCls, BtnCancel, BtnSubmit } from './ModalForm';
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { genAI, GEM_MODEL, GEM_MODEL_QUALITY } from './gemini';
 import {
   ClipboardList, MessageCircle, Files, LayoutDashboard,
   AlertTriangle, AlertCircle, ChevronRight, Plus, Search,
-  X, Printer, Sparkles, Loader2, Eye, CheckCircle2
+  X, Printer, Sparkles, Loader2, Eye, CheckCircle2, Calendar,
+  ChevronDown,
 } from 'lucide-react';
 
 // ── Types — khai báo NGOÀI component ─────────────────────────────────────────
@@ -181,11 +183,17 @@ export default function GiamSatDashboard({ project }: Props) {
   const projectName = project?.name ?? 'Dự án';
   // useMemo giữ stable object reference — tránh infinite loop trong useCallback/useEffect
   const ctx: UserContext = useMemo(() => getCurrentCtx(pid), [pid]);
+
   const { printComponent, printSupervisionLog } = usePrint();
 
   // ── ALL useState at top — Rules of Hooks ────────────────────────────────────
   const { ok: notifOk, err: notifErr, warn: notifWarn, info: notifInfo } = useNotification();
-  const [gsTab, setGsTab]                 = useState<'dashboard' | 'logs' | 'rfi' | 'drawings'>('dashboard');
+  const [gsTab, setGsTab] = useState<'dashboard' | 'logs' | 'rfi' | 'drawings'>(() => {
+    const saved = sessionStorage.getItem('gem_action_subtab');
+    const valid = ['logs','rfi','drawings'];
+    if (saved && valid.includes(saved)) { sessionStorage.removeItem('gem_action_subtab'); return saved as any; }
+    return 'dashboard';
+  });
   const [logs, setLogs]                   = useState<SupervisionLog[]>(SEED_LOGS);
   const [rfis, setRfis]                   = useState<RFIItem[]>(SEED_RFI);
   const [drawings, setDrawings]           = useState<DrawingRevision[]>(SEED_DRAWINGS);
@@ -206,6 +214,8 @@ export default function GiamSatDashboard({ project }: Props) {
   const [newDrawingCode, setNewDrawingCode]       = useState('');
   const [newDrawingTitle, setNewDrawingTitle]     = useState('');
   const [newDrawingDisc, setNewDrawingDisc]       = useState('Kết cấu');
+  const [expandedLogId, setExpandedLogId]   = useState<string | null>(null);
+  const [expandedRfiId, setExpandedRfiId]   = useState<string | null>(null);
   const [rfiForm, setRfiForm]             = useState<Partial<RFIItem>>({
     status: 'draft', priority: 'medium',
     submitted_date: new Date().toLocaleDateString('vi-VN'),
@@ -254,7 +264,7 @@ export default function GiamSatDashboard({ project }: Props) {
   ) => {
     if (!WORKFLOWS[docType]) return;
     const cr = createDocument({ projectId: pid, docType, ctx, title, data });
-    if (!cr.ok) { alert('❌ ' + (cr as any).error); return; }
+    if (!cr.ok) { notifErr(`❌ ${(cr as any).error}`); return; }
     const sr = submitDocument(pid, cr.data!.id, ctx);
     if (sr.ok) {
       refreshGsQueue();
@@ -264,7 +274,7 @@ export default function GiamSatDashboard({ project }: Props) {
       document.body.appendChild(el);
       setTimeout(() => el.remove(), 3500);
     } else {
-      alert('❌ ' + (sr as any).error);
+      notifErr(`❌ ${(sr as any).error}`);
     }
   }, [pid, ctx, refreshGsQueue]);
   // ── /Approval wiring ─────────────────────────────────────────────────────────
@@ -405,68 +415,165 @@ export default function GiamSatDashboard({ project }: Props) {
             </div>
           )}
 
-          {/* 2-col grid */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {/* Recent logs */}
-            <div className="bg-white border border-slate-200 rounded-2xl overflow-hidden">
-              <div className="px-4 py-3 border-b border-slate-100 flex justify-between items-center bg-slate-50">
-                <p className="text-xs font-bold text-slate-700 flex items-center gap-1.5"><ClipboardList size={12} className="text-teal-500" /> Nhật ký gần đây</p>
-                <button onClick={() => setGsTab('logs')} className="text-[10px] text-emerald-600 font-semibold hover:underline">Xem tất cả</button>
-              </div>
-              <div className="divide-y divide-slate-100">
-                {logs.slice(0, 3).map(log => {
-                  const fails = log.items.filter(i => i.result === 'fail').length;
-                  return (
-                    <div key={log.id} onClick={() => setSelectedLog(log)} className="px-4 py-3 flex items-start gap-3 hover:bg-slate-50 cursor-pointer transition-colors">
-                      <div className={`mt-0.5 w-2 h-2 rounded-full shrink-0 ${log.status === 'signed' ? 'bg-emerald-500' : 'bg-amber-400'}`} />
-                      <div className="flex-1 min-w-0">
-                        <p className="text-xs font-semibold text-slate-700 truncate">{log.area}</p>
-                        <p className="text-[10px] text-slate-400">{log.date} · {log.inspector} · {log.workers_count} CN</p>
-                        {fails > 0 && <p className="text-[10px] text-rose-600 font-semibold">{fails} hạng mục không đạt</p>}
-                      </div>
-                      <span className={`text-[9px] font-bold px-2 py-0.5 rounded-full shrink-0 ${log.status === 'signed' ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}`}>
-                        {log.status === 'signed' ? 'Đã ký' : 'Nháp'}
-                      </span>
-                    </div>
-                  );
-                })}
-              </div>
+          {/* Nhật ký gần đây — expand inline */}
+          <div className="bg-white border border-slate-200 rounded-2xl overflow-hidden">
+            <div className="px-4 py-3 border-b border-slate-100 flex justify-between items-center bg-slate-50">
+              <p className="text-xs font-bold text-slate-700 flex items-center gap-1.5"><ClipboardList size={12} className="text-teal-500" /> Nhật ký giám sát gần đây</p>
+              <button onClick={() => setGsTab('logs')} className="text-[10px] text-emerald-600 font-semibold hover:underline">Xem tất cả →</button>
             </div>
+            <div className="divide-y divide-slate-100">
+              {logs.slice(0, 3).map(log => {
+                const fails = log.items.filter(i => i.result === 'fail').length;
+                const isExpanded = expandedLogId === log.id;
+                return (
+                  <div key={log.id}>
+                    {/* Header row — click to expand */}
+                    <div onClick={() => setExpandedLogId(isExpanded ? null : log.id)}
+                      className="px-4 py-3 flex items-center gap-3 hover:bg-slate-50 cursor-pointer transition-colors">
+                      <div className={`w-2 h-2 rounded-full shrink-0 ${log.status === 'signed' ? 'bg-emerald-500' : 'bg-amber-400'}`} />
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <p className="text-xs font-semibold text-slate-800">{log.area}</p>
+                          {fails > 0 && <span className="text-[9px] font-bold px-1.5 py-0.5 bg-rose-100 text-rose-700 rounded-full">{fails} không đạt</span>}
+                        </div>
+                        <p className="text-[10px] text-slate-400 mt-0.5">{log.date} · {log.inspector} · {log.workers_count} CN · {log.weather} {log.temp}</p>
+                      </div>
+                      <div className="flex items-center gap-2 shrink-0">
+                        <span className={`text-[9px] font-bold px-2 py-0.5 rounded-full ${log.status === 'signed' ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}`}>
+                          {log.status === 'signed' ? 'Đã ký' : 'Nháp'}
+                        </span>
+                        <ChevronDown size={14} className={`text-slate-400 transition-transform ${isExpanded ? 'rotate-180' : ''}`} />
+                      </div>
+                    </div>
 
-            {/* Active RFIs */}
-            <div className="bg-white border border-slate-200 rounded-2xl overflow-hidden">
-              <div className="px-4 py-3 border-b border-slate-100 flex justify-between items-center bg-slate-50">
-                <p className="text-xs font-bold text-slate-700 flex items-center gap-1.5"><MessageCircle size={12} className="text-amber-500" /> RFI đang xử lý</p>
-                <button onClick={() => setGsTab('rfi')} className="text-[10px] text-emerald-600 font-semibold hover:underline">Xem tất cả</button>
-              </div>
-              <div className="divide-y divide-slate-100">
-                {rfis.filter(r => r.status !== 'closed').slice(0, 4).map(rfi => {
-                  const dl = daysUntilDue(rfi.due_date);
-                  const overdue = dl !== null && dl < 0;
-                  return (
-                    <div key={rfi.id} onClick={() => setSelectedRFI(rfi)} className="px-4 py-3 flex items-start gap-2.5 hover:bg-slate-50 cursor-pointer transition-colors">
-                      <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded shrink-0 mt-0.5 ${PRIORITY_CFG[rfi.priority].bg} ${PRIORITY_CFG[rfi.priority].color}`}>
+                    {/* Expanded detail */}
+                    {isExpanded && (
+                      <div className="px-4 pb-4 bg-slate-50/60 border-t border-slate-100 animate-in fade-in duration-200">
+                        {/* Items table */}
+                        <div className="mt-3 space-y-1.5">
+                          {log.items.map((item, idx) => (
+                            <div key={idx} className={`flex items-start gap-2.5 px-3 py-2 rounded-xl text-xs ${
+                              item.result === 'fail' ? 'bg-rose-50 border border-rose-100' :
+                              item.result === 'note' ? 'bg-amber-50 border border-amber-100' :
+                              'bg-white border border-slate-100'
+                            }`}>
+                              <span className={`mt-0.5 shrink-0 font-black text-[10px] ${
+                                item.result === 'fail' ? 'text-rose-600' :
+                                item.result === 'note' ? 'text-amber-600' : 'text-emerald-600'
+                              }`}>{item.result === 'fail' ? '✗' : item.result === 'note' ? '!' : '✓'}</span>
+                              <div className="flex-1 min-w-0">
+                                <p className="font-semibold text-slate-800">{item.work}</p>
+                                <p className="text-[10px] text-slate-500 mt-0.5">{item.observation}</p>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                        {/* Conclusion + next plan */}
+                        <div className="mt-3 grid grid-cols-1 md:grid-cols-2 gap-2">
+                          <div className="bg-white border border-slate-200 rounded-xl px-3 py-2.5">
+                            <p className="text-[9px] font-black text-slate-400 uppercase tracking-wide mb-1">Kết luận</p>
+                            <p className="text-xs text-slate-700 leading-relaxed">{log.conclusion}</p>
+                          </div>
+                          <div className="bg-blue-50 border border-blue-100 rounded-xl px-3 py-2.5">
+                            <p className="text-[9px] font-black text-blue-400 uppercase tracking-wide mb-1">Kế hoạch tiếp theo</p>
+                            <p className="text-xs text-blue-800 leading-relaxed">{log.next_plan}</p>
+                          </div>
+                        </div>
+                        {/* Quick actions */}
+                        <div className="flex gap-2 mt-3">
+                          {log.status === 'draft' && (
+                            <button onClick={(e) => { e.stopPropagation(); setSelectedLog(log); setGsTab('logs'); }}
+                              className="flex items-center gap-1.5 px-3 py-1.5 bg-teal-600 text-white rounded-lg text-[10px] font-bold hover:bg-teal-700">
+                              <ClipboardList size={11}/> Ký nhật ký
+                            </button>
+                          )}
+                          <button onClick={(e) => { e.stopPropagation(); setSelectedLog(log); }}
+                            className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-100 text-slate-700 rounded-lg text-[10px] font-bold hover:bg-slate-200">
+                            <Eye size={11}/> Xem đầy đủ
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* RFI đang xử lý — expand inline */}
+          <div className="bg-white border border-slate-200 rounded-2xl overflow-hidden">
+            <div className="px-4 py-3 border-b border-slate-100 flex justify-between items-center bg-slate-50">
+              <p className="text-xs font-bold text-slate-700 flex items-center gap-1.5"><MessageCircle size={12} className="text-amber-500" /> RFI đang xử lý</p>
+              <button onClick={() => setGsTab('rfi')} className="text-[10px] text-emerald-600 font-semibold hover:underline">Xem tất cả →</button>
+            </div>
+            <div className="divide-y divide-slate-100">
+              {rfis.filter(r => r.status !== 'closed').slice(0, 5).map(rfi => {
+                const dl = daysUntilDue(rfi.due_date);
+                const overdue = dl !== null && dl < 0;
+                const isExpanded = expandedRfiId === rfi.id;
+                return (
+                  <div key={rfi.id}>
+                    {/* Header row */}
+                    <div onClick={() => setExpandedRfiId(isExpanded ? null : rfi.id)}
+                      className={`px-4 py-3 flex items-center gap-2.5 hover:bg-slate-50 cursor-pointer transition-colors ${overdue ? 'bg-rose-50/30' : ''}`}>
+                      <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded shrink-0 ${PRIORITY_CFG[rfi.priority].bg} ${PRIORITY_CFG[rfi.priority].color}`}>
                         {PRIORITY_CFG[rfi.priority].label}
                       </span>
                       <div className="flex-1 min-w-0">
-                        <p className="text-[10px] font-mono text-slate-400">{rfi.code}</p>
-                        <p className="text-xs font-semibold text-slate-700 line-clamp-1">{rfi.title}</p>
-                        <p className="text-[10px] text-slate-400">→ {rfi.assigned_to}</p>
+                        <div className="flex items-center gap-2">
+                          <p className="text-[10px] font-mono text-slate-400 shrink-0">{rfi.code}</p>
+                          {overdue && dl !== null && <span className="text-[9px] font-bold text-rose-600 bg-rose-100 px-1.5 py-0.5 rounded-full">Quá {Math.abs(dl)}ngày</span>}
+                        </div>
+                        <p className="text-xs font-semibold text-slate-800 line-clamp-1">{rfi.title}</p>
+                        <p className="text-[10px] text-slate-400">→ {rfi.assigned_to}{dl !== null && !overdue ? ` · Còn ${dl} ngày` : ''}</p>
                       </div>
-                      <div className="text-right shrink-0">
+                      <div className="flex items-center gap-2 shrink-0">
                         <span className={`text-[9px] font-bold px-2 py-0.5 rounded-full ${RFI_STATUS_CFG[rfi.status].bg} ${RFI_STATUS_CFG[rfi.status].color}`}>
                           {RFI_STATUS_CFG[rfi.status].label}
                         </span>
-                        {dl !== null && (
-                          <p className={`text-[9px] font-bold mt-0.5 ${overdue ? 'text-rose-600' : dl <= 3 ? 'text-amber-600' : 'text-slate-400'}`}>
-                            {overdue ? `Quá ${Math.abs(dl)}ngày` : `Còn ${dl}ngày`}
-                          </p>
-                        )}
+                        <ChevronDown size={14} className={`text-slate-400 transition-transform ${isExpanded ? 'rotate-180' : ''}`} />
                       </div>
                     </div>
-                  );
-                })}
-              </div>
+
+                    {/* Expanded detail */}
+                    {isExpanded && (
+                      <div className="px-4 pb-4 bg-slate-50/60 border-t border-slate-100 animate-in fade-in duration-200 space-y-2.5">
+                        <div className="mt-3 grid grid-cols-1 md:grid-cols-2 gap-2">
+                          <div className="bg-white border border-slate-200 rounded-xl px-3 py-2.5">
+                            <p className="text-[9px] font-black text-slate-400 uppercase tracking-wide mb-1">Nội dung yêu cầu</p>
+                            <p className="text-xs text-slate-700 leading-relaxed">{rfi.description}</p>
+                          </div>
+                          {rfi.response ? (
+                            <div className="bg-emerald-50 border border-emerald-100 rounded-xl px-3 py-2.5">
+                              <p className="text-[9px] font-black text-emerald-500 uppercase tracking-wide mb-1">Phản hồi</p>
+                              <p className="text-xs text-emerald-800 leading-relaxed">{rfi.response}</p>
+                            </div>
+                          ) : (
+                            <div className="bg-amber-50 border border-amber-100 rounded-xl px-3 py-2.5 flex items-center justify-center">
+                              <p className="text-xs text-amber-600 font-semibold text-center">⏳ Chưa có phản hồi</p>
+                            </div>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-2 text-[10px] text-slate-400">
+                          {rfi.drawing_ref && <span className="flex items-center gap-1"><Files size={9}/> {rfi.drawing_ref}</span>}
+                          {rfi.linked_ncr && <span className="flex items-center gap-1 text-rose-500"><AlertTriangle size={9}/> Liên kết {rfi.linked_ncr}</span>}
+                          <span className="flex items-center gap-1"><Calendar size={9}/> Hạn: {rfi.due_date}</span>
+                        </div>
+                        <div className="flex gap-2">
+                          <button onClick={(e) => { e.stopPropagation(); setSelectedRFI(rfi); setGsTab('rfi'); }}
+                            className="flex items-center gap-1.5 px-3 py-1.5 bg-amber-600 text-white rounded-lg text-[10px] font-bold hover:bg-amber-700">
+                            <MessageCircle size={11}/> Phản hồi RFI
+                          </button>
+                          <button onClick={(e) => { e.stopPropagation(); setSelectedRFI(rfi); }}
+                            className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-100 text-slate-700 rounded-lg text-[10px] font-bold hover:bg-slate-200">
+                            <Eye size={11}/> Chi tiết
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
             </div>
           </div>
 
@@ -549,145 +656,6 @@ export default function GiamSatDashboard({ project }: Props) {
             </div>
           )}
 
-          {showLogForm && (
-            <div className="bg-teal-50 border border-teal-200 rounded-2xl p-4 space-y-3 animate-in slide-in-from-top-2 duration-200">
-              <p className="text-sm font-bold text-teal-800">📋 Tạo nhật ký giám sát</p>
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
-                <input placeholder="Ngày" value={logForm.date || ''} onChange={e => setLogForm(f => ({ ...f, date: e.target.value }))}
-                  className="text-xs border border-teal-200 rounded-xl px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-teal-400" />
-                <input placeholder="KS Giám sát" value={logForm.inspector || ''} onChange={e => setLogForm(f => ({ ...f, inspector: e.target.value }))}
-                  className="text-xs border border-teal-200 rounded-xl px-3 py-2 bg-white focus:outline-none" />
-                <input placeholder="Khu vực kiểm tra" value={logForm.area || ''} onChange={e => setLogForm(f => ({ ...f, area: e.target.value }))}
-                  className="text-xs border border-teal-200 rounded-xl px-3 py-2 bg-white col-span-2 focus:outline-none" />
-              </div>
-              <div className="grid grid-cols-3 gap-2">
-                <select value={logForm.weather} onChange={e => setLogForm(f => ({ ...f, weather: e.target.value }))}
-                  className="text-xs border border-teal-200 rounded-xl px-3 py-2 bg-white focus:outline-none">
-                  {['Nắng', 'Mưa', 'Mưa to', 'Âm u', 'Nắng nóng'].map(w => <option key={w}>{w}</option>)}
-                </select>
-                <input placeholder="Nhiệt độ (VD: 32°C)" value={logForm.temp || ''} onChange={e => setLogForm(f => ({ ...f, temp: e.target.value }))}
-                  className="text-xs border border-teal-200 rounded-xl px-3 py-2 bg-white focus:outline-none" />
-                <input type="number" placeholder="Số công nhân" value={logForm.workers_count || ''} onChange={e => setLogForm(f => ({ ...f, workers_count: Number(e.target.value) }))}
-                  className="text-xs border border-teal-200 rounded-xl px-3 py-2 bg-white focus:outline-none" />
-              </div>
-              <div className="space-y-2">
-                <p className="text-[10px] font-bold text-teal-700 uppercase tracking-wide">Hạng mục kiểm tra</p>
-                {(logForm.items || []).map((item, i) => (
-                  <div key={i} className="grid grid-cols-1 md:grid-cols-4 gap-2 bg-white rounded-xl p-2 border border-teal-100">
-                    <input placeholder="Công tác kiểm tra" value={item.work} onChange={e => { const items = [...(logForm.items || [])]; items[i] = { ...items[i], work: e.target.value }; setLogForm(f => ({ ...f, items })); }}
-                      className="text-xs border border-slate-200 rounded-lg px-2 py-1.5 focus:outline-none col-span-1" />
-                    <input placeholder="Tiêu chuẩn áp dụng" value={item.standard} onChange={e => { const items = [...(logForm.items || [])]; items[i] = { ...items[i], standard: e.target.value }; setLogForm(f => ({ ...f, items })); }}
-                      className="text-xs border border-slate-200 rounded-lg px-2 py-1.5 focus:outline-none" />
-                    <select value={item.result} onChange={e => { const items = [...(logForm.items || [])]; items[i] = { ...items[i], result: e.target.value as any }; setLogForm(f => ({ ...f, items })); }}
-                      className="text-xs border border-slate-200 rounded-lg px-2 py-1.5 focus:outline-none">
-                      <option value="pass">✓ Đạt</option>
-                      <option value="fail">✗ Không đạt</option>
-                      <option value="note">⚠ Cần lưu ý</option>
-                    </select>
-                    <input placeholder="Nhận xét" value={item.observation} onChange={e => { const items = [...(logForm.items || [])]; items[i] = { ...items[i], observation: e.target.value }; setLogForm(f => ({ ...f, items })); }}
-                      className="text-xs border border-slate-200 rounded-lg px-2 py-1.5 focus:outline-none" />
-                  </div>
-                ))}
-                <button onClick={() => setLogForm(f => ({ ...f, items: [...(f.items || []), { work: '', standard: '', result: 'pass', observation: '' }] }))}
-                  className="text-[10px] font-semibold text-teal-600 hover:underline flex items-center gap-1">
-                  <Plus size={10} /> Thêm hạng mục
-                </button>
-              </div>
-              <textarea placeholder="Kết luận tổng thể..." value={logForm.conclusion || ''} onChange={e => setLogForm(f => ({ ...f, conclusion: e.target.value }))} rows={2}
-                className="w-full text-xs border border-teal-200 rounded-xl px-3 py-2 bg-white focus:outline-none resize-none" />
-              <textarea placeholder="Kế hoạch kiểm tra tiếp theo..." value={logForm.next_plan || ''} onChange={e => setLogForm(f => ({ ...f, next_plan: e.target.value }))} rows={1}
-                className="w-full text-xs border border-teal-200 rounded-xl px-3 py-2 bg-white focus:outline-none resize-none" />
-              <div className="flex justify-end gap-2">
-                <button onClick={() => setShowLogForm(false)} className="px-4 py-2 text-xs text-slate-600 bg-white border border-slate-200 rounded-xl">Huỷ</button>
-                {(['draft', 'signed'] as LogStatus[]).map(st => (
-                  <button key={st} onClick={() => {
-                    if (!logForm.area) return;
-                    const newLog: SupervisionLog = {
-                      id: `gl${Date.now()}`, date: logForm.date!, inspector: logForm.inspector || '',
-                      area: logForm.area!, weather: logForm.weather || 'Nắng', temp: logForm.temp || '',
-                      workers_count: logForm.workers_count || 0, items: logForm.items || [],
-                      conclusion: logForm.conclusion || '', next_plan: logForm.next_plan || '', status: st,
-                    };
-                    const updated = [newLog, ...logs]; setLogs(updated); saveGS('gs_logs', updated);
-                    setShowLogForm(false);
-                    setLogForm({ status: 'draft', weather: 'Nắng', workers_count: 0, date: new Date().toLocaleDateString('vi-VN'), inspector: 'Phạm Minh Quân', items: [{ work: '', standard: '', result: 'pass', observation: '' }] });
-                  }} className={`px-4 py-2 text-xs rounded-xl font-bold ${st === 'signed' ? 'bg-slate-800 hover:bg-slate-900 text-white' : 'bg-teal-600 hover:bg-teal-700 text-white'}`}>
-                    {st === 'signed' ? 'Lưu & Ký' : 'Lưu nháp'}
-                  </button>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* Log detail modal */}
-          {selectedLog && (
-            <div className="fixed inset-0 z-[150] flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4" onClick={() => setSelectedLog(null)}>
-              <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[85vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
-                <div className="sticky top-0 bg-white border-b border-slate-200 px-6 py-4 flex justify-between items-start rounded-t-2xl">
-                  <div>
-                    <p className="text-xs text-slate-400 font-mono">Nhật ký giám sát · {selectedLog.date}</p>
-                    <h3 className="text-base font-bold text-slate-800 mt-0.5">{selectedLog.area}</h3>
-                    <p className="text-xs text-slate-500">{selectedLog.inspector} · {selectedLog.weather} {selectedLog.temp} · {selectedLog.workers_count} công nhân</p>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <span className={`text-[10px] font-bold px-2 py-1 rounded-full ${selectedLog.status === 'signed' ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}`}>
-                      {selectedLog.status === 'signed' ? '✓ Đã ký' : '✏ Nháp'}
-                    </span>
-                    <button onClick={() => setSelectedLog(null)}><X size={16} className="text-slate-400" /></button>
-                  </div>
-                </div>
-                <div className="p-6 space-y-4">
-                  <div>
-                    <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wide mb-2">Kết quả kiểm tra</p>
-                    <div className="space-y-2">
-                      {selectedLog.items.map((item, i) => (
-                        <div key={i} className={`rounded-xl p-3 border ${item.result === 'pass' ? 'bg-emerald-50 border-emerald-200' : item.result === 'fail' ? 'bg-rose-50 border-rose-200' : 'bg-amber-50 border-amber-200'}`}>
-                          <div className="flex items-start gap-2">
-                            <span className={`text-[10px] font-bold px-2 py-0.5 rounded-lg shrink-0 ${RESULT_CFG[item.result].bg} ${RESULT_CFG[item.result].color}`}>
-                              {RESULT_CFG[item.result].icon} {RESULT_CFG[item.result].label}
-                            </span>
-                            <div>
-                              <p className="text-xs font-semibold text-slate-700">{item.work}</p>
-                              {item.standard && <p className="text-[10px] text-slate-500 italic">TC: {item.standard}</p>}
-                              {item.observation && <p className="text-[10px] text-slate-600 mt-0.5">{item.observation}</p>}
-                            </div>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                  <div className="bg-slate-50 rounded-xl p-3">
-                    <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wide mb-1">Kết luận</p>
-                    <p className="text-xs text-slate-700">{selectedLog.conclusion}</p>
-                  </div>
-                  {selectedLog.next_plan && (
-                    <div className="bg-teal-50 rounded-xl p-3">
-                      <p className="text-[10px] font-bold text-teal-600 uppercase tracking-wide mb-1">Kế hoạch tiếp theo</p>
-                      <p className="text-xs text-teal-800">{selectedLog.next_plan}</p>
-                    </div>
-                  )}
-                  <div className="flex justify-between items-center pt-2 border-t border-slate-100">
-                    {selectedLog.status === 'draft' && (
-                      <button onClick={() => {
-                        const updated = logs.map(l => l.id === selectedLog.id ? { ...l, status: 'signed' as LogStatus } : l);
-                        setLogs(updated); saveGS('gs_logs', updated);
-                        setSelectedLog({ ...selectedLog, status: 'signed' });
-                      }} className="px-4 py-2 bg-teal-600 hover:bg-teal-700 text-white rounded-xl text-xs font-bold transition-colors">
-                        ✓ Ký xác nhận nhật ký
-                      </button>
-                    )}
-                    <button onClick={() => selectedLog && printSupervisionLog({
-                        log: selectedLog,
-                        projectName: project?.name || 'Dự án',
-                        logNo: `NKGS-${selectedLog.date?.replace(/\//g,'')}`
-                      })} className="flex items-center gap-1.5 px-3 py-2 bg-teal-600 hover:bg-teal-700 text-white rounded-xl text-xs font-semibold ml-auto transition-colors">
-                      <Printer size={12} /> Xuất PDF
-                    </button>
-                  </div>
-                </div>
-              </div>
-            </div>
-          )}
 
           <div className="space-y-2">
             {logs.map(log => {
@@ -770,53 +738,6 @@ export default function GiamSatDashboard({ project }: Props) {
               <Plus size={13} /> Tạo RFI
             </button>
           </div>
-
-          {showRFIForm && (
-            <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4 space-y-3 animate-in slide-in-from-top-2 duration-200">
-              <p className="text-sm font-bold text-amber-800">📝 Tạo Request for Information mới</p>
-              <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
-                <input placeholder="Tiêu đề RFI *" value={rfiForm.title || ''} onChange={e => setRfiForm(f => ({ ...f, title: e.target.value }))}
-                  className="text-xs border border-amber-200 rounded-xl px-3 py-2 bg-white col-span-2 focus:outline-none focus:ring-2 focus:ring-amber-400" />
-                <select value={rfiForm.priority} onChange={e => setRfiForm(f => ({ ...f, priority: e.target.value as any }))}
-                  className="text-xs border border-amber-200 rounded-xl px-3 py-2 bg-white focus:outline-none">
-                  <option value="low">Thấp</option><option value="medium">Trung bình</option>
-                  <option value="high">Cao</option><option value="urgent">Khẩn cấp</option>
-                </select>
-              </div>
-              <textarea placeholder="Mô tả chi tiết yêu cầu làm rõ..." value={rfiForm.description || ''} onChange={e => setRfiForm(f => ({ ...f, description: e.target.value }))} rows={3}
-                className="w-full text-xs border border-amber-200 rounded-xl px-3 py-2 bg-white focus:outline-none resize-none" />
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
-                <input placeholder="Bản vẽ liên quan" value={rfiForm.drawing_ref || ''} onChange={e => setRfiForm(f => ({ ...f, drawing_ref: e.target.value }))}
-                  className="text-xs border border-amber-200 rounded-xl px-3 py-2 bg-white focus:outline-none" />
-                <input placeholder="Gửi tới" value={rfiForm.assigned_to || ''} onChange={e => setRfiForm(f => ({ ...f, assigned_to: e.target.value }))}
-                  className="text-xs border border-amber-200 rounded-xl px-3 py-2 bg-white focus:outline-none" />
-                <input placeholder="Ngày gửi" value={rfiForm.submitted_date || ''} onChange={e => setRfiForm(f => ({ ...f, submitted_date: e.target.value }))}
-                  className="text-xs border border-amber-200 rounded-xl px-3 py-2 bg-white focus:outline-none" />
-                <input placeholder="Hạn trả lời" value={rfiForm.due_date || ''} onChange={e => setRfiForm(f => ({ ...f, due_date: e.target.value }))}
-                  className="text-xs border border-amber-200 rounded-xl px-3 py-2 bg-white focus:outline-none" />
-              </div>
-              <div className="flex justify-end gap-2">
-                <button onClick={() => setShowRFIForm(false)} className="px-4 py-2 text-xs text-slate-600 bg-white border border-slate-200 rounded-xl">Huỷ</button>
-                <button onClick={() => {
-                  if (!rfiForm.title) return;
-                  const code = `RFI-2026-${String(rfis.length + 1).padStart(3, '0')}`;
-                  const newR: RFIItem = {
-                    id: `r${Date.now()}`, code, title: rfiForm.title!, description: rfiForm.description || '',
-                    drawing_ref: rfiForm.drawing_ref || '', submitted_by: rfiForm.submitted_by || 'Phạm Minh Quân',
-                    assigned_to: rfiForm.assigned_to || '', submitted_date: rfiForm.submitted_date || '',
-                    due_date: rfiForm.due_date || '', answered_date: '', status: 'sent',
-                    priority: rfiForm.priority || 'medium', response: '', linked_ncr: '',
-                  };
-                  const updated = [newR, ...rfis]; setRfis(updated); saveGS('gs_rfi', updated);
-                  // Wire to approval engine
-                  { const cr2 = createDocument({ projectId: pid, docType: 'RFI', ctx, title: `${code} — ${newR.title}`, data: { ref: code } }); if (cr2.ok) submitDocument(pid, cr2.data!.id, ctx); }
-                  refreshGsQueue();
-                  setShowRFIForm(false);
-                  setRfiForm({ status: 'draft', priority: 'medium', submitted_date: new Date().toLocaleDateString('vi-VN'), submitted_by: 'Phạm Minh Quân' });
-                }} className="px-4 py-2 text-xs bg-amber-500 hover:bg-amber-600 text-white rounded-xl font-bold">Gửi RFI</button>
-              </div>
-            </div>
-          )}
 
           {/* RFI detail modal */}
           {selectedRFI && (
@@ -1008,33 +929,6 @@ export default function GiamSatDashboard({ project }: Props) {
             </div>
           )}
 
-          {showNewDrawingForm && (
-            <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 space-y-3">
-              <p className="text-sm font-bold text-slate-800">📐 Thêm bản vẽ mới</p>
-              <div className="grid grid-cols-2 gap-2">
-                <input placeholder="Mã bản vẽ (VD: SK-201)" value={newDrawingCode} onChange={e => setNewDrawingCode(e.target.value)}
-                  className="text-xs border border-slate-200 rounded-xl px-3 py-2 bg-white focus:outline-none" />
-                <select value={newDrawingDisc} onChange={e => setNewDrawingDisc(e.target.value)}
-                  className="text-xs border border-slate-200 rounded-xl px-3 py-2 bg-white focus:outline-none">
-                  {['Kết cấu', 'Kiến trúc', 'MEP', 'Hạ tầng', 'Tổng thể'].map(d => <option key={d}>{d}</option>)}
-                </select>
-                <input placeholder="Tên bản vẽ" value={newDrawingTitle} onChange={e => setNewDrawingTitle(e.target.value)}
-                  className="text-xs border border-slate-200 rounded-xl px-3 py-2 bg-white focus:outline-none col-span-2" />
-              </div>
-              <div className="flex justify-end gap-2">
-                <button onClick={() => setShowNewDrawingForm(false)} className="px-4 py-2 text-xs text-slate-600 bg-white border border-slate-200 rounded-xl">Huỷ</button>
-                <button onClick={() => {
-                  if (!newDrawingCode || !newDrawingTitle) return notifInfo('Nhập đầy đủ mã và tên bản vẽ!');
-                  const today = new Date().toLocaleDateString('vi-VN');
-                  const nd: DrawingRevision = { id: `d${Date.now()}`, drawing_code: newDrawingCode, title: newDrawingTitle, discipline: newDrawingDisc, current_rev: 'A', format: 'A1', scale: '1:100', revisions: [{ rev: 'A', date: today, description: 'Phát hành lần đầu', issued_by: 'TK', superseded: false }] };
-                  const updated = [...drawings, nd]; setDrawings(updated); saveGS('gs_drawings', updated);
-                  setShowNewDrawingForm(false); setNewDrawingCode(''); setNewDrawingTitle(''); setNewDrawingDisc('Kết cấu');
-                  notifInfo('Đã thêm bản vẽ mới!');
-                }} className="px-4 py-2 text-xs bg-slate-700 text-white rounded-xl font-bold hover:bg-slate-800">Lưu bản vẽ</button>
-              </div>
-            </div>
-          )}
-
           <div className="space-y-3">
             {drawings.map(d => {
               const hasOpenRFI = rfis.some(r => r.drawing_ref.includes(d.drawing_code) && r.status !== 'closed');
@@ -1084,7 +978,7 @@ export default function GiamSatDashboard({ project }: Props) {
                     <p className="text-xs font-bold text-slate-800">{d.drawing_code} — Rev.{d.current_rev} (hiện hành)</p>
                     <p className="text-[10px] text-amber-700">{d.revisions.filter(r => r.superseded).length} revision cũ: Rev.{d.revisions.filter(r => r.superseded).map(r => r.rev).join(', Rev.')}</p>
                   </div>
-                  <button onClick={() => alert(`Đã gửi thông báo: Bản vẽ ${d.drawing_code} cập nhật Rev.${d.current_rev}. Thu hồi revision cũ.`)}
+                  <button onClick={() => notifOk(`Đã gửi thông báo: Bản vẽ ${d.drawing_code} cập nhật Rev.${d.current_rev}. Thu hồi revision cũ.`)}
                     className="flex items-center gap-1 px-3 py-1.5 bg-amber-500 text-white rounded-lg text-[10px] font-bold hover:bg-amber-600 shrink-0 ml-2">
                     <AlertTriangle size={10} /> Thông báo NTP
                   </button>
@@ -1110,6 +1004,234 @@ export default function GiamSatDashboard({ project }: Props) {
       )}
       {/* Print overlay */}
       {printComponent}
+
+      {/* Log detail modal */}
+      {selectedLog && (
+        <div className="fixed inset-0 z-[150] flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4" onClick={() => setSelectedLog(null)}>
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[85vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+            <div className="sticky top-0 bg-white border-b border-slate-200 px-6 py-4 flex justify-between items-start rounded-t-2xl">
+              <div>
+                <p className="text-xs text-slate-400 font-mono">Nhật ký giám sát · {selectedLog.date}</p>
+                <h3 className="text-base font-bold text-slate-800 mt-0.5">{selectedLog.area}</h3>
+                <p className="text-xs text-slate-500">{selectedLog.inspector} · {selectedLog.weather} {selectedLog.temp} · {selectedLog.workers_count} công nhân</p>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className={`text-[10px] font-bold px-2 py-1 rounded-full ${selectedLog.status === 'signed' ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}`}>
+                  {selectedLog.status === 'signed' ? '✓ Đã ký' : '✏ Nháp'}
+                </span>
+                <button onClick={() => setSelectedLog(null)}><X size={16} className="text-slate-400" /></button>
+              </div>
+            </div>
+            <div className="p-6 space-y-4">
+              <div>
+                <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wide mb-2">Kết quả kiểm tra</p>
+                <div className="space-y-2">
+                  {selectedLog.items.map((item, i) => (
+                    <div key={i} className={`rounded-xl p-3 border ${item.result === 'pass' ? 'bg-emerald-50 border-emerald-200' : item.result === 'fail' ? 'bg-rose-50 border-rose-200' : 'bg-amber-50 border-amber-200'}`}>
+                      <div className="flex items-start gap-2">
+                        <span className={`text-[10px] font-bold px-2 py-0.5 rounded-lg shrink-0 ${RESULT_CFG[item.result].bg} ${RESULT_CFG[item.result].color}`}>
+                          {RESULT_CFG[item.result].icon} {RESULT_CFG[item.result].label}
+                        </span>
+                        <div>
+                          <p className="text-xs font-semibold text-slate-700">{item.work}</p>
+                          {item.standard && <p className="text-[10px] text-slate-500 italic">TC: {item.standard}</p>}
+                          {item.observation && <p className="text-[10px] text-slate-600 mt-0.5">{item.observation}</p>}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+              <div className="bg-slate-50 rounded-xl p-3">
+                <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wide mb-1">Kết luận</p>
+                <p className="text-xs text-slate-700">{selectedLog.conclusion}</p>
+              </div>
+              {selectedLog.next_plan && (
+                <div className="bg-teal-50 rounded-xl p-3">
+                  <p className="text-[10px] font-bold text-teal-600 uppercase tracking-wide mb-1">Kế hoạch tiếp theo</p>
+                  <p className="text-xs text-teal-800">{selectedLog.next_plan}</p>
+                </div>
+              )}
+              <div className="flex justify-between items-center pt-2 border-t border-slate-100">
+                {selectedLog.status === 'draft' && (
+                  <button onClick={() => {
+                    const updated = logs.map(l => l.id === selectedLog.id ? { ...l, status: 'signed' as LogStatus } : l);
+                    setLogs(updated); saveGS('gs_logs', updated);
+                    setSelectedLog({ ...selectedLog, status: 'signed' });
+                  }} className="px-4 py-2 bg-teal-600 hover:bg-teal-700 text-white rounded-xl text-xs font-bold transition-colors">
+                    ✓ Ký xác nhận nhật ký
+                  </button>
+                )}
+                <button onClick={() => selectedLog && printSupervisionLog({
+                    log: selectedLog,
+                    projectName: project?.name || 'Dự án',
+                    logNo: `NKGS-${selectedLog.date?.replace(/\//g,'')}`
+                  })} className="flex items-center gap-1.5 px-3 py-2 bg-teal-600 hover:bg-teal-700 text-white rounded-xl text-xs font-semibold ml-auto transition-colors">
+                  <Printer size={12} /> Xuất PDF
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── MODALS — end of component per DESIGN_SYSTEM ── */}
+
+      <ModalForm open={showLogForm} onClose={() => setShowLogForm(false)}
+      title="Tạo Nhật ký Giám sát"
+      subtitle="Ghi nhận kết quả giám sát ca hôm nay"
+      icon={<ClipboardList size={18}/>} color="teal" width="lg"
+      footer={<>
+        <BtnCancel onClick={() => setShowLogForm(false)}/>
+        <button onClick={() => {
+          if (!logForm.area) { notifErr('Vui lòng nhập khu vực!'); return; }
+          const newLog: SupervisionLog = {
+            id: `gl${Date.now()}`, date: logForm.date || new Date().toLocaleDateString('vi-VN'),
+            inspector: logForm.inspector || '', area: logForm.area!,
+            weather: logForm.weather || 'Nắng', temp: logForm.temp || 32,
+            workers_count: logForm.workers_count || 0, items: logForm.items || [],
+            conclusion: logForm.conclusion || '', next_plan: logForm.next_plan || '',
+            status: 'draft', gemSuggestion: '',
+          };
+          const updated = [newLog, ...logs]; setLogs(updated); saveGS('gs_logs', updated);
+          setShowLogForm(false); setLogForm({ status: 'draft', weather: 'Nắng', workers_count: 0, date: new Date().toLocaleDateString('vi-VN') });
+          notifOk('Đã lưu nhật ký (nháp)!');
+        }} className="px-4 py-2 text-xs font-bold rounded-xl bg-slate-200 text-slate-700 hover:bg-slate-300">
+          Lưu nháp
+        </button>
+        <button onClick={() => {
+          if (!logForm.area) { notifErr('Vui lòng nhập khu vực!'); return; }
+          const newLog: SupervisionLog = {
+            id: `gl${Date.now()}`, date: logForm.date || new Date().toLocaleDateString('vi-VN'),
+            inspector: logForm.inspector || '', area: logForm.area!,
+            weather: logForm.weather || 'Nắng', temp: logForm.temp || 32,
+            workers_count: logForm.workers_count || 0, items: logForm.items || [],
+            conclusion: logForm.conclusion || '', next_plan: logForm.next_plan || '',
+            status: 'signed', gemSuggestion: '',
+          };
+          const updated = [newLog, ...logs]; setLogs(updated); saveGS('gs_logs', updated);
+          setShowLogForm(false); setLogForm({ status: 'draft', weather: 'Nắng', workers_count: 0, date: new Date().toLocaleDateString('vi-VN') });
+          notifOk('Đã lưu & ký nhật ký!');
+        }} className="px-4 py-2 text-xs font-bold rounded-xl bg-slate-800 text-white hover:bg-slate-900">
+          Lưu & Ký
+        </button>
+      </>}
+      >
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+      <input placeholder="Ngày" value={logForm.date || ''} onChange={e => setLogForm(f => ({ ...f, date: e.target.value }))}
+      className="text-xs border border-teal-200 rounded-xl px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-teal-400" />
+      <input placeholder="KS Giám sát" value={logForm.inspector || ''} onChange={e => setLogForm(f => ({ ...f, inspector: e.target.value }))}
+      className="text-xs border border-teal-200 rounded-xl px-3 py-2 bg-white focus:outline-none" />
+      <input placeholder="Khu vực kiểm tra" value={logForm.area || ''} onChange={e => setLogForm(f => ({ ...f, area: e.target.value }))}
+      className="text-xs border border-teal-200 rounded-xl px-3 py-2 bg-white col-span-2 focus:outline-none" />
+      </div>
+      <div className="grid grid-cols-3 gap-2">
+      <select value={logForm.weather} onChange={e => setLogForm(f => ({ ...f, weather: e.target.value }))}
+      className="text-xs border border-teal-200 rounded-xl px-3 py-2 bg-white focus:outline-none">
+      {['Nắng', 'Mưa', 'Mưa to', 'Âm u', 'Nắng nóng'].map(w => <option key={w}>{w}</option>)}
+      </select>
+      <input placeholder="Nhiệt độ (VD: 32°C)" value={logForm.temp || ''} onChange={e => setLogForm(f => ({ ...f, temp: e.target.value }))}
+      className="text-xs border border-teal-200 rounded-xl px-3 py-2 bg-white focus:outline-none" />
+      <input type="number" placeholder="Số công nhân" value={logForm.workers_count || ''} onChange={e => setLogForm(f => ({ ...f, workers_count: Number(e.target.value) }))}
+      className="text-xs border border-teal-200 rounded-xl px-3 py-2 bg-white focus:outline-none" />
+      </div>
+      <div className="space-y-2">
+      <p className="text-[10px] font-bold text-teal-700 uppercase tracking-wide">Hạng mục kiểm tra</p>
+      {(logForm.items || []).map((item, i) => (
+      <div key={i} className="grid grid-cols-1 md:grid-cols-4 gap-2 bg-white rounded-xl p-2 border border-teal-100">
+      <input placeholder="Công tác kiểm tra" value={item.work} onChange={e => { const items = [...(logForm.items || [])]; items[i] = { ...items[i], work: e.target.value }; setLogForm(f => ({ ...f, items })); }}
+      className="text-xs border border-slate-200 rounded-lg px-2 py-1.5 focus:outline-none col-span-1" />
+      <input placeholder="Tiêu chuẩn áp dụng" value={item.standard} onChange={e => { const items = [...(logForm.items || [])]; items[i] = { ...items[i], standard: e.target.value }; setLogForm(f => ({ ...f, items })); }}
+      className="text-xs border border-slate-200 rounded-lg px-2 py-1.5 focus:outline-none" />
+      <select value={item.result} onChange={e => { const items = [...(logForm.items || [])]; items[i] = { ...items[i], result: e.target.value as any }; setLogForm(f => ({ ...f, items })); }}
+      className="text-xs border border-slate-200 rounded-lg px-2 py-1.5 focus:outline-none">
+      <option value="pass">✓ Đạt</option>
+      <option value="fail">✗ Không đạt</option>
+      <option value="note">⚠ Cần lưu ý</option>
+      </select>
+      <input placeholder="Nhận xét" value={item.observation} onChange={e => { const items = [...(logForm.items || [])]; items[i] = { ...items[i], observation: e.target.value }; setLogForm(f => ({ ...f, items })); }}
+      className="text-xs border border-slate-200 rounded-lg px-2 py-1.5 focus:outline-none" />
+      </div>
+      ))}
+      <button onClick={() => setLogForm(f => ({ ...f, items: [...(f.items || []), { work: '', standard: '', result: 'pass', observation: '' }] }))}
+      className="text-[10px] font-semibold text-teal-600 hover:underline flex items-center gap-1">
+      <Plus size={10} /> Thêm hạng mục
+      </button>
+      </div>
+      <textarea placeholder="Kết luận tổng thể..." value={logForm.conclusion || ''} onChange={e => setLogForm(f => ({ ...f, conclusion: e.target.value }))} rows={2}
+      className="w-full text-xs border border-teal-200 rounded-xl px-3 py-2 bg-white focus:outline-none resize-none" />
+      <textarea placeholder="Kế hoạch kiểm tra tiếp theo..." value={logForm.next_plan || ''} onChange={e => setLogForm(f => ({ ...f, next_plan: e.target.value }))} rows={1}
+      className="w-full text-xs border border-teal-200 rounded-xl px-3 py-2 bg-white focus:outline-none resize-none" />
+      </ModalForm>
+
+      <ModalForm open={showRFIForm} onClose={() => setShowRFIForm(false)}
+      title="Tạo RFI mới"
+      subtitle="Yêu cầu làm rõ thông tin / bản vẽ"
+      icon={<MessageCircle size={18}/>} color="amber" width="md"
+      footer={<>
+      <BtnCancel onClick={() => setShowRFIForm(false)}/>
+      <BtnSubmit label="Gửi RFI" color="blue" onClick={() => {
+      if (!rfiForm.title?.trim()) { notifErr('Vui lòng nhập tiêu đề RFI!'); return; }
+      const code = `RFI-2026-${String(rfis.length + 1).padStart(3, '0')}`;
+      const newR: RFIItem = {
+      id: `r${Date.now()}`, code, title: rfiForm.title!,
+      description: rfiForm.description || '', drawing_ref: rfiForm.drawing_ref || '',
+      submitted_by: rfiForm.submitted_by || '', assigned_to: rfiForm.assigned_to || '',
+      submitted_date: rfiForm.submitted_date || new Date().toLocaleDateString('vi-VN'),
+      due_date: rfiForm.due_date || '', answered_date: '', status: 'sent',
+      priority: rfiForm.priority || 'medium', response: '', linked_ncr: '',
+      };
+      const updated = [newR, ...rfis]; setRfis(updated); saveGS('gs_rfi', updated);
+      setShowRFIForm(false); setRfiForm({ status: 'draft', priority: 'medium', submitted_date: new Date().toLocaleDateString('vi-VN') });
+      notifOk('Đã gửi RFI!');
+      }}/>
+      </>}
+      >
+      <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
+      <input placeholder="Tiêu đề RFI *" value={rfiForm.title || ''} onChange={e => setRfiForm(f => ({ ...f, title: e.target.value }))}
+      className="text-xs border border-amber-200 rounded-xl px-3 py-2 bg-white col-span-2 focus:outline-none focus:ring-2 focus:ring-amber-400" />
+      <select value={rfiForm.priority} onChange={e => setRfiForm(f => ({ ...f, priority: e.target.value as any }))}
+      className="text-xs border border-amber-200 rounded-xl px-3 py-2 bg-white focus:outline-none">
+      <option value="low">Thấp</option><option value="medium">Trung bình</option>
+      <option value="high">Cao</option><option value="urgent">Khẩn cấp</option>
+      </select>
+      </div>
+      <textarea placeholder="Mô tả chi tiết yêu cầu làm rõ..." value={rfiForm.description || ''} onChange={e => setRfiForm(f => ({ ...f, description: e.target.value }))} rows={3}
+      className="w-full text-xs border border-amber-200 rounded-xl px-3 py-2 bg-white focus:outline-none resize-none" />
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+      <input placeholder="Bản vẽ liên quan" value={rfiForm.drawing_ref || ''} onChange={e => setRfiForm(f => ({ ...f, drawing_ref: e.target.value }))}
+      className="text-xs border border-amber-200 rounded-xl px-3 py-2 bg-white focus:outline-none" />
+      <input placeholder="Gửi tới" value={rfiForm.assigned_to || ''} onChange={e => setRfiForm(f => ({ ...f, assigned_to: e.target.value }))}
+      className="text-xs border border-amber-200 rounded-xl px-3 py-2 bg-white focus:outline-none" />
+      <input placeholder="Ngày gửi" value={rfiForm.submitted_date || ''} onChange={e => setRfiForm(f => ({ ...f, submitted_date: e.target.value }))}
+      className="text-xs border border-amber-200 rounded-xl px-3 py-2 bg-white focus:outline-none" />
+      <input placeholder="Hạn trả lời" value={rfiForm.due_date || ''} onChange={e => setRfiForm(f => ({ ...f, due_date: e.target.value }))}
+      className="text-xs border border-amber-200 rounded-xl px-3 py-2 bg-white focus:outline-none" />
+      </div>
+      </ModalForm>
+
+      <ModalForm
+      open={showNewDrawingForm}
+      onClose={() => setShowNewDrawingForm(false)}
+      title="Thêm bản vẽ mới"
+      icon={<Files size={18}/>}
+      color="blue" width="md"
+      footer={<><BtnCancel onClick={() => setShowNewDrawingForm(false)}/><BtnSubmit label="Lưu bản vẽ" color="blue" onClick={() => { notifOk('Đã thêm bản vẽ!'); setShowNewDrawingForm(false); }}/></>}
+      >
+      <div className="grid grid-cols-2 gap-2">
+      <input placeholder="Mã bản vẽ (VD: SK-201)" value={newDrawingCode} onChange={e => setNewDrawingCode(e.target.value)}
+      className="text-xs border border-slate-200 rounded-xl px-3 py-2 bg-white focus:outline-none" />
+      <select value={newDrawingDisc} onChange={e => setNewDrawingDisc(e.target.value)}
+      className="text-xs border border-slate-200 rounded-xl px-3 py-2 bg-white focus:outline-none">
+      {['Kết cấu', 'Kiến trúc', 'MEP', 'Hạ tầng', 'Tổng thể'].map(d => <option key={d}>{d}</option>)}
+      </select>
+      <input placeholder="Tên bản vẽ" value={newDrawingTitle} onChange={e => setNewDrawingTitle(e.target.value)}
+      className="text-xs border border-slate-200 rounded-xl px-3 py-2 bg-white focus:outline-none col-span-2" />
+      </div>
+      </ModalForm>
+
+
     </div>
   );
+
 }

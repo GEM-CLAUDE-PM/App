@@ -189,6 +189,7 @@ const inputCls = "w-full px-3 py-2 text-sm border border-slate-200 rounded-xl fo
 
 // ─── Tab: Hồ sơ tài liệu (original, preserved) ───────────────────────────────
 function TabHoSo({ project, isConnectedOneDrive, isConnectedGoogleDrive }: Props) {
+  const { ok: notifOk, info: notifInfo } = useNotification();
   const [docSearchTerm, setDocSearchTerm] = useState('');
   const [docCategory, setDocCategory] = useState('Tất cả');
   const [cloudSource, setCloudSource] = useState<'local'|'onedrive'|'gdrive'>('local');
@@ -344,6 +345,7 @@ function TabHoSo({ project, isConnectedOneDrive, isConnectedGoogleDrive }: Props
 
 // ─── Tab: Revision History ────────────────────────────────────────────────────
 function TabRevision() {
+  const { ok: notifOk, info: notifInfo } = useNotification();
   const [drawings, setDrawings] = useState<DrawingRevision[]>(MOCK_DRAWINGS);
   const [filterDisc, setFilterDisc] = useState('Tất cả');
   const [search, setSearch] = useState('');
@@ -565,6 +567,7 @@ function TabRevision() {
 
 // ─── Tab: RFI Tracker ─────────────────────────────────────────────────────────
 function TabRFI() {
+  const { ok: notifOk, info: notifInfo } = useNotification();
   const [rfis, setRfis] = useState<RFIItem[]>(MOCK_RFIS);
   const [filterStatus, setFilterStatus] = useState('all');
   const [filterDisc, setFilterDisc] = useState('Tất cả');
@@ -858,10 +861,10 @@ export default function RecordsDashboard({ project: selectedProject, isConnected
   const triggerRdDoc = useCallback((title: string, docType: any, data = {}) => {
     if (!WORKFLOWS[docType as keyof typeof WORKFLOWS]) return;
     const cr = createDocument({ projectId: pid, docType, ctx, title, data });
-    if (!cr.ok) { alert('❌ ' + (cr as any).error); return; }
+    if (!cr.ok) { notifErr(`❌ ${(cr as any).error}`); return; }
     const sr = submitDocument(pid, (cr as any).data!.id, ctx);
     if (sr.ok) refreshRdQueue();
-    else alert('❌ ' + (sr as any).error);
+    else notifErr(`❌ ${(sr as any).error}`);
   }, [pid, ctx, refreshRdQueue]);
 
   const tabs = [

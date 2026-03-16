@@ -260,7 +260,7 @@ export default function StorageDashboard({ project }: Props) {
     if (url && url !== '#mock-download-url') {
       window.open(url, '_blank');
     } else {
-      alert(`[Dev mode] Tải về: ${f.name}\nSigned URL sẽ hoạt động khi kết nối Supabase.`);
+      notifInfo(`[Dev mode] Tải về: ${f.name}\nSigned URL sẽ hoạt động khi kết nối Supabase.`);
     }
   };
 

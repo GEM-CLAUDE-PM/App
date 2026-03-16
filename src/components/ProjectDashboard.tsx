@@ -1,4 +1,6 @@
-import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react'
+import { db } from './db';
+import { useNotification } from './NotificationEngine';
 import { LayoutDashboard, Folder, TrendingUp, Clock, HardDrive, CheckCircle2, Lock, FileText, Image as ImageIcon, Files, ClipboardList, ExternalLink, BookOpen, UploadCloud, Loader2, Plus, Printer, Users, HardHat, Camera, ShieldAlert, Sun, MessageCircle, Network, HeartPulse, AlertTriangle, Mic, Edit3, Unlock, X, Award, Target, GraduationCap, Briefcase, ChevronRight, ArrowRight, Building2, CheckCircle, CircleDashed, ArrowLeft, ChevronDown, Cloud, Download, Eye, MoreVertical, ChevronLeft, Calendar, ShieldCheck, Trash2, Sparkles, User, Info, ChevronUp, Wrench, Truck, Fuel, Activity, Zap, Settings, AlertCircle, Search, Scan, FileSpreadsheet, Save, Calculator, Copy, Bell, Package, ShoppingCart } from 'lucide-react';
 import { OnboardingTutorial } from './OnboardingTutorial';
 import QaQcDashboard from './QaQcDashboard';
@@ -50,6 +52,7 @@ import {
 interface ProjectDashboardProps {
   initialTab?: string;
   initialManpowerTab?: string;
+  initialSubTab?: string;
   navKey?: number;
   initialProjectId?: string | null; // project được navigate tới
   projects: any[];
@@ -76,12 +79,13 @@ interface ProjectDashboardProps {
 }
 
 export default function ProjectDashboard({
-  initialTab, initialManpowerTab, navKey, initialProjectId, projects, setProjects, selectedProjectId, setSelectedProjectId,
+  initialTab, initialManpowerTab, initialSubTab, navKey, initialProjectId, projects, setProjects, selectedProjectId, setSelectedProjectId,
   generateWeeklyReport, setShowRecordForm, setRecordType,
   setShowProfileForm, setShowHseForm, isGeneratingReport, generatedReport,
   showRecordForm, recordType, recordData, setRecordData, isGeneratingRecord, generateGemRecord,
   showProfileForm, showHseForm, onBackToList, onPushNotification
 }: ProjectDashboardProps) {
+  const { ok: notifOk, info: notifInfo } = useNotification();
   const [activeTab, setActiveTab] = useState(initialTab || 'overview');
   const [dailyLogNotes, setDailyLogNotes] = useState<Record<string, string>>({});
   // ── Auth & Permissions ───────────────────────────────────────────────────
@@ -125,7 +129,7 @@ export default function ProjectDashboard({
   };
   const CONTRACT_PIN = (import.meta as any).env?.VITE_CONTRACT_PIN || '1234';
   const SESSION_KEY  = 'gem_contract_session';
-  const AUDIT_KEY    = 'gem_contract_audit';
+  const AUDIT_KEY    = `gem_db__contract_audit__${selectedProjectId || 'default'}`;
   const SESSION_TTL  = 15 * 60 * 1000; // 15 phút
 
   // Bug 1 Fix: Sync role từ auth user.job_role khi login
@@ -172,7 +176,7 @@ export default function ProjectDashboard({
   const [pinLockUntil, setPinLockUntil] = useState(0);
   const [showPinDialog, setShowPinDialog] = useState(false);
   // ── Approval Thresholds — configurable per project (L4+) ────────────────
-  const THRESHOLD_KEY = (pid: string) => `gem_thresholds_${pid}`;
+  const THRESHOLD_KEY = (pid: string) => `gem_db__project_config__${pid}`;
   const [thresholds, setThresholds] = useState(() => {
     try {
       const saved = JSON.parse(localStorage.getItem(THRESHOLD_KEY(selectedProjectId || 'default')) || 'null');
@@ -420,6 +424,7 @@ export default function ProjectDashboard({
     // Cập nhật tab
     setActiveTab(initialTab || 'overview');
     if (initialManpowerTab) setManpowerTab(initialManpowerTab);
+    if (initialSubTab) sessionStorage.setItem('gem_action_subtab', initialSubTab);
   }, [navKey]); // eslint-disable-line
 
   useEffect(() => {
@@ -440,12 +445,12 @@ export default function ProjectDashboard({
   }, []);
 
   const handleConnectOneDrive = () => {
-    alert('Dạ em đang kết nối với OneDrive của anh nhé!');
+    notifInfo('Dạ em đang kết nối với OneDrive của anh nhé!');
     setIsConnectedOneDrive(true);
   };
 
   const handleConnectGoogleDrive = () => {
-    alert('Dạ em đang kết nối với Google Drive của anh nhé!');
+    notifInfo('Dạ em đang kết nối với Google Drive của anh nhé!');
     setIsConnectedGoogleDrive(true);
   };
 
@@ -475,7 +480,7 @@ export default function ProjectDashboard({
   };
 
   const handleSaveExtractedData = () => {
-    alert('Dạ em đã lưu số liệu này vào cơ sở dữ liệu và cập nhật lên biểu đồ rồi nghen anh!');
+    notifOk('Dạ em đã lưu số liệu này vào cơ sở dữ liệu và cập nhật lên biểu đồ rồi nghen anh!');
     setExtractedData(null);
     if (fileInputRef.current) fileInputRef.current.value = '';
   };
@@ -511,7 +516,7 @@ export default function ProjectDashboard({
   };
 
   const handleSaveDrawingData = () => {
-    alert('Dạ em đã lưu thông tin bóc tách từ bản vẽ vào hệ thống rồi anh nhé!');
+    notifOk('Dạ em đã lưu thông tin bóc tách từ bản vẽ vào hệ thống rồi anh nhé!');
     setAnalyzedDrawing(null);
     if (drawingInputRef.current) drawingInputRef.current.value = '';
   };
@@ -761,7 +766,9 @@ export default function ProjectDashboard({
             localStorage.removeItem(SESSION_KEY);
             setContractUnlocked(false);
             writeAuditLog('LOCK_MANUAL', 'Khoá phiên hợp đồng thủ công');
+            setActiveTab('overview');
           }}
+          onNavigate={(tabId) => setActiveTab(tabId as any)}
         />
       );
     }
@@ -1836,7 +1843,7 @@ export default function ProjectDashboard({
                   ? { ...p, name: projectName, storagePath, type: projectType } 
                   : p
               ));
-              alert(`Đã tạo thành công thư mục dự án "${projectName}" tại đường dẫn: ${storagePath}`);
+              notifOk(`Đã tạo thành công thư mục dự án "${projectName}" tại đường dẫn: ${storagePath}`);
             }
           }}
         />

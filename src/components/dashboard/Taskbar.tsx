@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect } from "react";
 import { UserMenu } from "../AuthProvider";
 import { QueueBadge } from "../useOfflineQueue";
 import {
+  Zap,
   LayoutDashboard,
   FolderKanban,
   CalendarDays,
@@ -48,6 +49,8 @@ interface TaskbarProps {
   pendingCount?: number;
   isSyncing?: boolean;
   onOpenQueuePanel?: () => void;
+  // WorkspaceActionBar trigger
+  onOpenWorkspace?: () => void;
   // Legacy drag props — kept for compatibility but unused
   taskbarRef?: React.RefObject<HTMLDivElement | null>;
   taskbarPosition?: { x: number; y: number };
@@ -319,6 +322,7 @@ export const Taskbar: React.FC<TaskbarProps> = ({
   pendingCount,
   isSyncing,
   onOpenQueuePanel,
+  onOpenWorkspace,
 }) => {
   const [showActions, setShowActions] = useState(false);
   const [isExpanded, setIsExpanded] = useState(typeof window !== "undefined" ? window.innerWidth >= 768 : true);
@@ -428,9 +432,6 @@ export const Taskbar: React.FC<TaskbarProps> = ({
 
   return (
     <div className="fixed bottom-6 left-6 z-[9000] print:hidden select-none flex flex-col items-start gap-2">
-      {/* Action panel popup — opens upward */}
-      {showActions && <ActionPanel onAction={handleAction} onClose={() => setShowActions(false)} />}
-
       {/* Dock — collapsed (mobile: icon only) / expanded (desktop: full) */}
       <div
         className={`flex items-center gap-1 px-2 py-2
@@ -481,19 +482,15 @@ export const Taskbar: React.FC<TaskbarProps> = ({
 
             <Divider />
 
-            {/* Quick add */}
-            <Tooltip label="Hành động nhanh">
+            {/* Workspace trigger */}
+            <Tooltip label="Tác nghiệp (Ctrl+K)">
               <button
-                onClick={() => setShowActions((v) => !v)}
-                className={`w-9 h-9 rounded-xl flex items-center justify-center transition-all
+                onClick={() => onOpenWorkspace?.()}
+                className="w-9 h-9 rounded-xl flex items-center justify-center transition-all
                   duration-150 hover:scale-110 active:scale-95 shrink-0
-                  ${
-                    showActions
-                      ? "bg-emerald-500/20 text-emerald-400 ring-1 ring-emerald-500/40"
-                      : "bg-emerald-600/20 text-emerald-400 hover:bg-emerald-600/30"
-                  }`}
+                  bg-yellow-500/15 text-yellow-400 hover:bg-yellow-500/25 ring-1 ring-yellow-500/20"
               >
-                <Plus size={16} strokeWidth={2.5} />
+                <Zap size={15} strokeWidth={2.5} />
               </button>
             </Tooltip>
 

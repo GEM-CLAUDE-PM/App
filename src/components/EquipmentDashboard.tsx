@@ -322,22 +322,20 @@ function TabNhatKy({ readOnly = false }: { readOnly?: boolean }) {
       {showForm && (
         <Modal title="Thêm nhật ký ca máy" icon={<Clock size={17} className="text-emerald-600"/>} onClose={()=>setShowForm(false)} readOnly={readOnly}>
           <div className="grid grid-cols-2 gap-4">
-            <div className="col-span-2">
-              <FormField label="Thiết bị">
-                <select className={inputCls}>
-                  {EQUIPMENT_LIST.filter(e=>e.status==='active').map(e=><option key={e.id}>{e.id} — {e.name}</option>)}
-                </select>
-              </FormField>
-            </div>
+            <div className="col-span-2"><FormField label="Thiết bị">
+              <select className={inputCls}>{EQUIPMENT_LIST.filter(e=>e.status==='active').map(e=><option key={e.id}>{e.id} — {e.name}</option>)}</select>
+            </FormField></div>
+            <FormField label="Người vận hành"><input placeholder="Họ tên lái máy / vận hành" className={inputCls}/></FormField>
             <FormField label="Ngày"><input placeholder="DD/MM/YYYY" className={inputCls}/></FormField>
             <FormField label="Ca làm việc">
               <select className={inputCls}><option>Ca sáng</option><option>Ca chiều</option><option>Cả ngày</option><option>Ca đêm</option></select>
             </FormField>
             <FormField label="Giờ bắt đầu"><input type="time" defaultValue="07:00" className={inputCls}/></FormField>
             <FormField label="Giờ kết thúc"><input type="time" defaultValue="12:00" className={inputCls}/></FormField>
+            <FormField label="Số giờ máy tích lũy (h)"><input placeholder="VD: 1245" className={inputCls}/></FormField>
             <div className="col-span-2"><FormField label="Hạng mục thi công"><input placeholder="VD: Đào móng block A, bơm bê tông sàn tầng 3..." className={inputCls}/></FormField></div>
             <FormField label="Khối lượng thực hiện"><input placeholder="VD: 120 m³, 45 tấn" className={inputCls}/></FormField>
-            <FormField label="Ghi chú"><input placeholder="Sự cố, thời tiết..." className={inputCls}/></FormField>
+            <FormField label="Ghi chú sự cố / thời tiết"><input placeholder="Dừng máy, thời tiết bất thường..." className={inputCls}/></FormField>
           </div>
           <div className="flex gap-3 mt-6">
             <button disabled={readOnly} onClick={()=>setShowForm(false)} className="flex-1 px-4 py-2.5 bg-slate-100 text-slate-700 rounded-xl text-sm font-semibold hover:bg-slate-200">Hủy</button>
@@ -355,21 +353,22 @@ function TabNhatKy({ readOnly = false }: { readOnly?: boolean }) {
 function TabBaoDuong({ readOnly = false, onTriggerApproval, pendingCount = 0 }: { readOnly?: boolean; onTriggerApproval?: (title: string) => void; pendingCount?: number }) {
   const { ok: notifOk, info: notifInfo } = useNotification();
   const [showForm, setShowForm] = useState(false);
-  const overdue = MAINTENANCE_ITEMS.filter(m=>m.status==='overdue');
+  const [maintItems, setMaintItems] = useState(MAINTENANCE_ITEMS);
+  const overdue = maintItems.filter(m=>m.status==='overdue');
 
   return (
     <div className="space-y-5">
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div className="flex gap-3 flex-wrap">
           {overdue.length > 0 && <span className="flex items-center gap-1.5 text-sm font-semibold text-rose-600 bg-rose-50 px-3 py-1.5 rounded-xl border border-rose-200"><AlertTriangle size={13}/> {overdue.length} Quá hạn</span>}
-          <span className="flex items-center gap-1.5 text-sm font-semibold text-amber-600 bg-amber-50 px-3 py-1.5 rounded-xl border border-amber-200"><Wrench size={13}/> {MAINTENANCE_ITEMS.filter(m=>m.status==='in_progress').length} Đang thực hiện</span>
-          <span className="flex items-center gap-1.5 text-sm font-semibold text-blue-600 bg-blue-50 px-3 py-1.5 rounded-xl border border-blue-200"><Calendar size={13}/> {MAINTENANCE_ITEMS.filter(m=>m.status==='scheduled').length} Lên lịch</span>
+          <span className="flex items-center gap-1.5 text-sm font-semibold text-amber-600 bg-amber-50 px-3 py-1.5 rounded-xl border border-amber-200"><Wrench size={13}/> {maintItems.filter(m=>m.status==='in_progress').length} Đang thực hiện</span>
+          <span className="flex items-center gap-1.5 text-sm font-semibold text-blue-600 bg-blue-50 px-3 py-1.5 rounded-xl border border-blue-200"><Calendar size={13}/> {maintItems.filter(m=>m.status==='scheduled').length} Lên lịch</span>
         </div>
         <div className="flex items-center gap-2">
           <button disabled={readOnly} onClick={() => {
             onTriggerApproval?.(`Yêu cầu mua sắm / bảo dưỡng thiết bị`);
             notifOk('Yêu cầu mua sắm thiết bị đã gửi duyệt!');
-          }} className="flex items-center gap-2 px-4 py-2 bg-violet-600 hover:bg-violet-700 text-white rounded-xl text-sm font-semibold disabled:opacity-40" disabled={readOnly}>
+          }} className="flex items-center gap-2 px-4 py-2 bg-violet-600 hover:bg-violet-700 text-white rounded-xl text-sm font-semibold disabled:opacity-40">
             Gửi duyệt mua sắm {pendingCount > 0 && <span className="bg-white/30 px-1.5 rounded-full text-xs">{pendingCount}</span>}
           </button>
           <button disabled={readOnly} onClick={()=>setShowForm(true)} className="flex items-center gap-2 px-4 py-2 bg-emerald-600 disabled:opacity-40 disabled:cursor-not-allowed text-white rounded-xl text-sm font-semibold hover:bg-emerald-700">
@@ -386,12 +385,15 @@ function TabBaoDuong({ readOnly = false, onTriggerApproval, pendingCount = 0 }: 
             <p className="text-xs text-rose-600 mt-0.5">{m.desc}</p>
             <p className="text-xs text-rose-400 mt-1">Đã quá ngày {m.scheduledDate}</p>
           </div>
-          <button className="px-3 py-1.5 bg-rose-600 text-white rounded-lg text-xs font-semibold hover:bg-rose-700">Xử lý ngay</button>
+          <button onClick={() => {
+              setMaintItems(prev => prev.map(x => x.id === m.id ? {...x, status: 'in_progress'} : x));
+              notifOk('Đã bắt đầu xử lý bảo dưỡng quá hạn!');
+            }} className="px-3 py-1.5 bg-rose-600 text-white rounded-lg text-xs font-semibold hover:bg-rose-700">Xử lý ngay</button>
         </div>
       ))}
 
       <div className="space-y-3">
-        {MAINTENANCE_ITEMS.map(m => {
+        {maintItems.map(m => {
           const st = maintStatusMap[m.status];
           return (
             <div key={m.id} className={`bg-white border rounded-2xl p-4 shadow-sm ${m.status==='overdue'?'border-rose-200':m.status==='in_progress'?'border-amber-200':'border-slate-200'}`}>
@@ -416,7 +418,15 @@ function TabBaoDuong({ readOnly = false, onTriggerApproval, pendingCount = 0 }: 
                   </div>
                 </div>
                 {m.status !== 'done' && (
-                  <button onClick={()=>alert(m.status==='in_progress'?'Đã đánh dấu hoàn thành!':'Đã bắt đầu bảo dưỡng!')} className="px-3 py-1.5 bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-lg text-xs font-semibold hover:bg-emerald-100 shrink-0">
+                  <button onClick={() => {
+                      if (m.status === 'in_progress') {
+                        setMaintItems(prev => prev.map(x => x.id === m.id ? {...x, status: 'done'} : x));
+                        notifOk('Đã hoàn thành bảo dưỡng!');
+                      } else {
+                        setMaintItems(prev => prev.map(x => x.id === m.id ? {...x, status: 'in_progress'} : x));
+                        notifInfo('Đã bắt đầu bảo dưỡng!');
+                      }
+                    }} className="px-3 py-1.5 bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-lg text-xs font-semibold hover:bg-emerald-100 shrink-0">
                     {m.status==='in_progress'?'Hoàn thành':'Bắt đầu'}
                   </button>
                 )}
@@ -433,8 +443,10 @@ function TabBaoDuong({ readOnly = false, onTriggerApproval, pendingCount = 0 }: 
             <FormField label="Loại bảo dưỡng"><select className={inputCls}>{['Định kỳ','Sửa chữa','Khẩn cấp','Kiểm tra'].map(t=><option key={t}>{t}</option>)}</select></FormField>
             <FormField label="Ngày lên lịch"><input placeholder="DD/MM/YYYY" className={inputCls}/></FormField>
             <div className="col-span-2"><FormField label="Mô tả công việc"><textarea rows={2} placeholder="VD: Thay dầu máy, kiểm tra hệ thống phanh..." className={inputCls + " resize-none"}/></FormField></div>
+            <FormField label="Kỹ thuật viên thực hiện"><input placeholder="Họ tên KTV" className={inputCls}/></FormField>
             <FormField label="Nhà cung cấp dịch vụ"><input placeholder="Tên đại lý / công ty" className={inputCls}/></FormField>
             <FormField label="Chi phí dự kiến (đ)"><input placeholder="0" className={inputCls}/></FormField>
+            <FormField label="Số giờ máy tại thời điểm BD"><input placeholder="VD: 1240h" className={inputCls}/></FormField>
           </div>
           <div className="flex gap-3 mt-6">
             <button disabled={readOnly} onClick={()=>setShowForm(false)} className="flex-1 px-4 py-2.5 bg-slate-100 text-slate-700 rounded-xl text-sm font-semibold">Hủy</button>
@@ -635,31 +647,40 @@ function TabSuCo({ readOnly = false }: { readOnly?: boolean }) {
         })}
       </div>
 
-      {showForm && (
-        <Modal title="Báo cáo sự cố" icon={<AlertTriangle size={17} className="text-rose-500"/>} onClose={()=>setShowForm(false)} readOnly={readOnly}>
+            {showForm && (
+        <Modal title="Báo cáo sự cố thiết bị" icon={<AlertTriangle size={17} className="text-rose-500"/>} onClose={()=>setShowForm(false)} readOnly={readOnly}>
           <div className="grid grid-cols-2 gap-4">
-            <div className="col-span-2"><FormField label="Thiết bị"><select className={inputCls}>{EQUIPMENT_LIST.map(e=><option key={e.id}>{e.id} — {e.name}</option>)}</select></FormField></div>
+            <div className="col-span-2"><FormField label="Thiết bị gặp sự cố">
+              <select className={inputCls}>{EQUIPMENT_LIST.map(e=><option key={e.id}>{e.id} — {e.name}</option>)}</select>
+            </FormField></div>
+            <FormField label="Người phát hiện / báo cáo"><input placeholder="Họ tên người phát hiện" className={inputCls}/></FormField>
             <FormField label="Ngày xảy ra"><input placeholder="DD/MM/YYYY" className={inputCls}/></FormField>
-            <FormField label="Mức độ">
-              <select className={inputCls}><option value="low">Nhẹ</option><option value="medium">Trung bình</option><option value="high">Nghiêm trọng</option></select>
-            </FormField>
             <FormField label="Loại sự cố">
               <select className={inputCls}>{['Hỏng hóc','Tai nạn','Mất cắp','Dừng kỹ thuật','Hư hại'].map(t=><option key={t}>{t}</option>)}</select>
             </FormField>
-            <FormField label="Thời gian dừng (giờ)"><input placeholder="VD: 8" className={inputCls}/></FormField>
-            <div className="col-span-2"><FormField label="Mô tả sự cố"><textarea rows={2} placeholder="Mô tả chi tiết sự cố..." className={inputCls + " resize-none"}/></FormField></div>
-            <FormField label="Chi phí sửa chữa (đ)"><input placeholder="0" className={inputCls}/></FormField>
-            <FormField label="Nguyên nhân ban đầu"><input placeholder="..." className={inputCls}/></FormField>
+            <FormField label="Mức độ nghiêm trọng">
+              <select className={inputCls}><option value="low">Nhẹ</option><option value="medium">Trung bình</option><option value="high">Nghiêm trọng</option></select>
+            </FormField>
+            <FormField label="Thời gian dừng máy (h)"><input placeholder="VD: 8" className={inputCls}/></FormField>
+            <FormField label="Thiệt hại ước tính (đ)"><input placeholder="VD: 8500000" className={inputCls}/></FormField>
+            <div className="col-span-2"><FormField label="Mô tả chi tiết sự cố">
+              <textarea rows={2} placeholder="Mô tả đầy đủ tình trạng sự cố..." className={inputCls + " resize-none"}/>
+            </FormField></div>
+            <div className="col-span-2"><FormField label="Nguyên nhân ban đầu">
+              <input placeholder="Nguyên nhân sơ bộ theo đánh giá tại hiện trường" className={inputCls}/>
+            </FormField></div>
+            <div className="col-span-2"><FormField label="Biện pháp xử lý đề xuất">
+              <input placeholder="Biện pháp khắc phục tạm thời / dài hạn" className={inputCls}/>
+            </FormField></div>
           </div>
           <div className="flex gap-3 mt-6">
             <button disabled={readOnly} onClick={()=>setShowForm(false)} className="flex-1 px-4 py-2.5 bg-slate-100 text-slate-700 rounded-xl text-sm font-semibold">Hủy</button>
             <button disabled={readOnly} onClick={()=>{notifInfo('Đã ghi nhận sự cố!');setShowForm(false);}} className="flex-1 px-4 py-2.5 bg-rose-600 text-white rounded-xl text-sm font-semibold hover:bg-rose-700 flex items-center justify-center gap-2">
-              <Save size={14}/> Báo cáo sự cố
+              <Save size={14}/> Lưu báo cáo
             </button>
           </div>
         </Modal>
-      )}
-    </div>
+      )}    </div>
   );
 }
 
@@ -681,7 +702,7 @@ export default function EquipmentDashboard({ project: selectedProject, readOnly 
     const docType = 'PROCUREMENT';
     if (!WORKFLOWS[docType]) return;
     const cr = createDocument({ projectId: pid, docType, ctx, title, data });
-    if (!cr.ok) { alert('❌ ' + (cr as any).error); return; }
+    if (!cr.ok) { notifErr(`❌ ${(cr as any).error}`); return; }
     const sr = submitDocument(pid, cr.data!.id, ctx);
     if (sr.ok) {
       refreshEqQueue();
@@ -691,7 +712,7 @@ export default function EquipmentDashboard({ project: selectedProject, readOnly 
       document.body.appendChild(el);
       setTimeout(() => el.remove(), 3500);
     } else {
-      alert('❌ ' + (sr as any).error);
+      notifErr(`❌ ${(sr as any).error}`);
     }
   }, [pid, refreshEqQueue]);
 

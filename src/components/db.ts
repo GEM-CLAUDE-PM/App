@@ -58,6 +58,25 @@ import { getSupabase } from './supabase';
 
 const USE_REAL = () => (import.meta as any).env?.VITE_USE_SUPABASE === 'true';
 
+// ─── Optimistic locking — version cache ──────────────────────────────────────
+// Lưu updated_at của lần đọc cuối cùng cho mỗi (collection, projectId).
+// Khi ghi, so sánh với server → nếu lệch → conflict.
+const _versionCache = new Map<string, string>();
+function _vkey(collection: string, projectId: string) {
+  return `${projectId}::${collection}`;
+}
+function _setVersion(collection: string, projectId: string, updatedAt: string) {
+  _versionCache.set(_vkey(collection, projectId), updatedAt);
+}
+function _getVersion(collection: string, projectId: string): string | undefined {
+  return _versionCache.get(_vkey(collection, projectId));
+}
+
+export type ConflictError = { type: 'CONFLICT'; collection: string; serverUpdatedAt: string };
+export function isConflictError(e: unknown): e is ConflictError {
+  return typeof e === 'object' && e !== null && (e as any).type === 'CONFLICT';
+}
+
 // ─── Local storage helpers ────────────────────────────────────────────────────
 function lsKey(collection: string, projectId: string) {
   return `gem_db__${collection}__${projectId}`;
@@ -97,13 +116,14 @@ async function sbGet<T>(collection: string, projectId: string, fallback: T): Pro
   try {
     const { data, error } = await sb
       .from('project_data')
-      .select('payload')
+      .select('payload, updated_at')
       .eq('project_id', projectId)
       .eq('collection', collection)
       .maybeSingle();
-    // Table not yet created (404) or other error → graceful fallback to localStorage
     if (error) return lsGet(collection, projectId, fallback);
-    if (!data) return lsGet(collection, projectId, fallback);
+    if (!data) return fallback;
+    // Cache updated_at để dùng cho optimistic locking khi sbSet
+    if (data.updated_at) _setVersion(collection, projectId, data.updated_at);
     return (data.payload ?? fallback) as T;
   } catch {
     return lsGet(collection, projectId, fallback);
@@ -114,12 +134,41 @@ async function sbSet<T>(collection: string, projectId: string, payload: T, userI
   const sb = getSupabase();
   if (!sb) return;
   try {
+    const knownVersion = _getVersion(collection, projectId);
+
+    // ── Optimistic locking: nếu đã từng đọc, kiểm tra server version ──
+    if (knownVersion) {
+      const { data: current, error: checkErr } = await sb
+        .from('project_data')
+        .select('updated_at')
+        .eq('project_id', projectId)
+        .eq('collection', collection)
+        .maybeSingle();
+
+      if (!checkErr && current?.updated_at && current.updated_at !== knownVersion) {
+        // Server đã bị cập nhật bởi thiết bị khác → throw ConflictError
+        throw {
+          type: 'CONFLICT',
+          collection,
+          serverUpdatedAt: current.updated_at,
+        } as ConflictError;
+      }
+    }
+
+    // ── Ghi dữ liệu mới ──
+    const now = new Date().toISOString();
     const { error } = await sb.from('project_data').upsert(
-      { project_id: projectId, collection, payload, updated_at: new Date().toISOString(), updated_by: userId ?? null },
+      { project_id: projectId, collection, payload, updated_at: now, updated_by: userId ?? null },
       { onConflict: 'project_id,collection' }
     );
-    if (error) console.warn('[db] Supabase write error (table may not exist yet):', error.message);
+    if (error) {
+      console.warn('[db] Supabase write error:', error.message);
+      return;
+    }
+    // Cập nhật cache version sau khi ghi thành công
+    _setVersion(collection, projectId, now);
   } catch (e) {
+    if (isConflictError(e)) throw e; // re-throw để caller xử lý
     console.warn('[db] Supabase unreachable, data saved to localStorage only');
   }
 }
@@ -148,6 +197,11 @@ export const db = {
    * Write a collection for a project.
    * Auto-queues to IndexedDB when offline + prod mode.
    * Pass userId to track last-modified-by in Supabase.
+   *
+   * Throws ConflictError nếu thiết bị khác đã ghi sau lần đọc cuối.
+   * Caller nên catch và thông báo user:
+   *   try { await db.set(...) }
+   *   catch(e) { if (isConflictError(e)) notifErr('Dữ liệu đã bị thay đổi từ thiết bị khác...') }
    */
   async set<T>(collection: string, projectId: string, data: T, userId?: string): Promise<void> {
     // Always write to localStorage for instant UI responsiveness
@@ -164,7 +218,7 @@ export const db = {
       return;
     }
 
-    // Online + prod → write directly to Supabase
+    // Online + prod → write directly to Supabase (may throw ConflictError)
     return sbSet(collection, projectId, data, userId);
   },
 
@@ -278,6 +332,67 @@ export const ProjectDB = {
   // Contract
   contractSessions: (pid: string) => ({ get: <T>(fb: T) => db.get<T>('contract_sessions', pid, fb), set: <T>(d:T, uid?:string) => db.set('contract_sessions', pid, d, uid) }),
 };
+
+// ─── Realtime Sync Hook ───────────────────────────────────────────────────────
+/**
+ * useRealtimeSync — tự động refresh khi thiết bị khác update cùng projectId.
+ *
+ * Dùng trong bất kỳ dashboard nào cần live sync:
+ *   useRealtimeSync(projectId, ['qs_items', 'qs_payments'], () => loadData());
+ *
+ * - Dev mode (VITE_USE_SUPABASE != 'true'): no-op, không làm gì
+ * - Prod mode: subscribe Supabase Realtime → gọi onRefresh khi có thay đổi
+ * - Tự cleanup khi component unmount
+ * - Debounce 300ms tránh flood refresh
+ */
+import { useEffect } from 'react';
+
+export function useRealtimeSync(
+  projectId: string,
+  collections: string[],
+  onRefresh: () => void,
+) {
+  useEffect(() => {
+    if (!USE_REAL()) return; // dev mode — skip
+    const sb = getSupabase();
+    if (!sb) return;
+
+    let debounceTimer: ReturnType<typeof setTimeout>;
+
+    const channel = sb
+      .channel(`project_data:${projectId}`)
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'project_data',
+          filter: `project_id=eq.${projectId}`,
+        },
+        (payload: any) => {
+          // Chỉ refresh nếu collection nằm trong danh sách quan tâm
+          const changedCollection = payload.new?.collection ?? payload.old?.collection;
+          if (collections.length > 0 && !collections.includes(changedCollection)) return;
+
+          // Cập nhật version cache từ realtime event
+          if (payload.new?.updated_at && changedCollection) {
+            _setVersion(changedCollection, projectId, payload.new.updated_at);
+          }
+
+          // Debounce refresh 300ms
+          clearTimeout(debounceTimer);
+          debounceTimer = setTimeout(onRefresh, 300);
+        }
+      )
+      .subscribe();
+
+    return () => {
+      clearTimeout(debounceTimer);
+      sb.removeChannel(channel);
+    };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [projectId]);
+}
 
 /*
  * ── Supabase SQL Migration ────────────────────────────────────────────────────

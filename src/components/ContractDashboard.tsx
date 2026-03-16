@@ -15,10 +15,11 @@ type Props = DashboardProps & {
   contractUnlocked: boolean;
   writeAuditLog:    (action: string, detail: string) => void;
   onManualLock:     () => void;
+  onNavigate?:      (tabId: string) => void;
   SESSION_KEY:      string;
 };
 
-export default function ContractDashboard({ project: selectedProject, currentRole, canSeeFullValues, contractUnlocked, writeAuditLog, onManualLock, SESSION_KEY }: Props) {
+export default function ContractDashboard({ project: selectedProject, currentRole, canSeeFullValues, contractUnlocked, writeAuditLog, onManualLock, onNavigate, SESSION_KEY }: Props) {
   const ROLE_LABELS: Record<string,string> = { giam_doc:'Giám đốc DA', ke_toan:'Kế toán', chi_huy_truong:'Chỉ huy trưởng', giam_sat:'Giám sát QA/QC' };
   const pid         = selectedProject?.id ?? 'p1';
   const projectName = selectedProject?.name ?? 'Dự án';
@@ -39,7 +40,7 @@ export default function ContractDashboard({ project: selectedProject, currentRol
 
   const submitForApproval = (docType: 'CONTRACT_AMENDMENT' | 'SUBCONTRACT_PAYMENT', title: string, amount: number, ref: string) => {
     const cr = createDocument({ projectId: pid, docType, ctx, title, amount, data: { ref } });
-    if (!cr.ok) { alert('❌ ' + (cr as any).error); return; }
+    if (!cr.ok) { notifErr(`❌ ${(cr as any).error}`); return; }
     submitDocument(pid, cr.data!.id, ctx);
     refreshContractQueue();
     const el = document.createElement('div');
@@ -304,7 +305,13 @@ export default function ContractDashboard({ project: selectedProject, currentRol
                   className="flex items-center gap-1.5 px-3 py-1.5 border border-slate-200 rounded-xl text-xs font-medium text-slate-600 hover:bg-slate-50 transition-colors">
                   <Printer size={12}/> In hợp đồng
                 </button>
-                <button onClick={() => setActiveTab(c.linked_module as any)}
+                <button onClick={() => {
+                    if (onNavigate && c.linked_module) {
+                      onNavigate(c.linked_module);
+                    } else {
+                      notifInfo(`Chuyển đến module: ${c.linked_module === 'qs' ? 'QS & Thanh toán' : c.linked_module}`);
+                    }
+                  }}
                   className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-600 text-white rounded-xl text-xs font-semibold hover:bg-emerald-700 transition-colors">
                   <ArrowRight size={12}/> Mở {c.linked_module === 'qs' ? 'QS & Thanh toán' : c.linked_module === 'equipment' ? 'Thiết bị' : c.linked_module === 'resources' ? 'Tài nguyên' : 'module liên kết'}
                 </button>
@@ -599,7 +606,6 @@ export default function ContractDashboard({ project: selectedProject, currentRol
               localStorage.removeItem(SESSION_KEY);
               onManualLock();
               writeAuditLog('LOCK_MANUAL','Khoá phiên hợp đồng thủ công');
-              setActiveTab('overview');
             }} className="flex items-center gap-1.5 px-3 py-2 bg-rose-50 hover:bg-rose-100 text-rose-600 border border-rose-200 rounded-xl text-xs font-semibold transition-colors shrink-0">
               <Lock size={13}/> Khoá lại
             </button>

@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import { useNotification } from './NotificationEngine';
 import {
   CheckCircle2, XCircle, RotateCcw, Clock, Eye, ChevronRight,
   AlertTriangle, FileText, Package, Calculator, ShieldCheck,
@@ -676,6 +677,7 @@ function DocCard({ doc, ctx, onClick, highlight }: DocCardProps) {
 // ─────────────────────────────────────────────────
 
 export default function ApprovalQueue({ projectId, projectName, ctx, onClose }: ApprovalQueueProps) {
+  const { ok: notifOk } = useNotification();
   const [viewMode,     setViewMode]     = useState<ViewMode>('queue');
   const [docs,         setDocs]         = useState<ApprovalDoc[]>([]);
   const [queueDocs,    setQueueDocs]    = useState<ApprovalDoc[]>([]);
@@ -850,7 +852,7 @@ export default function ApprovalQueue({ projectId, projectName, ctx, onClose }: 
   const handleUpload = (doc: ApprovalDoc, file: File) => {
     // Simulate upload — in production: upload to Supabase Storage
     const fakeUrl = `https://storage.example.com/${doc.docNumber}_signed_${file.name}`;
-    alert(`✅ Upload thành công: ${file.name}\nURL: ${fakeUrl}\n\nTrong môi trường production sẽ upload lên Supabase Storage.`);
+    notifOk(`✅ Upload thành công: ${file.name}\nURL: ${fakeUrl}\n\nTrong môi trường production sẽ upload lên Supabase Storage.`);
     loadDocs();
   };
 

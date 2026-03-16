@@ -63,6 +63,7 @@ function AppInner() {
   const isAdmin = user?.tier === "admin" || user?.job_role === "giam_doc";
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [activeTab, setActiveTab] = useState("dashboard");
+  const [workspaceOpen, setWorkspaceOpen] = useState(false);
   const [showGemBubble, setShowGemBubble] = useState(false);
   const [showNotifications, setShowNotifications] = useState(false);
   const [projectDashboardState, setProjectDashboardState] = useState<{
@@ -177,12 +178,13 @@ function AppInner() {
 
   // ── Navigation ─────────────────────────────────────────────────────────────
   // Tất cả state được set trong 1 object duy nhất → không race condition
-  const navigateTo = (projectId: string | null, tab: string, manpowerTab?: string) => {
+  const navigateTo = (projectId: string | null, tab: string, manpowerTab?: string, subTab?: string) => {
     if (projectId) localStorage.setItem("gem_last_project", projectId);
     setProjectDashboardState({
       projectId,
       tab,
       manpowerTab,
+      subTab,
       navKey: Date.now(),
     });
     setActiveTab("tasks");
@@ -216,12 +218,7 @@ function AppInner() {
   };
   const handleWorkspaceNavigate = (tabId: string, subTab?: string) => {
     const projectTab = WORKSPACE_TAB_MAPPING[tabId] || tabId;
-    // Always navigate into ProjectDashboard with the right sub-tab
-    navigateTo(selectedProjectId, projectTab, subTab);
-    // If subTab is for a MaterialsDashboard tab, store it for pickup
-    if (subTab) {
-      localStorage.setItem("gem_nav_subtab", subTab);
-    }
+    navigateTo(selectedProjectId, projectTab, undefined, subTab);
   };
 
   const handleNavigateProject = (subTab: string, projectId?: string) => {
@@ -405,6 +402,8 @@ function AppInner() {
                 currentRole={appCurrentRole}
                 onNavigate={handleWorkspaceNavigate}
                 pendingCount={pendingCount}
+                forceOpen={workspaceOpen}
+                onOpenChange={setWorkspaceOpen}
                 projectName={selectedProject?.name}
               />
 
@@ -487,7 +486,7 @@ function AppInner() {
 
             {/* Mobile: WorkspaceActionBar strip */}
             <div className="md:hidden flex items-center gap-2 py-1.5">
-              <WorkspaceActionBar currentRole={appCurrentRole} onNavigate={handleWorkspaceNavigate} pendingCount={pendingCount} />
+              <WorkspaceActionBar currentRole={appCurrentRole} onNavigate={handleWorkspaceNavigate} pendingCount={pendingCount} forceOpen={workspaceOpen} onOpenChange={setWorkspaceOpen} />
               <div className="ml-auto">
                 <button onClick={() => setShowNotifications(!showNotifications)} className="relative p-2 text-slate-500">
                   <Bell size={16} />
@@ -509,6 +508,7 @@ function AppInner() {
               key={projectDashboardState.navKey}
               initialTab={projectDashboardState.tab}
               initialManpowerTab={projectDashboardState.manpowerTab}
+              initialSubTab={projectDashboardState.subTab}
               navKey={projectDashboardState.navKey}
               initialProjectId={projectDashboardState.projectId ?? selectedProjectId}
               projects={projects}
@@ -719,6 +719,7 @@ function AppInner() {
         isSyncing={isSyncing}
         onOpenQueuePanel={() => setShowQueuePanel(true)}
         analyzeMaterialsWithGem={() => {}}
+        onOpenWorkspace={() => setWorkspaceOpen(true)}
       />
 
       {/* Offline Queue Panel */}

@@ -1,4 +1,5 @@
 import { useNotification } from './NotificationEngine';
+import ModalForm, { FormRow, FormGrid, FormSection, inputCls, selectCls, BtnCancel, BtnSubmit } from './ModalForm';
 import React, { useState, useRef, useCallback, useMemo, useEffect } from "react";
 import { genAI, GEM_MODEL, GEM_MODEL_QUALITY } from './gemini';
 import {
@@ -43,100 +44,6 @@ const GEM_QS_SYSTEM = `Bạn là Nàng GEM Siêu Việt — chuyên gia QS (Quan
 Giọng điệu: nữ miền Nam, thân thiện, chuyên nghiệp. Xưng "em", gọi "Anh/Chị", dùng: dạ / nha / ạ / nghen.
 Câu ngắn, rõ ràng. Liệt kê bằng số (1, 2, 3...). Có con số cụ thể. Thực tế ngành xây dựng Việt Nam.
 Khi tạo tài liệu chính thức: KHÔNG xưng em/anh, dùng ngôi thứ ba, cấu trúc chuẩn CHXHCN Việt Nam.`;
-// ══════════════════════════════════════════════════════════════════════════════
-interface BOQItem {
-  id: string;
-  code: string;           // Mã hạng mục
-  chapter: string;        // Chương (nhóm cấp 1)
-  name: string;
-  unit: string;
-  qty_contract: number;   // KL hợp đồng
-  unit_price: number;     // Đơn giá HĐ (VNĐ)
-  qty_done: number;       // KL đã thực hiện/nghiệm thu
-  qty_plan_current: number; // KL kế hoạch đến thời điểm này
-  note?: string;
-  isChapter?: boolean;
-}
-
-interface AcceptanceLot {
-  id: string;
-  lot_no: string;         // Đợt NT số
-  date: string;
-  items: { boq_id: string; qty: number }[];
-  status: "draft" | "submitted" | "approved";
-  submitted_by: string;
-  approved_by?: string;
-  note?: string;
-  total_value: number;
-}
-
-interface PaymentRequest {
-  id: string;
-  request_no: string;
-  date: string;
-  period: string;
-  lot_ids: string[];      // Các đợt NT kèm theo
-  subtotal: number;
-  vat: number;
-  total: number;
-  advance_deduct: number;
-  net_payable: number;
-  status: "draft" | "submitted" | "approved" | "paid";
-  note?: string;
-}
-
-// ── Subcontractor types ───────────────────────────────────────────────────────
-type SubType = "subcontractor" | "team" | "supplier" | "consultant";
-type PayMechanism = "lump_sum" | "progress" | "manhour" | "unit_rate";
-type SubPayStatus = "draft" | "submitted" | "approved" | "paid";
-
-interface SubContractor {
-  id: string;
-  code: string;
-  name: string;
-  type: SubType;
-  scope: string;             // Phạm vi công việc
-  contract_value: number;   // Giá trị HĐ phụ
-  contract_no: string;
-  start_date: string;
-  end_date: string;
-  pay_mechanism: PayMechanism;
-  retention_pct: number;    // % giữ lại BH (VD: 5)
-  advance_paid: number;     // Tạm ứng đã trả
-  contact: string;
-  bank_account?: string;
-}
-
-interface SubPayment {
-  id: string;
-  sub_id: string;           // FK → SubContractor
-  pay_no: string;
-  date: string;
-  period: string;
-  mechanism: PayMechanism;
-  // Khoán gọn
-  lump_items?: { name: string; value: number }[];
-  // % tiến độ
-  progress_pct?: number;
-  // Ngày công / giờ máy
-  manhour_rows?: { description: string; qty: number; unit: string; unit_price: number }[];
-  // KL × đơn giá
-  unit_rows?: { boq_ref: string; qty: number; unit: string; unit_price: number }[];
-  subtotal: number;
-  retention_amt: number;    // Giữ lại BH
-  advance_deduct: number;   // Khấu trừ TU
-  net_payable: number;
-  status: SubPayStatus;
-  note?: string;
-}
-
-interface QSProps {
-  projectId:    string;
-  projectName:  string;
-  contractValue?: number;
-  currentRole?: string;
-}
-
 // ══════════════════════════════════════════════════════════════════════════════
 // SECTION 4 — SMALL UI COMPONENTS
 // ══════════════════════════════════════════════════════════════════════════════
@@ -188,6 +95,7 @@ const ProgressBar = ({ value, max, color = "emerald", showLabel = true }: {
 // SECTION 5 — MAIN COMPONENT
 // ══════════════════════════════════════════════════════════════════════════════
 export default function QSDashboard({ projectId, projectName, contractValue = 45_800_000_000, currentRole = 'qs_site' }: QSProps) {
+  const { ok: notifOk, info: notifInfo } = useNotification();
 
   // ── RBAC context ────────────────────────────────────────────────────────────
   const ROLE_MAP: Record<string,string> = {
@@ -203,7 +111,13 @@ export default function QSDashboard({ projectId, projectName, contractValue = 45
   const qsLevel   = LEVEL_MAP[currentRole] ?? 2;
   const qsCtx: UserContext = { userId: `user_${currentRole}`, roleId: qsRoleId as any };
 
-  const [activeTab, setActiveTab] = useState<"overview"|"boq"|"tracking"|"acceptance"|"payment"|"subcontractor"|"evm"|"variation">("overview");
+  const [activeTab, setActiveTab] = useState<"overview"|"boq"|"tracking"|"acceptance"|"payment"|"subcontractor"|"evm"|"variation">(() => {
+    const saved = sessionStorage.getItem('gem_action_subtab');
+    const validTabs = ['boq','tracking','acceptance','payment','subcontractor','evm','variation'];
+    if (saved && validTabs.includes(saved)) { sessionStorage.removeItem('gem_action_subtab'); return saved as any; }
+    return "overview";
+  });
+
   const { printComponent, printQSPayment } = usePrint();
 
   // ── Approval Engine state ───────────────────────────────────────────────────
@@ -243,6 +157,7 @@ export default function QSDashboard({ projectId, projectName, contractValue = 45
 
   // Ref to store callback after PIN confirmed
   const pendingApprovalCallbackRef = React.useRef<((fa: boolean) => void) | null>(null);
+  const fileRef = useRef<HTMLInputElement>(null);
 
   const [pinModal, setPinModal]       = useState<{docId:string; voucherId:string; type:'VO'|'ACCEPTANCE'|'PAYMENT'} | null>(null);
   const [pinValue, setPinValue]       = useState('');
@@ -348,9 +263,23 @@ export default function QSDashboard({ projectId, projectName, contractValue = 45
 
   // Payment state
   const [showNewPayment, setShowNewPayment] = useState(false);
+
+  // gem:open-action — WorkspaceActionBar trigger
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const { actionId } = (e as CustomEvent).detail;
+      if (actionId === 'PAYMENT_REQUEST')    { setActiveTab('payment');    setShowNewPayment(true); }
+      if (actionId === 'VARIATION_ORDER')    { setActiveTab('variation');  }
+      if (actionId === 'ACCEPTANCE_INTERNAL'){ setActiveTab('acceptance'); setShowNewLot(true); }
+    };
+    window.addEventListener('gem:open-action', handler);
+    return () => window.removeEventListener('gem:open-action', handler);
+  }, []);
   const [selectedLotIds, setSelectedLotIds] = useState<string[]>([]);
   const [payPeriod, setPayPeriod]       = useState("");
   const [payNote, setPayNote]           = useState("");
+  const [expandedPayId, setExpandedPayId]   = useState<string|null>(null);
+  const [expandedLotId, setExpandedLotId]   = useState<string|null>(null);
   const [advanceDeduct, setAdvanceDeduct] = useState("0");
 
   // ── Subcontractor state ──────────────────────────────────────────────────
@@ -382,6 +311,7 @@ export default function QSDashboard({ projectId, projectName, contractValue = 45
   const totalDone     = useMemo(() => nonChapter.reduce((s, i) => s + i.qty_done * i.unit_price, 0), [nonChapter]);
   const totalPlan     = useMemo(() => nonChapter.reduce((s, i) => s + i.qty_plan_current * i.unit_price, 0), [nonChapter]);
   const totalPaid     = useMemo(() => payments.filter(p => p.status === 'paid').reduce((s, p) => s + p.net_payable, 0), [payments]);
+  const totalApproved = useMemo(() => payments.filter(p => ['paid','approved'].includes(p.status)).reduce((s, p) => s + p.net_payable, 0), [payments]);
 
   const alerts = useMemo(() =>
     nonChapter.filter(i => {
@@ -526,6 +456,45 @@ export default function QSDashboard({ projectId, projectName, contractValue = 45
     overBudgetCount:    enrichedSubs.filter(x=>x.isOverBudget).length,
     pendingCount:       subPayments.filter(p=>p.status==="submitted").length,
   }),[enrichedSubs, subPayments]);
+
+  // ── enrichedLots: acceptanceLots với total_value tính lại từ boqItems ──────────
+  const enrichedLots = useMemo(() =>
+    acceptanceLots.map(lot => ({
+      ...lot,
+      total_value: lot.items.reduce((s, li) => {
+        const item = boqItems.find(b => b.id === li.boq_id);
+        return s + (item ? li.qty * item.unit_price : 0);
+      }, 0),
+    })),
+  [acceptanceLots, boqItems]);
+
+  // ── chapterStats: tổng hợp tiến độ theo từng chương ─────────────────────────
+  const chapterStats = useMemo(() =>
+    CHAPTERS.map(ch => {
+      const items = nonChapter.filter(i => i.chapter === ch);
+      const contract = items.reduce((s, i) => s + i.qty_contract * i.unit_price, 0);
+      const done     = items.reduce((s, i) => s + i.qty_done    * i.unit_price, 0);
+      const plan     = items.reduce((s, i) => s + i.qty_plan_current * i.unit_price, 0);
+      return {
+        ch,
+        name:    CHAPTER_NAMES[ch] ?? ch,
+        contract,
+        pctDone: pct(done, contract),
+        pctPlan: pct(plan, contract),
+      };
+    }),
+  [nonChapter]);
+
+  // ── enrichedPayments: payments với lots enriched ───────────────────────────
+  const enrichedPayments = useMemo(() =>
+    payments.map(pay => ({
+      ...pay,
+      lots: acceptanceLots.filter(l => pay.lot_ids.includes(l.id)),
+    })),
+  [payments, acceptanceLots]);
+
+  // ── matSupplierSummary: context string cho AI ────────────────────────────────
+  const matSupplierSummary = '';   // placeholder — wire từ MaterialsDashboard nếu cần
 
   const saveNewSubPayment = () => {
     const sub = subs.find(s=>s.id===newSubPaySubId);
@@ -1188,12 +1157,17 @@ export default function QSDashboard({ projectId, projectName, contractValue = 45
                           <span className="text-[9px] text-amber-600 px-2 py-1 bg-amber-50 rounded-lg">⏳ Chờ duyệt</span>
                         );
                       })()}
+                      <button onClick={() => setExpandedLotId(prev => prev === lot.id ? null : lot.id)}
+                        className="px-2 py-1 bg-slate-50 text-slate-600 text-[10px] font-bold rounded-lg hover:bg-slate-100 flex items-center gap-1">
+                        {expandedLotId === lot.id ? <ChevronUp size={10}/> : <ChevronDown size={10}/>}
+                        {expandedLotId === lot.id ? 'Thu gọn' : 'Xem chi tiết'}
+                      </button>
                       <button className="px-2 py-1 bg-slate-50 text-slate-500 text-[10px] font-bold rounded-lg hover:bg-slate-100 flex items-center gap-1"><Printer size={10}/>In BB</button>
                     </div>
                   </div>
                 </div>
-                {/* Items mini table */}
-                <div className="border-t border-slate-100 overflow-x-auto">
+                {/* Items mini table — collapsible */}
+                {expandedLotId === lot.id && <div className="border-t border-slate-100 overflow-x-auto">
                   <table className="w-full text-xs">
                     <thead><tr className="bg-slate-50">{["Mã","Hạng mục","KL NT","ĐV","Đơn giá","Giá trị"].map(h=><th key={h} className="px-3 py-1.5 text-[10px] font-bold text-slate-400 uppercase text-left">{h}</th>)}</tr></thead>
                     <tbody className="divide-y divide-slate-50">
@@ -1214,7 +1188,7 @@ export default function QSDashboard({ projectId, projectName, contractValue = 45
                     </tbody>
                     <tfoot><tr className="bg-slate-50"><td colSpan={5} className="px-3 py-2 font-bold text-slate-700 text-right">CỘNG</td><td className="px-3 py-2 font-bold text-emerald-700 text-right">{fmtB(lot.total_value)}</td></tr></tfoot>
                   </table>
-                </div>
+                </div>}
               </div>
             ))}
           </div>
@@ -1244,73 +1218,6 @@ export default function QSDashboard({ projectId, projectName, contractValue = 45
               <Plus size={14}/> Lập đề nghị thanh toán
             </button>
           </div>
-
-          {/* New payment form */}
-          {showNewPayment && (
-            <div className="bg-white rounded-2xl border border-emerald-200 shadow-md p-5 space-y-4">
-              <h4 className="font-bold text-slate-800 flex items-center gap-2"><DollarSign size={16} className="text-emerald-600"/>Lập đề nghị thanh toán mới</h4>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-xs font-bold text-slate-400 uppercase mb-1.5">Kỳ thanh toán</label>
-                  <input value={payPeriod} onChange={e=>setPayPeriod(e.target.value)} placeholder="VD: Tháng 03/2026"
-                    className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-emerald-500"/>
-                </div>
-                <div>
-                  <label className="block text-xs font-bold text-slate-400 uppercase mb-1.5">Khấu trừ tạm ứng (VNĐ)</label>
-                  <input value={advanceDeduct} onChange={e=>setAdvanceDeduct(e.target.value)}
-                    className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-emerald-500"/>
-                </div>
-              </div>
-              <div>
-                <label className="block text-xs font-bold text-slate-400 uppercase mb-2">Kèm theo biên bản nghiệm thu (đã duyệt)</label>
-                <div className="space-y-2 max-h-40 overflow-y-auto border border-slate-200 rounded-xl p-2">
-                  {enrichedLots.filter(l=>l.status==="approved").map(lot=>{
-                    const selected = selectedLotIds.includes(lot.id);
-                    return (
-                      <label key={lot.id} className={`flex items-center gap-3 p-2.5 rounded-xl cursor-pointer transition-colors ${selected?"bg-emerald-50 border border-emerald-100":"hover:bg-slate-50"}`}>
-                        <input type="checkbox" checked={selected} onChange={e=>{
-                          if(e.target.checked) setSelectedLotIds(prev=>[...prev,lot.id]);
-                          else setSelectedLotIds(prev=>prev.filter(id=>id!==lot.id));
-                        }} className="accent-emerald-600"/>
-                        <div className="flex-1">
-                          <p className="text-sm font-medium text-slate-700">{lot.lot_no} — {lot.note}</p>
-                          <p className="text-[10px] text-slate-400">{lot.date} · {fmtB(lot.total_value)}</p>
-                        </div>
-                        <span className="font-bold text-emerald-600 text-sm">{fmtB(lot.total_value)}</span>
-                      </label>
-                    );
-                  })}
-                  {enrichedLots.filter(l=>l.status==="approved").length===0&&<p className="text-xs text-slate-400 text-center py-4">Chưa có biên bản nghiệm thu nào được duyệt</p>}
-                </div>
-              </div>
-              {selectedLotIds.length > 0 && (
-                <div className="bg-emerald-50 rounded-xl p-4 border border-emerald-100">
-                  {(()=>{
-                    const sub = selectedLotIds.reduce((s,lid)=>{const l=enrichedLots.find(x=>x.id===lid);return s+(l?.total_value||0);},0);
-                    const vat = sub*0.08; const total = sub+vat;
-                    const net = total - (Number(advanceDeduct.replace(/\D/g,""))||0);
-                    return (
-                      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-center">
-                        {[{l:"Giá trị NT",v:fmtB(sub)},{l:"VAT 8%",v:fmtB(vat)},{l:"Cộng",v:fmtB(total)},{l:"Thực nhận",v:fmtB(net),bold:true}].map(r=>(
-                          <div key={r.l}><div className={`text-base font-bold ${r.bold?"text-emerald-700":"text-slate-800"}`}>{r.v}</div><div className="text-[10px] text-slate-400">{r.l}</div></div>
-                        ))}
-                      </div>
-                    );
-                  })()}
-                </div>
-              )}
-              <div>
-                <label className="block text-xs font-bold text-slate-400 uppercase mb-1.5">Ghi chú</label>
-                <textarea value={payNote} onChange={e=>setPayNote(e.target.value)} rows={2} className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-emerald-500 resize-none" placeholder="Ghi chú đề nghị thanh toán..."/>
-              </div>
-              <div className="flex gap-3">
-                <button onClick={saveNewPayment} className="flex-1 py-2.5 bg-emerald-600 text-white rounded-xl font-bold text-sm hover:bg-emerald-700 shadow-md shadow-emerald-100">
-                  <Save size={14} className="inline mr-1.5"/>Lưu đề nghị TT
-                </button>
-                <button onClick={()=>{setShowNewPayment(false);setSelectedLotIds([]);}} className="px-5 py-2.5 border border-slate-200 text-slate-600 rounded-xl text-sm hover:bg-slate-50">Hủy</button>
-              </div>
-            </div>
-          )}
 
           {/* Payment list */}
           <div className="space-y-3">
@@ -1387,6 +1294,11 @@ export default function QSDashboard({ projectId, projectName, contractValue = 45
                     )}
                   </div>
                   <div className="flex gap-2">
+                    <button onClick={() => setExpandedPayId(prev => prev === pay.id ? null : pay.id)}
+                      className="flex items-center gap-1 px-3 py-1 text-slate-500 text-[10px] font-bold hover:bg-slate-100 rounded-lg border border-slate-200">
+                      {expandedPayId === pay.id ? <ChevronUp size={10}/> : <ChevronDown size={10}/>}
+                      {expandedPayId === pay.id ? 'Thu gọn' : 'Xem chi tiết'}
+                    </button>
                     <button onClick={() => printQSPayment({
                       payment: {
                         id: pay.id,
@@ -1400,12 +1312,88 @@ export default function QSDashboard({ projectId, projectName, contractValue = 45
                         net_payable: pay.net_payable || (pay.amount || 0) * 0.95,
                         notes: pay.note || '',
                       },
-                      projectName: selectedProject?.name || 'Dự án',
+                      projectName: projectName || 'Dự án',
                       contractorName: pay.contractor || '',
                     })} className="flex items-center gap-1 px-3 py-1 text-teal-600 text-[10px] font-bold hover:bg-teal-50 rounded-lg border border-teal-200"><Printer size={10}/>In hồ sơ TT</button>
                     <button className="flex items-center gap-1 px-3 py-1 text-slate-500 text-[10px] font-bold hover:bg-slate-200 rounded-lg"><Download size={10}/>Xuất Excel</button>
                   </div>
                 </div>
+
+                {/* Detail panel */}
+                {expandedPayId === pay.id && (
+                  <div className="px-5 pb-5 pt-2 border-t border-slate-100 bg-slate-50/50 space-y-4 animate-in fade-in duration-200">
+                    {/* Status timeline */}
+                    <div>
+                      <p className="text-[10px] font-black uppercase text-slate-400 mb-3">Trạng thái hồ sơ</p>
+                      <div className="flex items-center gap-0">
+                        {(['draft','submitted','approved','paid'] as const).map((st, idx) => {
+                          const statusOrder = {draft:0, submitted:1, approved:2, paid:3};
+                          const currentIdx = statusOrder[pay.status];
+                          const done = idx <= currentIdx;
+                          const labels = {draft:'Nháp', submitted:'Đã gửi', approved:'Đã duyệt', paid:'Đã TT'};
+                          const colors = {draft:'slate', submitted:'blue', approved:'amber', paid:'emerald'};
+                          const c = colors[st];
+                          return (
+                            <React.Fragment key={st}>
+                              <div className="flex flex-col items-center">
+                                <div className={`w-7 h-7 rounded-full flex items-center justify-center text-[10px] font-bold border-2 ${done ? `bg-${c}-500 border-${c}-500 text-white` : 'bg-white border-slate-200 text-slate-300'}`}>
+                                  {done ? <Check size={12}/> : idx+1}
+                                </div>
+                                <span className={`text-[9px] mt-1 font-semibold ${done ? `text-${c}-600` : 'text-slate-300'}`}>{labels[st]}</span>
+                              </div>
+                              {idx < 3 && <div className={`flex-1 h-0.5 mb-4 ${idx < currentIdx ? 'bg-emerald-400' : 'bg-slate-200'}`}/>}
+                            </React.Fragment>
+                          );
+                        })}
+                      </div>
+                    </div>
+
+                    {/* Payment breakdown */}
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                      {[
+                        {l:'Giá trị NT', v: fmtB(pay.subtotal), c:'text-slate-700'},
+                        {l:'VAT 8%', v: fmtB(pay.vat), c:'text-slate-500'},
+                        {l:'Khấu trừ TU', v: `-${fmtB(pay.advance_deduct)}`, c:'text-rose-600'},
+                        {l:'Thực nhận', v: fmtB(pay.net_payable), c:'text-emerald-700 font-bold text-lg'},
+                      ].map(r => (
+                        <div key={r.l} className="bg-white rounded-xl border border-slate-200 p-3 text-center">
+                          <div className={`text-base font-bold ${r.c}`}>{r.v}</div>
+                          <div className="text-[9px] text-slate-400 mt-0.5 uppercase font-semibold">{r.l}</div>
+                        </div>
+                      ))}
+                    </div>
+
+                    {/* Attached lots */}
+                    {pay.lots && pay.lots.length > 0 && (
+                      <div>
+                        <p className="text-[10px] font-black uppercase text-slate-400 mb-2">Biên bản nghiệm thu kèm theo ({pay.lots.length})</p>
+                        <div className="space-y-2">
+                          {pay.lots.map(lot => (
+                            <div key={lot.id} className="bg-white border border-slate-200 rounded-xl px-4 py-2.5 flex justify-between items-center">
+                              <div>
+                                <span className="text-sm font-semibold text-slate-700">{lot.lot_no}</span>
+                                {lot.note && <span className="text-xs text-slate-400 ml-2">— {lot.note}</span>}
+                                <p className="text-[10px] text-slate-400 mt-0.5">{lot.date}</p>
+                              </div>
+                              <div className="text-right">
+                                <div className="text-sm font-bold text-emerald-700">{fmtB(lot.total_value)}</div>
+                                <span className={`text-[9px] font-black uppercase px-1.5 py-0.5 rounded ${ACCEPT_STATUS[lot.status]?.cls || 'bg-slate-100 text-slate-500'}`}>
+                                  {ACCEPT_STATUS[lot.status]?.label || lot.status}
+                                </span>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {pay.note && (
+                      <div className="bg-blue-50 border border-blue-100 rounded-xl px-4 py-2.5 text-xs text-blue-700">
+                        <span className="font-bold">Ghi chú: </span>{pay.note}
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
             ))}
           </div>
@@ -1552,7 +1540,7 @@ export default function QSDashboard({ projectId, projectName, contractValue = 45
 
       {/* ══════════════════ TAB: SUBCONTRACTOR ════════════════════════════ */}
       {activeTab==="subcontractor" && (
-        <SubcontractorTab projectId={projectId} />
+        <SubcontractorTab projectId={projectId} boqItems={boqItems} acceptanceLots={acceptanceLots} payments={payments} />
       )}
       {activeTab==="variation" && (
         <VariationOrdersTab
@@ -1632,6 +1620,89 @@ export default function QSDashboard({ projectId, projectName, contractValue = 45
         );
       })()}
       {printComponent}
+
+      {/* ── MODALS — DESIGN_SYSTEM: always at end of component ── */}
+
+      {/* ── MODALS — end of component per DESIGN_SYSTEM ── */}
+
+      {/* New payment form */}
+      <ModalForm
+        open={showNewPayment}
+        onClose={() => { setShowNewPayment(false); setSelectedLotIds([]); }}
+        title="Đề nghị Thanh toán (YCTT)"
+        subtitle="Lập yêu cầu thanh toán kèm biên bản nghiệm thu đã duyệt"
+        icon={<DollarSign size={18}/>}
+        color="blue"
+        width="lg"
+        footer={<>
+          <BtnCancel onClick={() => { setShowNewPayment(false); setSelectedLotIds([]); }} />
+          <BtnSubmit label="Lưu đề nghị TT" color="blue" onClick={saveNewPayment} />
+        </>}
+      >
+        <FormSection title="Thông tin chung">
+          <FormGrid cols={2}>
+            <FormRow label="Người lập YCTT" required><input className={inputCls} placeholder="Họ tên người lập" /></FormRow>
+            <FormRow label="Chức vụ"><input className={inputCls} placeholder="VD: QS site, Kế toán" /></FormRow>
+            <FormRow label="Tài khoản nhận"><input className={inputCls} placeholder="Số tài khoản ngân hàng" /></FormRow>
+            <FormRow label="Ngân hàng"><input className={inputCls} placeholder="Tên ngân hàng" /></FormRow>
+          </FormGrid>
+        </FormSection>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-xs font-bold text-slate-400 uppercase mb-1.5">Kỳ thanh toán</label>
+              <input value={payPeriod} onChange={e=>setPayPeriod(e.target.value)} placeholder="VD: Tháng 03/2026"
+                className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-emerald-500"/>
+            </div>
+            <div>
+              <label className="block text-xs font-bold text-slate-400 uppercase mb-1.5">Khấu trừ tạm ứng (VNĐ)</label>
+              <input value={advanceDeduct} onChange={e=>setAdvanceDeduct(e.target.value)}
+                className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-emerald-500"/>
+            </div>
+          </div>
+          <div>
+            <label className="block text-xs font-bold text-slate-400 uppercase mb-2">Kèm theo biên bản nghiệm thu (đã duyệt)</label>
+            <div className="space-y-2 max-h-40 overflow-y-auto border border-slate-200 rounded-xl p-2">
+              {enrichedLots.filter(l=>l.status==="approved").map(lot=>{
+                const selected = selectedLotIds.includes(lot.id);
+                return (
+                  <label key={lot.id} className={`flex items-center gap-3 p-2.5 rounded-xl cursor-pointer transition-colors ${selected?"bg-emerald-50 border border-emerald-100":"hover:bg-slate-50"}`}>
+                    <input type="checkbox" checked={selected} onChange={e=>{
+                      if(e.target.checked) setSelectedLotIds(prev=>[...prev,lot.id]);
+                      else setSelectedLotIds(prev=>prev.filter(id=>id!==lot.id));
+                    }} className="accent-emerald-600"/>
+                    <div className="flex-1">
+                      <p className="text-sm font-medium text-slate-700">{lot.lot_no} — {lot.note}</p>
+                      <p className="text-[10px] text-slate-400">{lot.date} · {fmtB(lot.total_value)}</p>
+                    </div>
+                    <span className="font-bold text-emerald-600 text-sm">{fmtB(lot.total_value)}</span>
+                  </label>
+                );
+              })}
+              {enrichedLots.filter(l=>l.status==="approved").length===0&&<p className="text-xs text-slate-400 text-center py-4">Chưa có biên bản nghiệm thu nào được duyệt</p>}
+            </div>
+          </div>
+          {selectedLotIds.length > 0 && (
+            <div className="bg-emerald-50 rounded-xl p-4 border border-emerald-100">
+              {(()=>{
+                const sub = selectedLotIds.reduce((s,lid)=>{const l=enrichedLots.find(x=>x.id===lid);return s+(l?.total_value||0);},0);
+                const vat = sub*0.08; const total = sub+vat;
+                const net = total - (Number(advanceDeduct.replace(/\D/g,""))||0);
+                return (
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-center">
+                    {[{l:"Giá trị NT",v:fmtB(sub)},{l:"VAT 8%",v:fmtB(vat)},{l:"Cộng",v:fmtB(total)},{l:"Thực nhận",v:fmtB(net),bold:true}].map(r=>(
+                      <div key={r.l}><div className={`text-base font-bold ${r.bold?"text-emerald-700":"text-slate-800"}`}>{r.v}</div><div className="text-[10px] text-slate-400">{r.l}</div></div>
+                    ))}
+                  </div>
+                );
+              })()}
+            </div>
+          )}
+          <div>
+            <label className="block text-xs font-bold text-slate-400 uppercase mb-1.5">Ghi chú</label>
+            <textarea value={payNote} onChange={e=>setPayNote(e.target.value)} rows={2} className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-emerald-500 resize-none" placeholder="Ghi chú đề nghị thanh toán..."/>
+          </div>
+      </ModalForm>
+
     </div>
   );
 }
