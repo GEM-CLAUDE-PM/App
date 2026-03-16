@@ -27,7 +27,7 @@ import {
   LogIn, LogOut, User, Shield, ChevronDown, Loader2,
   Eye, EyeOff, AlertCircle, CheckCircle2, Lock, Building2,
   Sparkles, RefreshCw, UserCircle, Settings, X, Mail,
-  Phone, Calendar, Badge, Key, Users,
+  Phone, Calendar, Badge, Key, Users, CreditCard,
 } from 'lucide-react';
 
 // ─── Context ──────────────────────────────────────────────────────────────────
@@ -323,7 +323,7 @@ export function AuthGuard({ minTier = 'worker', children }: { minTier?: TierRole
 }
 
 // ─── UserMenu — top-right dropdown in Taskbar ─────────────────────────────────
-export function UserMenu() {
+export function UserMenu({ onNavigate }: { onNavigate?: (tab: string) => void } = {}) {
   const { user, perm, signOut, switchMockUser, isDevMode } = useAuth();
   const [open, setOpen] = useState(false);
   const [showSwitch, setShowSwitch] = useState(false);
@@ -442,6 +442,19 @@ export function UserMenu() {
                   ))}
                 </div>
               )}
+            </div>
+          )}
+
+          {/* Billing — chỉ admin */}
+          {user.tier === 'admin' && onNavigate && (
+            <div className="px-3 pb-2">
+              <button
+                onClick={() => { setOpen(false); onNavigate('billing'); }}
+                className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-sm font-semibold text-slate-700 hover:bg-emerald-50 hover:text-emerald-700 transition-colors"
+              >
+                <CreditCard size={15} className="text-emerald-500 shrink-0"/>
+                Gói dịch vụ & Thanh toán
+              </button>
             </div>
           )}
 

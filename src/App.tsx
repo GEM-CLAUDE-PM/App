@@ -22,7 +22,6 @@ import {
   ClipboardList,
   Loader2,
   Shield,
-  CreditCard,
 } from "lucide-react";
 import ChatAssistant from "./components/ChatAssistant";
 import ProjectDashboard from "./components/ProjectDashboard";
@@ -326,7 +325,6 @@ function AppInner() {
     { id: "tasks", label: "Dự án & Công việc", icon: CheckSquare },
     { id: "calendar", label: "Lịch trình", icon: Calendar },
     { id: "contacts", label: "Đối tác liên hệ", icon: Users },
-    { id: "billing", label: "Gói dịch vụ", icon: CreditCard },
     ...(isAdmin ? [{ id: "admin", label: "Quản lý User", icon: Shield }] : []),
   ];
 
@@ -346,7 +344,7 @@ function AppInner() {
               </span>
             )}
           </button>
-          <UserMenu />
+          <UserMenu onNavigate={setActiveTab} />
           <button onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)} className="p-1.5 md:p-2 text-slate-600">
             {isMobileMenuOpen ? <X size={20} className="md:w-6 md:h-6" /> : <Menu size={20} className="md:w-6 md:h-6" />}
           </button>
@@ -506,7 +504,7 @@ function AppInner() {
               </div>
 
               {/* UserMenu */}
-              <UserMenu />
+              <UserMenu onNavigate={setActiveTab} />
             </div>
 
             {/* Mobile: WorkspaceActionBar strip */}
