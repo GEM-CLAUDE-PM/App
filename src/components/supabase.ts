@@ -48,19 +48,38 @@ export function getSupabase() {
  */
 export type TierRole  = 'admin' | 'manager' | 'worker';
 export type JobRole   =
-  | 'giam_doc'          // Giám đốc DA          → admin tier
-  | 'ke_toan'           // Kế toán / KTT         → admin tier
-  | 'chi_huy_truong'    // Chỉ huy trưởng        → manager tier
-  | 'tvgs'              // Tư vấn giám sát       → manager tier
-  | 'qs'                // Quantity Surveyor     → manager tier
-  | 'qa_qc'             // QA/QC Engineer        → manager tier
-  | 'ks_giam_sat'       // Kỹ sư giám sát        → manager tier
-  | 'hr'                // HR / Nhân sự          → manager tier
-  | 'thu_ky'            // Thư ký / Hành chính   → manager tier
-  | 'hse'               // HSE Officer           → worker tier
-  | 'operator'          // Vận hành Thiết bị     → worker tier
-  | 'ntp'               // Nhà thầu phụ          → worker tier (external)
-  | 'chu_dau_tu'        // Chủ đầu tư (CĐT)      → worker tier (read-only portal)
+  // L5 — Lãnh đạo
+  | 'giam_doc'          // Giám đốc công ty       → admin tier
+  // L4 — Quản lý DA
+  | 'pm'                // Project Manager        → admin tier
+  | 'ke_toan_truong'    // Kế toán trưởng         → admin tier
+  // L3 HO — Trưởng bộ phận (thấy nhiều DA)
+  | 'truong_qs'         // Trưởng QS              → manager tier
+  | 'truong_qaqc'       // Trưởng QA/QC           → manager tier
+  | 'truong_hse'        // Trưởng HSE             → manager tier
+  | 'hr_truong'         // Trưởng nhân sự HO      → manager tier
+  // L3 Site — Quản lý công trường
+  | 'chi_huy_truong'    // Chỉ huy trưởng         → manager tier
+  | 'chi_huy_pho'       // Chỉ huy phó            → manager tier
+  // L2 — Kỹ thuật site
+  | 'qs_site'           // QS site                → manager tier
+  | 'qaqc_site'         // QA/QC site             → manager tier
+  | 'ks_giam_sat'       // Kỹ sư giám sát         → manager tier
+  | 'hse_site'          // HSE site               → manager tier
+  | 'ke_toan_site'      // Kế toán site           → manager tier
+  | 'ke_toan_kho'       // Kế toán kho            → manager tier
+  | 'hr_site'           // Nhân sự site           → manager tier
+  // L1 — Thực địa nội bộ
+  | 'thu_kho'           // Thủ kho                → worker tier
+  | 'thu_ky_site'       // Thư ký site            → worker tier
+  | 'operator'          // Vận hành thiết bị      → worker tier
+  // L1 — Nhân công / Nhà thầu nội bộ (app rút gọn)
+  | 'ntp_site'          // Nhà thầu phụ nội bộ    → worker tier
+  | 'to_doi'            // Tổ đội thi công        → worker tier
+  | 'ky_thuat_vien'     // Kỹ thuật viên          → worker tier
+  // External portals — không hiện trong AdminPanel nội bộ
+  | 'ntp'               // NTP SubconPortal       → worker tier (external)
+  | 'chu_dau_tu'        // CĐT ClientPortal       → worker tier (external)
   ;
 
 export interface UserProfile {
@@ -84,35 +103,62 @@ export interface AuthSession {
 
 // ─── Role → Tier mapping ─────────────────────────────────────────────────────
 export const JOB_TO_TIER: Record<JobRole, TierRole> = {
+  // L5-L4 → admin
   giam_doc:       'admin',
-  ke_toan:        'admin',
+  pm:             'admin',
+  ke_toan_truong: 'admin',
+  // L3 → manager
+  truong_qs:      'manager',
+  truong_qaqc:    'manager',
+  truong_hse:     'manager',
+  hr_truong:      'manager',
   chi_huy_truong: 'manager',
-  tvgs:           'manager',
-  qs:             'manager',
-  qa_qc:          'manager',
+  chi_huy_pho:    'manager',
+  // L2 → manager
+  qs_site:        'manager',
+  qaqc_site:      'manager',
   ks_giam_sat:    'manager',
-  hr:             'manager',
-  thu_ky:         'manager',
-  hse:            'worker',
+  hse_site:       'manager',
+  ke_toan_site:   'manager',
+  ke_toan_kho:    'manager',
+  hr_site:        'manager',
+  // L1 → worker
+  thu_kho:        'worker',
+  thu_ky_site:    'worker',
   operator:       'worker',
+  ntp_site:       'worker',
+  to_doi:         'worker',
+  ky_thuat_vien:  'worker',
+  // External
   ntp:            'worker',
   chu_dau_tu:     'worker',
 };
 
 export const JOB_LABELS: Record<JobRole, string> = {
-  giam_doc:       'Giám đốc DA',
-  ke_toan:        'Kế toán / KTT',
+  giam_doc:       'Giám đốc công ty',
+  pm:             'Project Manager',
+  ke_toan_truong: 'Kế toán trưởng',
+  truong_qs:      'Trưởng QS',
+  truong_qaqc:    'Trưởng QA/QC',
+  truong_hse:     'Trưởng HSE',
+  hr_truong:      'Trưởng nhân sự (HO)',
   chi_huy_truong: 'Chỉ huy trưởng',
-  tvgs:           'Tư vấn giám sát',
-  qs:             'Quantity Surveyor',
-  qa_qc:          'QA/QC Engineer',
-  ks_giam_sat:    'Kỹ sư Giám sát',
-  hr:             'HR / Nhân sự',
-  thu_ky:         'Thư ký / Hành chính',
-  hse:            'HSE Officer',
-  operator:       'Vận hành Thiết bị',
-  ntp:            'Nhà thầu phụ',
-  chu_dau_tu:     'Chủ đầu tư',
+  chi_huy_pho:    'Chỉ huy phó',
+  qs_site:        'QS site',
+  qaqc_site:      'QA/QC site',
+  ks_giam_sat:    'Kỹ sư giám sát',
+  hse_site:       'HSE site',
+  ke_toan_site:   'Kế toán site',
+  ke_toan_kho:    'Kế toán kho',
+  hr_site:        'Nhân sự site',
+  thu_kho:        'Thủ kho',
+  thu_ky_site:    'Thư ký site',
+  operator:       'Vận hành thiết bị',
+  ntp_site:       'Nhà thầu phụ (nội bộ)',
+  to_doi:         'Tổ đội thi công',
+  ky_thuat_vien:  'Kỹ thuật viên',
+  ntp:            'Nhà thầu phụ (portal)',
+  chu_dau_tu:     'Chủ đầu tư (portal)',
 };
 
 export const TIER_LABELS: Record<TierRole, string> = {
@@ -161,72 +207,24 @@ export class Permissions {
 
 // ─── Mock users (dev mode — before Supabase) ─────────────────────────────────
 export const MOCK_USERS: UserProfile[] = [
-  {
-    id: 'u1', email: 'gdda@villaphat.vn', full_name: 'Trần Văn Bình',
-    job_role: 'giam_doc', tier: 'admin',
-    project_ids: ['p1','p2'], created_at: '2025-01-01',
-    phone: '0901234567',
-  },
-  {
-    id: 'u2', email: 'ketoan@villaphat.vn', full_name: 'Nguyễn Thu Hà',
-    job_role: 'ke_toan', tier: 'admin',
-    project_ids: ['p1','p2'], created_at: '2025-01-01',
-    phone: '0902345678',
-  },
-  {
-    id: 'u3', email: 'cht@villaphat.vn', full_name: 'Nguyễn Văn Anh',
-    job_role: 'chi_huy_truong', tier: 'manager',
-    project_ids: ['p1'], created_at: '2025-01-01',
-    phone: '0903456789',
-  },
-  {
-    id: 'u4', email: 'qs@villaphat.vn', full_name: 'Lê Minh Tuấn',
-    job_role: 'qs', tier: 'manager',
-    project_ids: ['p1','p2'], created_at: '2025-01-01',
-  },
-  {
-    id: 'u5', email: 'qaqc@villaphat.vn', full_name: 'Phạm Thị Thảo',
-    job_role: 'qa_qc', tier: 'manager',
-    project_ids: ['p1'], created_at: '2025-01-01',
-  },
-  {
-    id: 'u6', email: 'gsat@villaphat.vn', full_name: 'Hoàng Việt Hùng',
-    job_role: 'ks_giam_sat', tier: 'manager',
-    project_ids: ['p1'], created_at: '2025-01-01',
-  },
-  {
-    id: 'u7', email: 'hse@villaphat.vn', full_name: 'Lê Văn Hải',
-    job_role: 'hse', tier: 'worker',
-    project_ids: ['p1'], created_at: '2025-01-01',
-  },
-  {
-    id: 'u8', email: 'hr@villaphat.vn', full_name: 'Nguyễn Minh Đức',
-    job_role: 'hr', tier: 'manager',
-    project_ids: ['p1','p2'], created_at: '2025-01-01',
-  },
-  {
-    id: 'u9', email: 'thuky@villaphat.vn', full_name: 'Nguyễn Thị Lan',
-    job_role: 'thu_ky', tier: 'manager',
-    project_ids: ['p1','p2'], created_at: '2025-01-01',
-  },
-  {
-    id: 'u10', email: 'op01@villaphat.vn', full_name: 'Trần Quốc Tuấn',
-    job_role: 'operator', tier: 'worker',
-    project_ids: ['p1'], created_at: '2025-01-01',
-  },
-  // ── Portal users ──────────────────────────────────────────────────────────
-  {
-    id: 'ntp01', email: 'ntp@phucthanh.vn', full_name: 'NTP Phúc Thành',
-    job_role: 'ntp', tier: 'worker',
-    project_ids: ['p1'], created_at: '2025-01-01',
-    phone: '0909123456',
-  },
-  {
-    id: 'cdt01', email: 'cdt@villaphat.vn', full_name: 'Chủ đầu tư Villa PAT',
-    job_role: 'chu_dau_tu', tier: 'worker',
-    project_ids: ['p1'], created_at: '2025-01-01',
-    phone: '0901999888',
-  },
+  // ── L5 Lãnh đạo ──────────────────────────────────────────────────────────
+  { id:'u1', email:'gdda@villaphat.vn',    full_name:'Trần Văn Bình',    job_role:'giam_doc',       tier:'admin',   project_ids:['p1','p2'], created_at:'2025-01-01', phone:'0901234567' },
+  // ── L4 Quản lý DA ────────────────────────────────────────────────────────
+  { id:'u2', email:'pm@villaphat.vn',      full_name:'Nguyễn Thành Nam', job_role:'pm',             tier:'admin',   project_ids:['p1','p2'], created_at:'2025-01-01' },
+  { id:'u3', email:'ketoan@villaphat.vn',  full_name:'Nguyễn Thu Hà',    job_role:'ke_toan_truong', tier:'admin',   project_ids:['p1','p2'], created_at:'2025-01-01', phone:'0902345678' },
+  // ── L3 HO ────────────────────────────────────────────────────────────────
+  { id:'u4', email:'truongqs@villaphat.vn',full_name:'Lê Minh Tuấn',     job_role:'truong_qs',      tier:'manager', project_ids:['p1','p2'], created_at:'2025-01-01' },
+  { id:'u5', email:'qaqc@villaphat.vn',    full_name:'Phạm Thị Thảo',    job_role:'truong_qaqc',    tier:'manager', project_ids:['p1','p2'], created_at:'2025-01-01' },
+  { id:'u6', email:'hse@villaphat.vn',     full_name:'Lê Văn Hải',       job_role:'truong_hse',     tier:'manager', project_ids:['p1','p2'], created_at:'2025-01-01' },
+  // ── L3 Site ──────────────────────────────────────────────────────────────
+  { id:'u7', email:'cht@villaphat.vn',     full_name:'Nguyễn Văn Anh',   job_role:'chi_huy_truong', tier:'manager', project_ids:['p1'],      created_at:'2025-01-01', phone:'0903456789' },
+  { id:'u8', email:'chp@villaphat.vn',     full_name:'Trần Hữu Lộc',     job_role:'chi_huy_pho',    tier:'manager', project_ids:['p1'],      created_at:'2025-01-01' },
+  // ── L2 ───────────────────────────────────────────────────────────────────
+  { id:'u9', email:'gsat@villaphat.vn',    full_name:'Hoàng Việt Hùng',  job_role:'ks_giam_sat',    tier:'manager', project_ids:['p1'],      created_at:'2025-01-01' },
+  { id:'u10',email:'op01@villaphat.vn',    full_name:'Trần Quốc Tuấn',   job_role:'operator',       tier:'worker',  project_ids:['p1'],      created_at:'2025-01-01' },
+  // ── External portals ─────────────────────────────────────────────────────
+  { id:'ntp01',  email:'ntp@phucthanh.vn', full_name:'NTP Phúc Thành',       job_role:'ntp',       tier:'worker', project_ids:['p1'], created_at:'2025-01-01', phone:'0909123456' },
+  { id:'cdt01',  email:'cdt@villaphat.vn', full_name:'Chủ đầu tư Villa PAT', job_role:'chu_dau_tu', tier:'worker', project_ids:['p1'], created_at:'2025-01-01', phone:'0901999888' },
 ];
 
 // ─── Auth service — wraps Supabase or falls back to mock ─────────────────────
@@ -614,17 +612,30 @@ export const AuthService = {
  *   operator        → 'thu_kho'
  *   ntp             → 'qs_site'
  */
+// JobRole → RoleId mapping (1-1 sau v3.0 — không cần bridge nữa)
 export const JOB_ROLE_TO_ROLE_ID: Record<string, string> = {
   giam_doc:       'giam_doc',
-  ke_toan:        'ke_toan_truong',
+  pm:             'pm',
+  ke_toan_truong: 'ke_toan_truong',
+  truong_qs:      'truong_qs',
+  truong_qaqc:    'truong_qaqc',
+  truong_hse:     'truong_hse',
+  hr_truong:      'hr_truong',
   chi_huy_truong: 'chi_huy_truong',
-  tvgs:           'ks_giam_sat',
-  qs:             'truong_qs',
-  qa_qc:          'truong_qaqc',
+  chi_huy_pho:    'chi_huy_pho',
+  qs_site:        'qs_site',
+  qaqc_site:      'qaqc_site',
   ks_giam_sat:    'ks_giam_sat',
-  hr:             'thu_ky_ho',
-  thu_ky:         'thu_ky_site',
-  hse:            'hse_site',
-  operator:       'thu_kho',
-  ntp:            'qs_site',
+  hse_site:       'hse_site',
+  ke_toan_site:   'ke_toan_site',
+  ke_toan_kho:    'ke_toan_kho',
+  hr_site:        'hr_site',
+  thu_kho:        'thu_kho',
+  thu_ky_site:    'thu_ky_site',
+  operator:       'operator',
+  ntp_site:       'ntp_site',
+  to_doi:         'to_doi',
+  ky_thuat_vien:  'ky_thuat_vien',
+  ntp:            'ks_giam_sat',       // fallback — external portal
+  chu_dau_tu:     'ks_giam_sat',       // fallback — external portal
 };

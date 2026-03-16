@@ -221,7 +221,16 @@ export default function AdminPanel({ currentUserId, onClose }: AdminPanelProps) 
   };
 
   // ─── Render ───────────────────────────────────────────────────────────────
-  const jobRoles = Object.keys(JOB_LABELS) as JobRole[];
+  // Roles hiển thị trong AdminPanel — chỉ nội bộ, không có external portal
+  const ROLE_GROUPS: { label: string; roles: JobRole[] }[] = [
+    { label: 'Lãnh đạo', roles: ['giam_doc', 'pm', 'ke_toan_truong'] },
+    { label: 'Quản lý HO (nhiều dự án)', roles: ['truong_qs', 'truong_qaqc', 'truong_hse', 'hr_truong'] },
+    { label: 'Quản lý site', roles: ['chi_huy_truong', 'chi_huy_pho'] },
+    { label: 'Kỹ thuật site (L2)', roles: ['qs_site', 'qaqc_site', 'ks_giam_sat', 'hse_site', 'ke_toan_site', 'ke_toan_kho', 'hr_site'] },
+    { label: 'Thực địa (L1)', roles: ['thu_kho', 'thu_ky_site', 'operator'] },
+    { label: 'Nhân công / Nhà thầu (L1 — app rút gọn)', roles: ['ntp_site', 'to_doi', 'ky_thuat_vien'] },
+  ];
+  const jobRoles = ROLE_GROUPS.flatMap(g => g.roles);
 
   return (
     <div className="min-h-screen bg-slate-50">
@@ -465,8 +474,12 @@ export default function AdminPanel({ currentUserId, onClose }: AdminPanelProps) 
                     onChange={e => setForm(f => ({ ...f, job_role: e.target.value as JobRole }))}
                     className="w-full border border-slate-200 rounded-xl pl-9 pr-8 py-2.5 text-sm appearance-none focus:outline-none focus:ring-2 focus:ring-violet-400"
                   >
-                    {jobRoles.map(r => (
-                      <option key={r} value={r}>{JOB_LABELS[r]} — {TIER_LABELS[JOB_TO_TIER[r]]}</option>
+                    {ROLE_GROUPS.map(grp => (
+                      <optgroup key={grp.label} label={grp.label}>
+                        {grp.roles.map(r => (
+                          <option key={r} value={r}>{JOB_LABELS[r]}</option>
+                        ))}
+                      </optgroup>
                     ))}
                   </select>
                   <ChevronDown size={14} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none"/>
