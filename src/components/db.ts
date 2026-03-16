@@ -222,7 +222,13 @@ export const db = {
       await sbSet(collection, projectId, data, userId);
     } catch (e) {
       if (isConflictError(e)) {
-        // Dispatch global event — App.tsx hoặc NotificationEngine lắng nghe
+        // Auto re-fetch data mới nhất từ server → sync về localStorage
+        try {
+          const serverData = await sbGet(collection, projectId, data);
+          lsSet(collection, projectId, serverData);
+        } catch { /* ignore fetch error */ }
+
+        // Dispatch global event → toast thông báo user
         window.dispatchEvent(new CustomEvent('gem:db-conflict', {
           detail: { collection: e.collection, serverUpdatedAt: e.serverUpdatedAt }
         }));
