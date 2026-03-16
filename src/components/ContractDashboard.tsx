@@ -6,6 +6,8 @@ import { createDocument, submitDocument, getApprovalQueue, type ApprovalDoc } fr
 import { WORKFLOWS, type UserContext } from './permissions';
 import { getCurrentCtx } from './projectMember';
 import ApprovalQueue from './ApprovalQueue';
+import ModalForm, { FormRow, FormGrid, FormSection, inputCls, selectCls, BtnCancel, BtnSubmit } from './ModalForm';
+import { db } from './db';
 
 import type { DashboardProps } from './types';
 
@@ -216,8 +218,12 @@ export default function ContractDashboard({ project: selectedProject, currentRol
       const [filterStatus, setFilterStatus] = React.useState<ContractStatus|'all'>('all');
       const [searchQ, setSearchQ] = React.useState('');
       const [selectedContract, setSelectedContract] = React.useState<Contract|null>(null);
-      const [detailTab, setDetailTab] = React.useState<'overview'|'payments'|'guarantees'|'docs'>('overview');
+      const [detailTab, setDetailTab] = React.useState<'overview'|'payments'|'guarantees'|'docs'|'lad'|'eot'>('overview');
       const [showAddForm, setShowAddForm] = React.useState(false);
+      const [showEOTForm, setShowEOTForm] = React.useState(false);
+      const [eotForm, setEotForm] = React.useState<{days:string; reason:string; date:string}>({days:'', reason:'', date:''});
+      const [eotLog, setEotLog] = React.useState<{id:string; days:number; reason:string; date:string; status:'pending'|'approved'|'rejected'}[]>([]);
+      const dbLoaded = React.useRef(false);
       const [gemAnalyzing, setGemAnalyzing] = React.useState(false);
       const [gemResult, setGemResult] = React.useState('');
 
@@ -363,13 +369,13 @@ export default function ContractDashboard({ project: selectedProject, currentRol
             )}
 
             {/* Detail sub-tabs */}
-            <div className="flex gap-1.5 border-b border-slate-200 pb-2">
-              {(['overview','payments','guarantees','docs'] as const).map(t => (
+            <div className="flex gap-1.5 border-b border-slate-200 pb-2 flex-wrap">
+              {(['overview','payments','guarantees','lad','eot','docs'] as const).map(t => (
                 <button key={t} onClick={() => setDetailTab(t)}
                   className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition-all ${
                     detailTab === t ? 'bg-slate-800 text-white' : 'text-slate-500 hover:bg-slate-100'
                   }`}>
-                  {t === 'overview' ? 'Tổng quan' : t === 'payments' ? 'Lịch thanh toán' : t === 'guarantees' ? 'Bảo lãnh' : 'Tài liệu'}
+                  {t === 'overview' ? 'Tổng quan' : t === 'payments' ? 'Thanh toán' : t === 'guarantees' ? 'Bảo lãnh' : t === 'lad' ? 'LAD / Phạt' : t === 'eot' ? 'EOT' : 'Tài liệu'}
                 </button>
               ))}
             </div>
@@ -510,6 +516,145 @@ export default function ContractDashboard({ project: selectedProject, currentRol
                 </div>
               </div>
             )}
+            {detailTab === 'lad' && (
+              <div className="space-y-4">
+                {/* LAD Calculator */}
+                <div className="bg-white border border-slate-200 rounded-2xl p-4">
+                  <h3 className="text-sm font-bold text-slate-700 mb-4 flex items-center gap-2">
+                    <Calculator size={14} className="text-rose-600"/> Tính toán LAD (Liquidated Damages)
+                  </h3>
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
+                    {[
+                      { label:'Giá trị HĐ',         val: c.canSeeFullValues ?? true ? `${(c.value/1e9).toFixed(2)} tỷ` : '***' },
+                      { label:'Tỷ lệ LAD/ngày',      val: '0.05%' },
+                      { label:'Ngày trễ (ước tính)', val: '14 ngày' },
+                      { label:'LAD ước tính',        val: c.canSeeFullValues ?? true ? `${((c.value * 0.0005 * 14)/1e6).toFixed(0)} Tr đ` : '***' },
+                    ].map(k => (
+                      <div key={k.label} className="bg-slate-50 rounded-xl p-3 text-center">
+                        <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wide mb-1">{k.label}</p>
+                        <p className="text-sm font-bold text-slate-800">{k.val}</p>
+                      </div>
+                    ))}
+                  </div>
+                  <div className="bg-rose-50 border border-rose-200 rounded-xl p-3 text-xs text-rose-700">
+                    <p className="font-bold mb-1">⚠ Điều khoản LAD theo HĐ:</p>
+                    <p>Mức phạt 0.05%/ngày tính trên giá trị HĐ còn lại, tối đa 10% giá trị HĐ. Áp dụng sau khi hết thời gian gia hạn đã được phê duyệt.</p>
+                  </div>
+                </div>
+                {/* Performance Bond Tracking */}
+                <div className="bg-white border border-slate-200 rounded-2xl p-4">
+                  <h3 className="text-sm font-bold text-slate-700 mb-3 flex items-center gap-2">
+                    <ShieldCheck size={14} className="text-emerald-600"/> Bảo lãnh thực hiện HĐ
+                  </h3>
+                  {c.guarantees.filter((g: any) => g.type === 'performance').map((g: any, i: number) => {
+                    const isNearExpiry = true; // Simplified — would check date
+                    return (
+                      <div key={i} className={`flex items-center justify-between p-3 rounded-xl border ${isNearExpiry ? 'bg-amber-50 border-amber-200' : 'bg-slate-50 border-slate-200'}`}>
+                        <div>
+                          <p className="text-xs font-bold text-slate-700">Bảo lãnh thực hiện HĐ</p>
+                          <p className="text-[10px] text-slate-500 mt-0.5">Giá trị: {(g.value/1e6).toFixed(0)} Tr đ · Hết hạn: {g.expiry}</p>
+                        </div>
+                        <span className={`text-[10px] font-bold px-2 py-1 rounded-lg ${isNearExpiry ? 'bg-amber-100 text-amber-700' : 'bg-emerald-100 text-emerald-700'}`}>
+                          {isNearExpiry ? '⚠ Cần gia hạn' : '✓ Còn hiệu lực'}
+                        </span>
+                      </div>
+                    );
+                  })}
+                  {c.guarantees.filter((g: any) => g.type === 'performance').length === 0 && (
+                    <p className="text-xs text-slate-400 text-center py-4">Chưa có bảo lãnh thực hiện</p>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {detailTab === 'eot' && (
+              <div className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <p className="text-sm text-slate-500">Nhật ký gia hạn thời gian (Extension of Time)</p>
+                  <button onClick={() => setShowEOTForm(true)}
+                    className="flex items-center gap-1.5 px-3 py-2 bg-blue-600 text-white rounded-xl text-xs font-bold hover:bg-blue-700">
+                    <Plus size={12}/> Tạo EOT
+                  </button>
+                </div>
+                {eotLog.length === 0 && (
+                  <div className="bg-slate-50 border border-slate-200 rounded-2xl p-8 text-center text-xs text-slate-400">
+                    Chưa có yêu cầu EOT nào
+                  </div>
+                )}
+                {eotLog.map(e => (
+                  <div key={e.id} className="bg-white border border-slate-200 rounded-2xl p-4 flex items-start justify-between gap-3">
+                    <div>
+                      <div className="flex items-center gap-2 mb-1">
+                        <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${e.status === 'approved' ? 'bg-emerald-100 text-emerald-700' : e.status === 'rejected' ? 'bg-rose-100 text-rose-700' : 'bg-amber-100 text-amber-700'}`}>
+                          {e.status === 'approved' ? 'Đã duyệt' : e.status === 'rejected' ? 'Từ chối' : 'Chờ duyệt'}
+                        </span>
+                        <span className="text-xs font-bold text-blue-700">+{e.days} ngày</span>
+                      </div>
+                      <p className="text-xs text-slate-700">{e.reason}</p>
+                      <p className="text-[10px] text-slate-400 mt-1">Ngày nộp: {e.date}</p>
+                    </div>
+                    {e.status === 'pending' && (
+                      <div className="flex gap-1 shrink-0">
+                        <button onClick={() => setEotLog(prev => prev.map(x => x.id === e.id ? {...x, status: 'approved'} : x))}
+                          className="px-2 py-1 bg-emerald-100 text-emerald-700 rounded-lg text-[10px] font-bold hover:bg-emerald-200">Duyệt</button>
+                        <button onClick={() => setEotLog(prev => prev.map(x => x.id === e.id ? {...x, status: 'rejected'} : x))}
+                          className="px-2 py-1 bg-rose-100 text-rose-700 rounded-lg text-[10px] font-bold hover:bg-rose-200">Từ chối</button>
+                      </div>
+                    )}
+                  </div>
+                ))}
+                {/* EOT Timeline summary */}
+                {eotLog.filter(e => e.status === 'approved').length > 0 && (
+                  <div className="bg-blue-50 border border-blue-200 rounded-2xl p-4">
+                    <p className="text-xs font-bold text-blue-700 mb-1">Tổng EOT đã duyệt</p>
+                    <p className="text-2xl font-black text-blue-800">
+                      +{eotLog.filter(e => e.status === 'approved').reduce((s, e) => s + e.days, 0)} ngày
+                    </p>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* EOT Form Modal — DS 5.2: cuối detail view */}
+            <ModalForm
+              open={showEOTForm}
+              onClose={() => setShowEOTForm(false)}
+              title="Tạo yêu cầu EOT"
+              subtitle="Extension of Time — Gia hạn thời gian thực hiện HĐ"
+              icon={<Calendar size={18}/>}
+              color="blue"
+              width="md"
+              footer={<>
+                <BtnCancel onClick={() => setShowEOTForm(false)}/>
+                <BtnSubmit label="Nộp EOT" onClick={() => {
+                  if (!eotForm.days || +eotForm.days <= 0) { notifErr('Vui lòng nhập số ngày gia hạn!'); return; }
+                  if (!eotForm.reason?.trim()) { notifErr('Vui lòng nhập lý do!'); return; }
+                  const newEOT = {
+                    id: 'eot_' + Date.now(),
+                    days: +eotForm.days,
+                    reason: eotForm.reason,
+                    date: eotForm.date || new Date().toLocaleDateString('vi-VN'),
+                    status: 'pending' as const,
+                  };
+                  setEotLog(prev => [newEOT, ...prev]);
+                  setShowEOTForm(false);
+                  setEotForm({days:'', reason:'', date:''});
+                  notifOk('Đã tạo yêu cầu EOT — đang chờ duyệt');
+                }}/>
+              </>}
+            >
+              <FormGrid cols={2}>
+                <FormRow label="Số ngày gia hạn *">
+                  <input type="number" className={inputCls} placeholder="VD: 14" value={eotForm.days} onChange={e => setEotForm(p => ({...p, days: e.target.value}))}/>
+                </FormRow>
+                <FormRow label="Ngày nộp">
+                  <input className={inputCls} placeholder="DD/MM/YYYY" value={eotForm.date} onChange={e => setEotForm(p => ({...p, date: e.target.value}))}/>
+                </FormRow>
+                <FormRow label="Lý do xin gia hạn *" className="col-span-2">
+                  <textarea rows={3} className={inputCls + ' resize-none'} placeholder="Mô tả nguyên nhân khách quan..." value={eotForm.reason} onChange={e => setEotForm(p => ({...p, reason: e.target.value}))}/>
+                </FormRow>
+              </FormGrid>
+            </ModalForm>
           </div>
         );
       }

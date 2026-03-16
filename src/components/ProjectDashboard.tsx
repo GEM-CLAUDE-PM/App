@@ -27,6 +27,7 @@ import HSEWorkspace       from './HSEWorkspace';
 import { useAuth }         from './AuthProvider';
 import NotificationEngine from './NotificationEngine';
 import GemAIDashboard    from './GemAIDashboard';
+import RiskDashboard     from './RiskDashboard';
 import AccountingDashboard from './AccountingDashboard';
 import ApprovalQueue from './ApprovalQueue';
 import MemberSwitcher from './MemberSwitcher';
@@ -88,6 +89,7 @@ export default function ProjectDashboard({
   const { ok: notifOk, info: notifInfo } = useNotification();
   const [activeTab, setActiveTab] = useState(initialTab || 'overview');
   const [dailyLogNotes, setDailyLogNotes] = useState<Record<string, string>>({});
+  const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
   // ── Auth & Permissions ───────────────────────────────────────────────────
   const { perm, user } = useAuth();
 
@@ -992,6 +994,15 @@ export default function ProjectDashboard({
       );
     }
 
+    if (activeTab === 'risk') {
+      return (
+        <RiskDashboard
+          project={selectedProject}
+          projectId={localProjectId || ''}
+        />
+      );
+    }
+
     return null;
   };
 
@@ -1526,6 +1537,28 @@ export default function ProjectDashboard({
         </div>
       )}
 
+      {/* ── Responsive Hybrid Layout: Desktop = Master-Detail, Mobile = FAB ── */}
+      <div className="md:flex md:gap-5 md:items-start">
+
+        {/* Mobile overlay backdrop */}
+        {mobileSidebarOpen && (
+          <div
+            className="fixed inset-0 bg-black/40 z-30 md:hidden"
+            onClick={() => setMobileSidebarOpen(false)}
+          />
+        )}
+
+        {/* Sidebar — Desktop: 240px sticky | Mobile: slide-in drawer */}
+        <div className={[
+          'print:hidden shrink-0',
+          // Desktop
+          'md:w-60 md:sticky md:top-4 md:block',
+          // Mobile: hidden by default, shown as fixed drawer when open
+          mobileSidebarOpen
+            ? 'fixed inset-y-0 left-0 w-72 bg-white z-40 shadow-2xl overflow-y-auto p-4 md:relative md:inset-auto md:shadow-none md:p-0'
+            : 'hidden md:block',
+        ].join(' ')}>
+
       {/* ── Progressive Disclosure Sidebar Nav ── */}
       {(() => {
         // Map legacy role → new permission context
@@ -1564,6 +1597,7 @@ export default function ProjectDashboard({
           { id:'manpower',   label:'Nhân lực',         icon:<Users size={14}/>,           group:'nhan-su' },
           { id:'hr',         label:'Nhân sự & HR',     icon:<Briefcase size={14}/>,       group:'nhan-su' },
           { id:'hse',        label:'An toàn HSE',      icon:<ShieldCheck size={14}/>,     group:'nhan-su' },
+          { id:'risk',       label:'Rủi ro',           icon:<AlertTriangle size={14}/>,   group:'nhan-su' },
           // VẬT TƯ
           { id:'resources',  label:'Vật tư & Kho',     icon:<Package size={14}/>,         group:'vat-tu' },
           // TÀI CHÍNH
@@ -1738,7 +1772,7 @@ export default function ProjectDashboard({
         };
 
         return (
-          <div className="mb-6 print:hidden">
+          <div className="print:hidden">{/* sidebar inner */}
             {/* ── CORE TABS ── */}
             <div className="flex flex-wrap gap-1.5 mb-3 border-b border-slate-100 pb-3">
               {coreTabs.map(tab => (
@@ -1828,10 +1862,41 @@ export default function ProjectDashboard({
         );
       })()}
 
-      {/* Main Tab Content */}
-      <div className="min-h-[400px]">
-        {renderContent()}
-      </div>
+        </div>{/* end sidebar */}
+
+        {/* Main content area */}
+        <div className="flex-1 min-w-0">
+          {/* Mobile FAB nav button */}
+          <div className="md:hidden mb-4 print:hidden">
+            <button
+              onClick={() => setMobileSidebarOpen(true)}
+              className="flex items-center gap-2 px-4 py-2.5 bg-white border border-slate-200 rounded-2xl text-sm font-semibold text-slate-700 shadow-sm hover:shadow-md transition-all w-full"
+            >
+              <LayoutDashboard size={16} className="text-emerald-600"/>
+              <span className="flex-1 text-left text-slate-600">
+                {(() => {
+                  const tabLabels: Record<string, string> = {
+                    overview:'Tổng quan', progress:'Tiến độ', resources:'Vật tư',
+                    hse:'An toàn HSE', contracts:'Hợp đồng', boq:'BOQ', qs:'QS',
+                    manpower:'Nhân lực', hr:'Nhân sự', equipment:'Thiết bị',
+                    'qa-qc':'QA/QC', accounting:'Kế toán', 'giam-sat':'Giám sát',
+                    records:'Hồ sơ', reports:'Báo cáo', office:'Văn phòng',
+                    risk:'Rủi ro', procurement:'Mua sắm',
+                  };
+                  return tabLabels[activeTab] || activeTab;
+                })()}
+              </span>
+              <ChevronDown size={14} className="text-slate-400"/>
+            </button>
+          </div>
+
+          {/* Main Tab Content */}
+          <div className="min-h-[400px]">
+            {renderContent()}
+          </div>
+        </div>{/* end main content */}
+
+      </div>{/* end responsive flex wrapper */}
 
       {showTutorial && (
         <OnboardingTutorial 
