@@ -551,10 +551,11 @@ function DocDetailPanel({ doc, ctx, onAction, onClose, uploadMode, onUpload, act
               )}
               {canApprove && !isReviewStep && (
                 <button onClick={() => onAction('APPROVE', doc)}
-                  className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl bg-emerald-600 text-white text-sm font-bold hover:bg-emerald-700 transition-colors shadow-sm">
+                  disabled={processing}
+                  className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl bg-emerald-600 text-white text-sm font-bold hover:bg-emerald-700 transition-colors shadow-sm disabled:opacity-40 disabled:cursor-not-allowed">
                   <CheckCircle2 size={14}/>
-                  Phê duyệt
-                  {currStep?.pinRequired && <Lock size={11} className="opacity-70"/>}
+                  {processing ? 'Đang xử lý...' : 'Phê duyệt'}
+                  {currStep?.pinRequired && !processing && <Lock size={11} className="opacity-70"/>}
                 </button>
               )}
             </div>
@@ -686,6 +687,8 @@ export default function ApprovalQueue({ projectId, projectName, ctx, onClose }: 
   const [searchQ,      setSearchQ]      = useState('');
   const [isLoading,    setIsLoading]    = useState(false);
   const [actionError,  setActionError]  = useState<string>('');
+  const [processing,   setProcessing]   = useState(false); // chặn double-approve
+  const processedKeys = React.useRef<Set<string>>(new Set()); // idempotency key cache
 
   // PIN modal
   const [pinModal, setPinModal] = useState<{
@@ -831,6 +834,16 @@ export default function ApprovalQueue({ projectId, projectName, ctx, onClose }: 
     comment: string,
     pin?: string,
   ) => {
+    // ── Idempotency key: chặn double-approve cùng user/step ──────────────
+    const iKey = `${doc.id}::${doc.currentStepId}::${action}::${ctx.userId}`;
+    if (processing || processedKeys.current.has(iKey)) {
+      setActionError('Thao tác này đã được xử lý. Vui lòng chờ.');
+      setTimeout(() => setActionError(''), 3000);
+      return;
+    }
+    setProcessing(true);
+    processedKeys.current.add(iKey);
+
     const input: ApproveInput = {
       projectId, docId: doc.id, action, ctx, comment,
       ...(pin ? { pin } : {}),
@@ -843,10 +856,12 @@ export default function ApprovalQueue({ projectId, projectName, ctx, onClose }: 
       setComment('');
       setShowCommentInput(false);
     } else {
+      // Nếu fail → xóa key để cho phép thử lại
+      processedKeys.current.delete(iKey);
       setActionError((result as any).error || 'Có lỗi xảy ra');
-      // Clear error after 5 seconds
       setTimeout(() => setActionError(''), 5000);
     }
+    setProcessing(false);
   };
 
   const handleUpload = (doc: ApprovalDoc, file: File) => {
