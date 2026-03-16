@@ -233,19 +233,28 @@ export default function QSDashboard({ projectId, projectName, contractValue = 45
   const [boqItems, setBoqItems]         = useState<BOQItem[]>(INIT_BOQ);
   const [acceptanceLots, setAcceptanceLots] = useState<AcceptanceLot[]>(INIT_ACCEPTANCE);
   const [payments, setPayments]         = useState<PaymentRequest[]>(INIT_PAYMENTS);
+  const [dbLoaded, setDbLoaded]         = useState(false);
 
   // ── Load from db on mount ─────────────────────────────────────────────────
   useEffect(() => {
     if (!projectId) return;
-    db.get<BOQItem[]>('qs_items', projectId, INIT_BOQ).then(setBoqItems);
-    db.get<AcceptanceLot[]>('qs_acceptance', projectId, INIT_ACCEPTANCE).then(setAcceptanceLots);
-    db.get<PaymentRequest[]>('qs_payments', projectId, INIT_PAYMENTS).then(setPayments);
+    setDbLoaded(false);
+    Promise.all([
+      db.get<BOQItem[]>('qs_items', projectId, INIT_BOQ),
+      db.get<AcceptanceLot[]>('qs_acceptance', projectId, INIT_ACCEPTANCE),
+      db.get<PaymentRequest[]>('qs_payments', projectId, INIT_PAYMENTS),
+    ]).then(([items, lots, pays]) => {
+      setBoqItems(items);
+      setAcceptanceLots(lots);
+      setPayments(pays);
+      setDbLoaded(true);
+    });
   }, [projectId]);
 
   // ── Persist to db on change ───────────────────────────────────────────────
-  useEffect(() => { if (projectId) db.set('qs_items',      projectId, boqItems);      }, [boqItems,      projectId]);
-  useEffect(() => { if (projectId) db.set('qs_acceptance', projectId, acceptanceLots); }, [acceptanceLots, projectId]);
-  useEffect(() => { if (projectId) db.set('qs_payments',   projectId, payments);       }, [payments,       projectId]);
+  useEffect(() => { if (dbLoaded && projectId) db.set('qs_items',      projectId, boqItems);      }, [boqItems,      projectId]);
+  useEffect(() => { if (dbLoaded && projectId) db.set('qs_acceptance', projectId, acceptanceLots); }, [acceptanceLots, projectId]);
+  useEffect(() => { if (dbLoaded && projectId) db.set('qs_payments',   projectId, payments);       }, [payments,       projectId]);
 
   // BOQ state
   const [expandedChapters, setExpandedChapters] = useState<Set<string>>(new Set(CHAPTERS));

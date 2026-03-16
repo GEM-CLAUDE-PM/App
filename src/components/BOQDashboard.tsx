@@ -61,9 +61,11 @@ export default function BOQDashboard({ project }: DashboardProps) {
   const [rateCategory, setRateCategory]   = useState('all');
   const [showAddRate, setShowAddRate]     = useState(false);
   const [newRate, setNewRate]             = useState<Partial<RateItem>>({ source: 'custom', category: 'Khác' });
+  const [dbLoaded, setDbLoaded]           = useState(false);
 
   // ── Load from db ───────────────────────────────────────────────────────────
   useEffect(() => {
+    setDbLoaded(false);
     (async () => {
       const [items, rates] = await Promise.all([
         db.get<BOQItem[]>('boq_items', pid, INIT_BOQ),
@@ -71,12 +73,13 @@ export default function BOQDashboard({ project }: DashboardProps) {
       ]);
       setBoqItems(items);
       setRateLib(rates);
+      setDbLoaded(true);
     })();
   }, [pid]);
 
   // ── Persist ────────────────────────────────────────────────────────────────
-  useEffect(() => { db.set('boq_items', pid, boqItems); }, [boqItems, pid]);
-  useEffect(() => { db.set('rate_library', pid, rateLib); }, [rateLib, pid]);
+  useEffect(() => { if (dbLoaded) db.set('boq_items', pid, boqItems); }, [boqItems, pid]);
+  useEffect(() => { if (dbLoaded) db.set('rate_library', pid, rateLib); }, [rateLib, pid]);
 
   // ── Computed ───────────────────────────────────────────────────────────────
   const nonChapter = useMemo(() => boqItems.filter(i => !i.isChapter), [boqItems]);

@@ -438,17 +438,23 @@ export default function ManpowerDashboard({ project, initialTab }:Props) {
   const [view, setView] = useState<View>(() => (initialTab && TAB_TO_VIEW[initialTab]) ? TAB_TO_VIEW[initialTab] : 'site');
   const [people, setPeople]         = useState<Person[]>(SEED_PEOPLE);
   const [attendance, setAttendance] = useState<DailyAttendance[]>([]);
+  const [dbLoaded, setDbLoaded]     = useState(false);
 
   // ── Load from db on mount ──────────────────────────────────────────────────
   useEffect(() => {
-    db.get<Person[]>('mp_people', pid, SEED_PEOPLE).then(setPeople);
-    db.get<DailyAttendance[]>('mp_attendance', pid, []).then(saved => {
+    setDbLoaded(false);
+    Promise.all([
+      db.get<Person[]>('mp_people', pid, SEED_PEOPLE),
+      db.get<DailyAttendance[]>('mp_attendance', pid, []),
+    ]).then(([ppl, saved]) => {
+      setPeople(ppl);
       if (!saved.find((a: DailyAttendance) => a.date === TODAY)) {
         const seed = SEED_PEOPLE.map(p=>({ personId:p.id, date:TODAY, status:(p.id==='w3'?'absent':p.id==='w5'?'leave':'present') as AttendanceStatus, otHours:['p1','w1','w4'].includes(p.id)?2:0, otType:'weekday' as OtType, note:'' }));
         setAttendance([...saved, ...seed]);
       } else {
         setAttendance(saved);
       }
+      setDbLoaded(true);
     });
   }, [pid]);
   const [selectedPerson, setSelectedPerson] = useState<Person|null>(null);
@@ -483,7 +489,7 @@ export default function ManpowerDashboard({ project, initialTab }:Props) {
   const gpsBlocked = cfg?.gpsAttendanceEnabled && isTHT &&
     (gps.status === 'off_site' || gps.status === 'gps_error');
 
-useEffect(()=>{ db.set('mp_people', pid, people); },[people, pid]);
+useEffect(()=>{ if (dbLoaded) db.set('mp_people', pid, people); },[people, pid]);
 
   // ── gem:open-action — WorkspaceActionBar trigger ─────────────────────────
   React.useEffect(() => {
@@ -495,7 +501,7 @@ useEffect(()=>{ db.set('mp_people', pid, people); },[people, pid]);
     window.addEventListener('gem:open-action', handler);
     return () => window.removeEventListener('gem:open-action', handler);
   }, []);
-  useEffect(()=>{ if(attendance.length) db.set('mp_attendance', pid, attendance); },[attendance, pid]);
+  useEffect(()=>{ if(dbLoaded && attendance.length) db.set('mp_attendance', pid, attendance); },[attendance, pid]);
   useEffect(()=>{
     const member = getCurrentMember(pid);
     const ctx = buildCtxFromMember(member);

@@ -73,6 +73,41 @@ localStorage.getItem('gem_...');
 localStorage.setItem('gem_...');
 ```
 
+### 2.4 Load/Save pattern — BẮT BUỘC dùng `dbLoaded` flag
+
+**Vấn đề:** `useEffect` auto-save chạy ngay khi mount với INIT data (trước khi `db.get` hoàn thành)
+→ ghi đè data thật trên Supabase bằng data mặc định rỗng → mất data.
+
+**MaterialsDashboard làm ĐÚNG** — `save()` là `useCallback`, chỉ gọi trong user action handler, không tự chạy khi mount.
+
+**Pattern chuẩn cho dashboard có auto-save:**
+```tsx
+// ✅ ĐÚNG — dùng dbLoaded flag
+const [items, setItems] = useState<MyType[]>([]);
+const [dbLoaded, setDbLoaded] = useState(false); // BẮT BUỘC khi có auto-save useEffect
+
+useEffect(() => {
+  setDbLoaded(false); // reset khi projectId thay đổi
+  db.get<MyType[]>('collection', projectId, []).then(data => {
+    setItems(data);
+    setDbLoaded(true); // load xong → cho phép auto-save
+  });
+}, [projectId]);
+
+// Auto-save CHỈ chạy sau khi dbLoaded = true
+useEffect(() => { if (dbLoaded) db.set('collection', projectId, items); }, [items]);
+
+// ✅ CŨNG ĐÚNG — save trong handler (như MaterialsDashboard)
+const save = useCallback((data: MyType[]) => db.set('collection', projectId, data), [projectId]);
+// Gọi save() trong handleSave(), không dùng useEffect
+
+// ❌ SAI — auto-save không có guard → race condition khi mount
+useEffect(() => { db.set('collection', projectId, items); }, [items]);
+```
+
+**Rule:** Nếu dùng `useEffect` để auto-save → **bắt buộc có `dbLoaded` guard**.  
+Nếu save trong handler (onClick, onSubmit) → không cần guard.
+
 ### 2.4 In ấn / PDF
 ```tsx
 // ✅ ĐÚNG
@@ -322,6 +357,7 @@ Trước khi push code mới, tự review:
 - [ ] Màu sắc dùng Tailwind tokens, không hard-code hex
 - [ ] Collection key đăng ký trong `db.ts` registry
 - [ ] AI model dùng `GEM_MODEL` / `GEM_MODEL_QUALITY` constants
+- [ ] Nếu có `useEffect` auto-save → **bắt buộc có `dbLoaded` guard** (xem section 2.4)
 
 ---
 

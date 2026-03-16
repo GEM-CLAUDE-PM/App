@@ -64,7 +64,9 @@ export default function ProcurementDashboard({ project }: DashboardProps) {
   const [supplierForm, setSupplierForm] = useState<Partial<Supplier>>({ category: ['vat_lieu'], rating: 3 });
 
   // ── Load from db ───────────────────────────────────────────────────────────
+  const [dbLoaded, setDbLoaded] = useState(false);
   useEffect(() => {
+    setDbLoaded(false);
     (async () => {
       const [r, q, p, s, threshold] = await Promise.all([
         db.get<RFQ[]>('procurement_rfqs', pid, INIT_RFQS.map(rfq => ({ ...rfq, project_id: pid }))),
@@ -74,14 +76,15 @@ export default function ProcurementDashboard({ project }: DashboardProps) {
         db.get<number>('procurement_gd_threshold', pid, DEFAULT_GD_THRESHOLD),
       ]);
       setRfqs(r); setQuotes(q); setPOs(p); setSuppliers(s); setGdThreshold(threshold);
+      setDbLoaded(true);
     })();
   }, [pid]);
 
   // ── Persist ────────────────────────────────────────────────────────────────
-  useEffect(() => { db.set('procurement_rfqs', pid, rfqs); }, [rfqs, pid]);
-  useEffect(() => { db.set('procurement_quotes', pid, quotes); }, [quotes, pid]);
-  useEffect(() => { db.set('procurement_pos', pid, pos); }, [pos, pid]);
-  useEffect(() => { db.set('procurement_suppliers', pid, suppliers); }, [suppliers, pid]);
+  useEffect(() => { if (dbLoaded) db.set('procurement_rfqs', pid, rfqs); }, [rfqs, pid]);
+  useEffect(() => { if (dbLoaded) db.set('procurement_quotes', pid, quotes); }, [quotes, pid]);
+  useEffect(() => { if (dbLoaded) db.set('procurement_pos', pid, pos); }, [pos, pid]);
+  useEffect(() => { if (dbLoaded) db.set('procurement_suppliers', pid, suppliers); }, [suppliers, pid]);
 
   // ── Computed ───────────────────────────────────────────────────────────────
   const currentMember = getCurrentMember(pid);

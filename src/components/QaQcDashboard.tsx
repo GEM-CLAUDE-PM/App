@@ -1264,9 +1264,11 @@ export default function QaQcDashboard({ onNavigate, projectId: _projectId, proje
   const [checklists, setChecklists]   = useState<Checklist[]>(INIT_CHECKLISTS);
   const [defects, setDefects]         = useState<Defect[]>(INIT_DEFECTS);
   const [feedbacks, setFeedbacks]     = useState<Feedback[]>(INIT_FEEDBACKS);
+  const [dbLoaded, setDbLoaded]       = useState(false); // flag: chặn auto-save trước khi load xong
 
   // ── db.ts: load khi mount — seed từ template nếu chưa có data ─────────────
   useEffect(() => {
+    setDbLoaded(false); // reset khi projectId thay đổi
     (async () => {
       const [cl, def, fb] = await Promise.all([
         db.get('qa_checklists', projectId, checklists),
@@ -1298,14 +1300,15 @@ export default function QaQcDashboard({ onNavigate, projectId: _projectId, proje
       }
       if ((def as any[]).length) setDefects(def as any);
       if ((fb  as any[]).length) setFeedbacks(fb  as any);
+      setDbLoaded(true); // load xong → cho phép auto-save
     })();
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [projectId]);
 
-  // ── db.ts: lưu khi data thay đổi ────────────────────────────────────────
-  useEffect(() => { db.set('qa_checklists', projectId, checklists); }, [checklists]);
-  useEffect(() => { db.set('qa_defects',    projectId, defects);    }, [defects]);
-  useEffect(() => { db.set('qa_feedbacks',  projectId, feedbacks);  }, [feedbacks]);
+  // ── db.ts: lưu khi data thay đổi — chỉ sau khi đã load xong từ server ────
+  useEffect(() => { if (dbLoaded) db.set('qa_checklists', projectId, checklists); }, [checklists]);
+  useEffect(() => { if (dbLoaded) db.set('qa_defects',    projectId, defects);    }, [defects]);
+  useEffect(() => { if (dbLoaded) db.set('qa_feedbacks',  projectId, feedbacks);  }, [feedbacks]);
 
   // Filters
   const [defectFilter, setDefectFilter]       = useState("Tất cả");

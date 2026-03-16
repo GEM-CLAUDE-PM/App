@@ -58,24 +58,17 @@ import { getSupabase } from './supabase';
 
 const USE_REAL = () => (import.meta as any).env?.VITE_USE_SUPABASE === 'true';
 
-// ─── Optimistic locking — version cache ──────────────────────────────────────
-// Lưu updated_at server của lần đọc/ghi cuối cùng cho mỗi (collection, projectId).
-// Khi ghi, so sánh với server → nếu lệch → thiết bị khác đã ghi → conflict.
-const _versionCache = new Map<string, string>();
-function _vkey(collection: string, projectId: string) {
-  return `${projectId}::${collection}`;
-}
-function _setVersion(collection: string, projectId: string, updatedAt: string) {
-  _versionCache.set(_vkey(collection, projectId), updatedAt);
-}
-function _getVersion(collection: string, projectId: string): string | undefined {
-  return _versionCache.get(_vkey(collection, projectId));
-}
+// ─── Optimistic locking ───────────────────────────────────────────────────────
+// Lưu updated_at từ server sau mỗi lần đọc hoặc ghi thành công.
+// Conflict = khi save, server đã có version mới hơn version lúc mình đọc.
+const _vc = new Map<string, string>(); // key → server updated_at
+const _vk = (c: string, p: string) => `${p}::${c}`;
+const _setV = (c: string, p: string, t: string) => _vc.set(_vk(c, p), t);
+const _getV = (c: string, p: string) => _vc.get(_vk(c, p));
 
 export type ConflictError = { type: 'CONFLICT'; collection: string; serverUpdatedAt: string };
-export function isConflictError(e: unknown): e is ConflictError {
-  return typeof e === 'object' && e !== null && (e as any).type === 'CONFLICT';
-}
+export const isConflictError = (e: unknown): e is ConflictError =>
+  typeof e === 'object' && e !== null && (e as any).type === 'CONFLICT';
 
 // ─── Local storage helpers ────────────────────────────────────────────────────
 function lsKey(collection: string, projectId: string) {
@@ -121,13 +114,12 @@ async function sbGet<T>(collection: string, projectId: string, fallback: T): Pro
       .eq('collection', collection)
       .maybeSingle();
     if (error) return lsGet(collection, projectId, fallback);
-    if (!data) return fallback;
-    // Cache updated_at để dùng cho optimistic locking khi sbSet
-    if (data.updated_at) _setVersion(collection, projectId, data.updated_at);
-    // Sync server data về localStorage → UI luôn thấy data mới nhất
-    const serverPayload = (data.payload ?? fallback) as T;
-    lsSet(collection, projectId, serverPayload);
-    return serverPayload;
+    if (!data) return lsGet(collection, projectId, fallback);
+    // Cache version + sync server data về localStorage
+    if (data.updated_at) _setV(collection, projectId, data.updated_at);
+    const result = (data.payload ?? fallback) as T;
+    lsSet(collection, projectId, result);
+    return result;
   } catch {
     return lsGet(collection, projectId, fallback);
   }
@@ -137,42 +129,39 @@ async function sbSet<T>(collection: string, projectId: string, payload: T, userI
   const sb = getSupabase();
   if (!sb) return;
   try {
-    const knownVersion = _getVersion(collection, projectId);
-
-    // ── Optimistic locking: chỉ check khi đã từng đọc từ server ──
-    if (knownVersion) {
-      const { data: current, error: checkErr } = await sb
-        .from('project_data')
-        .select('updated_at')
-        .eq('project_id', projectId)
-        .eq('collection', collection)
+    // ── Optimistic locking: chỉ check khi đã từng đọc từ server ──────────
+    const known = _getV(collection, projectId);
+    if (known) {
+      const { data: cur } = await sb
+        .from('project_data').select('updated_at')
+        .eq('project_id', projectId).eq('collection', collection)
         .maybeSingle();
-
-      // Nếu không có row trên server → không conflict (collection mới)
-      if (!checkErr && current?.updated_at && current.updated_at !== knownVersion) {
-        throw {
-          type: 'CONFLICT',
-          collection,
-          serverUpdatedAt: current.updated_at,
-        } as ConflictError;
+      // Có row trên server VÀ version khác → conflict thật
+      if (cur?.updated_at && cur.updated_at !== known) {
+        // Re-fetch data mới nhất từ server về localStorage trước khi báo conflict
+        const { data: fresh } = await sb
+          .from('project_data').select('payload, updated_at')
+          .eq('project_id', projectId).eq('collection', collection)
+          .maybeSingle();
+        if (fresh?.payload) {
+          lsSet(collection, projectId, fresh.payload);
+          _setV(collection, projectId, fresh.updated_at);
+        }
+        window.dispatchEvent(new CustomEvent('gem:db-conflict', {
+          detail: { collection, serverUpdatedAt: cur.updated_at }
+        }));
+        return; // Không ghi đè — giữ data server
       }
     }
-
-    // ── Ghi dữ liệu mới ──
+    // ── Ghi bình thường ──────────────────────────────────────────────────
     const now = new Date().toISOString();
     const { error } = await sb.from('project_data').upsert(
       { project_id: projectId, collection, payload, updated_at: now, updated_by: userId ?? null },
       { onConflict: 'project_id,collection' }
     );
-
-    if (error) {
-      console.warn('[db] Supabase write error:', error.message);
-      return;
-    }
-    // Cache version bằng now() — đủ để detect conflict thiết bị khác
-    _setVersion(collection, projectId, now);
+    if (error) { console.warn('[db] Supabase write error:', error.message); return; }
+    _setV(collection, projectId, now);
   } catch (e) {
-    if (isConflictError(e)) throw e;
     console.warn('[db] Supabase unreachable, data saved to localStorage only');
   }
 }
@@ -201,10 +190,6 @@ export const db = {
    * Write a collection for a project.
    * Auto-queues to IndexedDB when offline + prod mode.
    * Pass userId to track last-modified-by in Supabase.
-   *
-   * Khi có conflict (thiết bị khác đã ghi sau lần đọc cuối):
-   * → Dispatch 'gem:db-conflict' event để UI hiện toast
-   * → Không throw — caller không cần try/catch
    */
   async set<T>(collection: string, projectId: string, data: T, userId?: string): Promise<void> {
     // Always write to localStorage for instant UI responsiveness
@@ -222,26 +207,7 @@ export const db = {
     }
 
     // Online + prod → write directly to Supabase
-    try {
-      await sbSet(collection, projectId, data, userId);
-    } catch (e) {
-      if (isConflictError(e)) {
-        // Auto re-fetch data mới nhất từ server → sync về localStorage
-        // Đồng thời update _versionCache với version mới nhất
-        try {
-          const serverData = await sbGet(collection, projectId, data);
-          lsSet(collection, projectId, serverData);
-          // sbGet đã update _versionCache → lần save tiếp theo sẽ không conflict
-        } catch { /* ignore fetch error */ }
-
-        // Dispatch global event → toast thông báo user
-        window.dispatchEvent(new CustomEvent('gem:db-conflict', {
-          detail: { collection: e.collection, serverUpdatedAt: e.serverUpdatedAt }
-        }));
-        return;
-      }
-      throw e;
-    }
+    return sbSet(collection, projectId, data, userId);
   },
 
   /** Delete a collection for a project. */
@@ -356,62 +322,37 @@ export const ProjectDB = {
 };
 
 // ─── Realtime Sync Hook ───────────────────────────────────────────────────────
-/**
- * useRealtimeSync — tự động refresh khi thiết bị khác update cùng projectId.
- *
- * Dùng trong bất kỳ dashboard nào cần live sync:
- *   useRealtimeSync(projectId, ['qs_items', 'qs_payments'], () => loadData());
- *
- * - Dev mode (VITE_USE_SUPABASE != 'true'): no-op, không làm gì
- * - Prod mode: subscribe Supabase Realtime → gọi onRefresh khi có thay đổi
- * - Tự cleanup khi component unmount
- * - Debounce 300ms tránh flood refresh
- */
 import { useEffect } from 'react';
-
+/**
+ * useRealtimeSync(projectId, collections, onRefresh)
+ * Subscribe Supabase Realtime → gọi onRefresh khi thiết bị khác update.
+ * Dev mode: no-op. Tự cleanup khi unmount. Debounce 300ms.
+ *
+ * Dùng: useRealtimeSync(projectId, ['qs_items','qs_payments'], loadData);
+ */
 export function useRealtimeSync(
   projectId: string,
   collections: string[],
   onRefresh: () => void,
 ) {
   useEffect(() => {
-    if (!USE_REAL()) return; // dev mode — skip
+    if (!USE_REAL()) return;
     const sb = getSupabase();
     if (!sb) return;
-
-    let debounceTimer: ReturnType<typeof setTimeout>;
-
-    const channel = sb
-      .channel(`project_data:${projectId}`)
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'project_data',
-          filter: `project_id=eq.${projectId}`,
-        },
-        (payload: any) => {
-          // Chỉ refresh nếu collection nằm trong danh sách quan tâm
-          const changedCollection = payload.new?.collection ?? payload.old?.collection;
-          if (collections.length > 0 && !collections.includes(changedCollection)) return;
-
-          // Cập nhật version cache từ realtime event
-          if (payload.new?.updated_at && changedCollection) {
-            _setVersion(changedCollection, projectId, payload.new.updated_at);
-          }
-
-          // Debounce refresh 300ms
-          clearTimeout(debounceTimer);
-          debounceTimer = setTimeout(onRefresh, 300);
-        }
-      )
+    let timer: ReturnType<typeof setTimeout>;
+    const ch = sb.channel(`gem_project:${projectId}`)
+      .on('postgres_changes', {
+        event: '*', schema: 'public', table: 'project_data',
+        filter: `project_id=eq.${projectId}`,
+      }, (payload: any) => {
+        const col = payload.new?.collection ?? payload.old?.collection;
+        if (collections.length && !collections.includes(col)) return;
+        if (payload.new?.updated_at && col) _setV(col, projectId, payload.new.updated_at);
+        clearTimeout(timer);
+        timer = setTimeout(onRefresh, 300);
+      })
       .subscribe();
-
-    return () => {
-      clearTimeout(debounceTimer);
-      sb.removeChannel(channel);
-    };
+    return () => { clearTimeout(timer); sb.removeChannel(ch); };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [projectId]);
 }

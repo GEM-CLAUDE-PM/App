@@ -81,6 +81,7 @@ export default function SubcontractorTab({ projectId, boqItems, acceptanceLots, 
   const { err: notifErr, info: notifInfo } = useNotification();
   const [subs, setSubs]                   = useState<SubContractor[]>(INIT_SUBS);
   const [subPayments, setSubPayments]     = useState<SubPayment[]>(INIT_SUB_PAYMENTS);
+  const [dbLoaded, setDbLoaded]           = useState(false);
   const [subTab, setSubTab]               = useState<"overview"|"contracts"|"payments">("overview");
   const [selectedSubId, setSelectedSubId] = useState<string|null>(null);
   const [subTypeFilter, setSubTypeFilter] = useState<SubType|"all">("all");
@@ -120,6 +121,7 @@ export default function SubcontractorTab({ projectId, boqItems, acceptanceLots, 
       ]);
       if ((s as any[]).length)      setSubs(s as any);
       if ((sp as any[]).length)     setSubPayments(sp as any);
+      setDbLoaded(true);
 
       // Tổng hợp vật tư nhập kho đã duyệt từ MaterialsDashboard
       const mv = matVouchers as any[];
@@ -161,8 +163,8 @@ export default function SubcontractorTab({ projectId, boqItems, acceptanceLots, 
 
   // ── db.ts: lưu khi data thay đổi ────────────────────────────────────────
 
-  useEffect(() => { db.set('qs_subs',         projectId, subs);           }, [subs]);
-  useEffect(() => { db.set('qs_sub_payments', projectId, subPayments);    }, [subPayments]);
+  useEffect(() => { if (dbLoaded) db.set('qs_subs',         projectId, subs);        }, [subs]);
+  useEffect(() => { if (dbLoaded) db.set('qs_sub_payments', projectId, subPayments); }, [subPayments]);
 
   // ── Computed ───────────────────────────────────────────────────────────────
   const nonChapter = useMemo(() => boqItems.filter(i => !i.isChapter), [boqItems]);
