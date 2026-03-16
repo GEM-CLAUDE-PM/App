@@ -198,10 +198,9 @@ export const db = {
    * Auto-queues to IndexedDB when offline + prod mode.
    * Pass userId to track last-modified-by in Supabase.
    *
-   * Throws ConflictError nếu thiết bị khác đã ghi sau lần đọc cuối.
-   * Caller nên catch và thông báo user:
-   *   try { await db.set(...) }
-   *   catch(e) { if (isConflictError(e)) notifErr('Dữ liệu đã bị thay đổi từ thiết bị khác...') }
+   * Khi có conflict (thiết bị khác đã ghi sau lần đọc cuối):
+   * → Dispatch 'gem:db-conflict' event để UI hiện toast
+   * → Không throw — caller không cần try/catch
    */
   async set<T>(collection: string, projectId: string, data: T, userId?: string): Promise<void> {
     // Always write to localStorage for instant UI responsiveness
@@ -218,8 +217,19 @@ export const db = {
       return;
     }
 
-    // Online + prod → write directly to Supabase (may throw ConflictError)
-    return sbSet(collection, projectId, data, userId);
+    // Online + prod → write directly to Supabase
+    try {
+      await sbSet(collection, projectId, data, userId);
+    } catch (e) {
+      if (isConflictError(e)) {
+        // Dispatch global event — App.tsx hoặc NotificationEngine lắng nghe
+        window.dispatchEvent(new CustomEvent('gem:db-conflict', {
+          detail: { collection: e.collection, serverUpdatedAt: e.serverUpdatedAt }
+        }));
+        return;
+      }
+      throw e;
+    }
   },
 
   /** Delete a collection for a project. */

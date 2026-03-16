@@ -119,6 +119,16 @@ function AppInner() {
     };
   }, [appCurrentRole]);
 
+  // ── Global conflict handler ───────────────────────────────────────────────
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const { collection } = (e as CustomEvent).detail ?? {};
+      notifWarn(`Dữ liệu "${collection}" đã được cập nhật từ thiết bị khác. Vui lòng tải lại trang để lấy dữ liệu mới nhất.`);
+    };
+    window.addEventListener('gem:db-conflict', handler);
+    return () => window.removeEventListener('gem:db-conflict', handler);
+  }, [notifWarn]);
+
   // ── Auto-home: mở App → vào thẳng tab phù hợp với role ──────────────────
   const HOME_TAB_MAP: Record<string, string> = {
     giam_doc: "overview", // GĐ xem tổng quan portfolio
