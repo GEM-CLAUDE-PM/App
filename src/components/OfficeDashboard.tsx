@@ -11,9 +11,9 @@ import {
 } from 'lucide-react';
 import { createDocument, submitDocument, getApprovalQueue, type ApprovalDoc } from './approvalEngine';
 import { WORKFLOWS, type UserContext } from './permissions';
-import { getCurrentCtx } from './projectMember';
+import { getCurrentMember, buildCtxFromMember } from './projectMember';
 import ApprovalQueue from './ApprovalQueue';
-
+import { db, useRealtimeSync } from './db';
 import ModalForm, { FormRow, FormGrid, FormSection, inputCls, selectCls, BtnCancel, BtnSubmit } from './ModalForm';
 import type { DashboardProps } from './types';
 
@@ -176,8 +176,7 @@ const MOCK_MINUTES: MeetingMinute[] = [
 ];
 
 // ─── Sub-tab: Công văn ────────────────────────────────────────────────────────
-function TabCongVan() {
-  const [cvs, setCvs] = useState<CongVan[]>(MOCK_CVS);
+function TabCongVan({ cvs, setCvs, pid }: { cvs: CongVan[]; setCvs: React.Dispatch<React.SetStateAction<CongVan[]>>; pid: string }) {
   const [dir, setDir] = useState<'all'|CVDir>('all');
   const [filterCat, setFilterCat] = useState('Tất cả');
   const [search, setSearch] = useState('');
@@ -301,8 +300,8 @@ function TabCongVan() {
                     </div>
                   )}
                   <div className="flex gap-2">
-                    {cv.status==='received'&&<button onClick={()=>setCvs(p=>p.map(c=>c.id===cv.id?{...c,status:'processing' as CVStatus}:c))} className="px-3 py-1.5 bg-amber-50 text-amber-700 border border-amber-200 rounded-lg text-xs font-bold hover:bg-amber-100">Bắt đầu xử lý</button>}
-                    {cv.status==='processing'&&<button onClick={()=>setCvs(p=>p.map(c=>c.id===cv.id?{...c,status:'closed' as CVStatus}:c))} className="px-3 py-1.5 bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-lg text-xs font-bold hover:bg-emerald-100">Đóng công văn</button>}
+                    {cv.status==='received'&&<button onClick={()=>setCvs(prev => { const next = prev.map(c=>c.id===cv.id?{...c,status:'processing' as CVStatus}:c); db.set('office_congvan', pid, next); return next; })} className="px-3 py-1.5 bg-amber-50 text-amber-700 border border-amber-200 rounded-lg text-xs font-bold hover:bg-amber-100">Bắt đầu xử lý</button>}
+                    {cv.status==='processing'&&<button onClick={()=>setCvs(prev => { const next = prev.map(c=>c.id===cv.id?{...c,status:'closed' as CVStatus}:c); db.set('office_congvan', pid, next); return next; })} className="px-3 py-1.5 bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-lg text-xs font-bold hover:bg-emerald-100">Đóng công văn</button>}
                     <button className="px-3 py-1.5 bg-slate-100 text-slate-600 rounded-lg text-xs font-bold hover:bg-slate-200 flex items-center gap-1"><Printer size={11}/>In</button>
                     <button className="px-3 py-1.5 bg-slate-100 text-slate-600 rounded-lg text-xs font-bold hover:bg-slate-200 flex items-center gap-1"><Download size={11}/>Tải về</button>
                   </div>
@@ -328,7 +327,7 @@ function TabCongVan() {
             if (!newCV.so_cv?.trim())   { notifErr('Vui lòng nhập số hiệu CV!'); return; }
             if (!newCV.trich_yeu?.trim()) { notifErr('Vui lòng nhập trích yếu!'); return; }
             const cv: CongVan = { id:'cv_'+Date.now(), so_cv:newCV.so_cv, trich_yeu:newCV.trich_yeu, noi_dung:newCV.noi_dung, direction:newCV.direction, category:newCV.category, status: newCV.direction==='outbound'?'sent':'received', priority:newCV.priority, date_in:new Date().toLocaleDateString('vi-VN'), deadline:newCV.deadline||undefined, from_to:newCV.from_to, handler:'Người dùng hiện tại', tags:[], attachments:0 };
-            setCvs(p=>[cv,...p]); setShowForm(false);
+            setCvs(prev => { const next = [cv, ...prev]; db.set('office_congvan', pid, next); return next; }); setShowForm(false);
             setNewCV({ so_cv:'', trich_yeu:'', noi_dung:'', direction:'outbound', category:'Kỹ thuật', priority:'normal', from_to:'', deadline:'' });
           }}/>
         </>}
@@ -370,8 +369,7 @@ function TabCongVan() {
 }
 
 // ─── Sub-tab: Lịch họp ────────────────────────────────────────────────────────
-function TabLichHop() {
-  const [meetings, setMeetings] = useState<Meeting[]>(MOCK_MEETINGS);
+function TabLichHop({ meetings, setMeetings, pid }: { meetings: Meeting[]; setMeetings: React.Dispatch<React.SetStateAction<Meeting[]>>; pid: string }) {
   const [expandedId, setExpandedId] = useState<string|null>(null);
   const [showForm, setShowForm] = useState(false);
   const [gemLoading, setGemLoading] = useState(false);
@@ -513,7 +511,7 @@ function TabLichHop() {
             if (!newMeet.title?.trim()) { notifErr('Vui lòng nhập tiêu đề cuộc họp!'); return; }
             if (!newMeet.date?.trim())  { notifErr('Vui lòng nhập ngày họp!'); return; }
             const m: Meeting = { id:'m_'+Date.now(), title:newMeet.title, date:newMeet.date, time_start:newMeet.time_start, time_end:newMeet.time_end, location:newMeet.location, status:'scheduled', organizer:newMeet.organizer, attendees:[], agenda:newMeet.agenda_raw.split('\n').filter(Boolean), notes:'' };
-            setMeetings(p=>[...p,m]); setShowForm(false);
+            setMeetings(prev => { const next = [...prev, m]; db.set('office_meetings', pid, next); return next; }); setShowForm(false);
             setNewMeet({ title:'', date:'', time_start:'08:00', time_end:'09:30', location:'', organizer:'', agenda_raw:'' });
           }}/>
         </>}
@@ -542,8 +540,7 @@ function TabLichHop() {
 }
 
 // ─── Sub-tab: Ký duyệt ────────────────────────────────────────────────────────
-function TabKyDuyet() {
-  const [docs, setDocs] = useState<ApprovalDoc[]>(MOCK_APPROVALS);
+function TabKyDuyet({ docs, setDocs, pid, onTriggerApproval }: { docs: ApprovalDoc[]; setDocs: React.Dispatch<React.SetStateAction<ApprovalDoc[]>>; pid: string; onTriggerApproval?: (title: string) => void }) {
   const [expandedId, setExpandedId] = useState<string|null>(null);
   const [showForm, setShowForm] = useState(false);
   const [newDoc, setNewDoc] = useState({ title:'', doc_type:'', description:'', submitted_by:'', deadline:'' });
@@ -668,7 +665,7 @@ function TabKyDuyet() {
           <BtnSubmit label="Trình ký duyệt" onClick={() => {
             if (!newDoc.title?.trim()) { notifErr('Vui lòng nhập tên văn bản!'); return; }
             const d: ApprovalDoc = { id:'a_'+Date.now(), title:newDoc.title, doc_type:newDoc.doc_type||'Phê duyệt kỹ thuật', status:'pending', submitted_by:newDoc.submitted_by||'Người dùng', submitted_date:new Date().toLocaleDateString('vi-VN'), deadline:newDoc.deadline||'', description:newDoc.description, current_step:0, attachments:0, steps:[{name:'GĐ DA phê duyệt',assignee:'GĐ Trần Văn Bình',status:'pending'}] };
-            setDocs(p=>[d,...p]); setShowForm(false);
+            setDocs(prev => { const next = [d, ...prev]; db.set('office_approvals', pid, next); return next; }); setShowForm(false);
             setNewDoc({ title:'', doc_type:'', description:'', submitted_by:'', deadline:'' });
           }}/>
         </>}
@@ -690,8 +687,7 @@ function TabKyDuyet() {
 }
 
 // ─── Sub-tab: Biên bản họp ────────────────────────────────────────────────────
-function TabBienBan() {
-  const [minutes, setMinutes] = useState<MeetingMinute[]>(MOCK_MINUTES);
+function TabBienBan({ minutes, setMinutes, meetings, pid }: { minutes: MeetingMinute[]; setMinutes: React.Dispatch<React.SetStateAction<MeetingMinute[]>>; meetings: Meeting[]; pid: string }) {
   const [expandedId, setExpandedId] = useState<string|null>(null);
   const [showForm, setShowForm] = useState(false);
   const [gemLoading, setGemLoading] = useState(false);
@@ -823,7 +819,7 @@ function TabBienBan() {
           <BtnSubmit label="Lưu biên bản" onClick={() => {
             if (!newMin.meeting_title?.trim()) { notifErr('Vui lòng nhập tên cuộc họp!'); return; }
             const mn: MeetingMinute = { id:'min_'+Date.now(), meeting_id:'', meeting_title:newMin.meeting_title, date:newMin.date||new Date().toLocaleDateString('vi-VN'), location:newMin.location, attendees:[], content:newMin.content, decisions:newMin.decisions_raw.split('\n').filter(Boolean), action_items:[], status:'draft', prepared_by:newMin.prepared_by };
-            setMinutes(p=>[mn,...p]); setShowForm(false);
+            setMinutes(prev => { const next = [mn, ...prev]; db.set('office_minutes', pid, next); return next; }); setShowForm(false);
             setNewMin({ meeting_title:'', date:'', location:'', content:'', decisions_raw:'', action_raw:'', prepared_by:'' });
           }}/>
         </>}
@@ -842,13 +838,55 @@ function TabBienBan() {
 }
 
 // ─── Main Component ───────────────────────────────────────────────────────────
-export default function OfficeDashboard({ project }: Props) {
+export default function OfficeDashboard({ project, projectId: projectIdProp }: Props) {
   const { ok: notifOk, err: notifErr, warn: notifWarn, info: notifInfo } = useNotification();
   const [tab, setTab] = useState<'congvan'|'lichhop'|'kyduyet'|'bienban'>('congvan');
   const [showApprovalPanel, setShowApprovalPanel] = useState(false);
 
-  const pid = project?.id || 'p1';
-  const ctx: UserContext = getCurrentCtx(pid);
+  const pid = projectIdProp ?? project?.id ?? 'p1';
+  const currentMember = getCurrentMember(pid);
+  const ctx: UserContext = React.useMemo(() => buildCtxFromMember(currentMember), [currentMember]);
+  const dbLoaded = React.useRef(false);
+
+  // ── Lifted data state ──────────────────────────────────────────────────────
+  const [cvs,      setCvs]      = useState<CongVan[]>(MOCK_CVS);
+  const [meetings, setMeetings] = useState<Meeting[]>(MOCK_MEETINGS);
+  const [docs,     setDocs]     = useState<ApprovalDoc[]>(MOCK_APPROVALS);
+  const [minutes,  setMinutes]  = useState<MeetingMinute[]>(MOCK_MINUTES);
+
+  // ── Load from db on mount ──────────────────────────────────────────────────
+  React.useEffect(() => {
+    dbLoaded.current = false;
+    (async () => {
+      try {
+        const [savedCvs, savedMtgs, savedDocs, savedMins] = await Promise.all([
+          db.get<CongVan[]>('office_congvan',   pid, MOCK_CVS),
+          db.get<Meeting[]>('office_meetings',  pid, MOCK_MEETINGS),
+          db.get<ApprovalDoc[]>('office_approvals', pid, MOCK_APPROVALS),
+          db.get<MeetingMinute[]>('office_minutes', pid, MOCK_MINUTES),
+        ]);
+        setCvs(savedCvs);
+        setMeetings(savedMtgs);
+        setDocs(savedDocs);
+        setMinutes(savedMins);
+      } catch (e) {
+        console.warn('[OfficeDashboard] load error:', e);
+      } finally {
+        dbLoaded.current = true;
+      }
+    })();
+  }, [pid]);
+
+  // ── Realtime sync ──────────────────────────────────────────────────────────
+  useRealtimeSync(pid, ['office_congvan','office_meetings','office_approvals','office_minutes'], async () => {
+    const [savedCvs, savedMtgs, savedDocs, savedMins] = await Promise.all([
+      db.get<CongVan[]>('office_congvan',   pid, MOCK_CVS),
+      db.get<Meeting[]>('office_meetings',  pid, MOCK_MEETINGS),
+      db.get<ApprovalDoc[]>('office_approvals', pid, MOCK_APPROVALS),
+      db.get<MeetingMinute[]>('office_minutes', pid, MOCK_MINUTES),
+    ]);
+    setCvs(savedCvs); setMeetings(savedMtgs); setDocs(savedDocs); setMinutes(savedMins);
+  });
 
   const [offQueue, setOffQueue] = useState<ApprovalDoc[]>(() => getApprovalQueue(pid, ctx));
   const refreshOffQueue = useCallback(() => setOffQueue(getApprovalQueue(pid, ctx)), [pid]);
@@ -902,10 +940,10 @@ export default function OfficeDashboard({ project }: Props) {
         ))}
       </div>
 
-      {tab==='congvan'  && <TabCongVan/>}
-      {tab==='lichhop'  && <TabLichHop/>}
-      {tab==='kyduyet'  && <TabKyDuyet onTriggerApproval={(title: string) => triggerOffDoc(title, 'LEAVE_REQUEST')} />}
-      {tab==='bienban'  && <TabBienBan/>}
+      {tab==='congvan'  && <TabCongVan cvs={cvs} setCvs={setCvs} pid={pid}/>}
+      {tab==='lichhop'  && <TabLichHop meetings={meetings} setMeetings={setMeetings} pid={pid}/>}
+      {tab==='kyduyet'  && <TabKyDuyet docs={docs} setDocs={setDocs} pid={pid} onTriggerApproval={(title: string) => triggerOffDoc(title, 'LEAVE_REQUEST')} />}
+      {tab==='bienban'  && <TabBienBan minutes={minutes} setMinutes={setMinutes} meetings={meetings} pid={pid}/>}
 
       {/* Approval Queue Drawer */}
       {showApprovalPanel && (

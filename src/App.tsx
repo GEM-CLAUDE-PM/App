@@ -32,6 +32,8 @@ import QaQcDashboard from "./components/QaQcDashboard";
 import { AuthProvider, UserMenu, useAuth } from "./components/AuthProvider";
 import { NotificationProvider, useNotification } from "./components/NotificationEngine";
 import AdminPanel from "./components/AdminPanel";
+import SubconPortal from "./components/SubconPortal";
+import ClientPortal from "./components/ClientPortal";
 import SplashScreen from "./components/SplashScreen";
 import { PWAManager } from "./components/PWABanner";
 import { useOfflineQueue, OfflineQueuePanel } from "./components/useOfflineQueue";
@@ -60,6 +62,11 @@ interface Notification {
 function AppInner() {
   const { ok: notifOk, err: notifErr, warn: notifWarn, info: notifInfo } = useNotification();
   const { user } = useAuth();
+
+  // ── Portal routing — NTP users get SubconPortal, CĐT get ClientPortal ───
+  if (user?.job_role === 'ntp') return <SubconPortal />;
+  if (user?.job_role === 'chu_dau_tu') return <ClientPortal />;
+
   const isAdmin = user?.tier === "admin" || user?.job_role === "giam_doc";
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [activeTab, setActiveTab] = useState("dashboard");

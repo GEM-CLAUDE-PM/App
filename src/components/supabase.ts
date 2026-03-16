@@ -60,6 +60,7 @@ export type JobRole   =
   | 'hse'               // HSE Officer           → worker tier
   | 'operator'          // Vận hành Thiết bị     → worker tier
   | 'ntp'               // Nhà thầu phụ          → worker tier (external)
+  | 'chu_dau_tu'        // Chủ đầu tư (CĐT)      → worker tier (read-only portal)
   ;
 
 export interface UserProfile {
@@ -95,6 +96,7 @@ export const JOB_TO_TIER: Record<JobRole, TierRole> = {
   hse:            'worker',
   operator:       'worker',
   ntp:            'worker',
+  chu_dau_tu:     'worker',
 };
 
 export const JOB_LABELS: Record<JobRole, string> = {
@@ -110,6 +112,7 @@ export const JOB_LABELS: Record<JobRole, string> = {
   hse:            'HSE Officer',
   operator:       'Vận hành Thiết bị',
   ntp:            'Nhà thầu phụ',
+  chu_dau_tu:     'Chủ đầu tư',
 };
 
 export const TIER_LABELS: Record<TierRole, string> = {
@@ -210,6 +213,19 @@ export const MOCK_USERS: UserProfile[] = [
     id: 'u10', email: 'op01@villaphat.vn', full_name: 'Trần Quốc Tuấn',
     job_role: 'operator', tier: 'worker',
     project_ids: ['p1'], created_at: '2025-01-01',
+  },
+  // ── Portal users ──────────────────────────────────────────────────────────
+  {
+    id: 'ntp01', email: 'ntp@phucthanh.vn', full_name: 'NTP Phúc Thành',
+    job_role: 'ntp', tier: 'worker',
+    project_ids: ['p1'], created_at: '2025-01-01',
+    phone: '0909123456',
+  },
+  {
+    id: 'cdt01', email: 'cdt@villaphat.vn', full_name: 'Chủ đầu tư Villa PAT',
+    job_role: 'chu_dau_tu', tier: 'worker',
+    project_ids: ['p1'], created_at: '2025-01-01',
+    phone: '0901999888',
   },
 ];
 
