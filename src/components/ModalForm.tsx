@@ -159,6 +159,95 @@ export function FormSection({ title, children }: { title: string; children: Reac
 export const inputCls = "w-full text-xs border border-slate-200 rounded-xl px-3 py-2.5 bg-white focus:outline-none focus:ring-2 focus:ring-emerald-300 focus:border-emerald-400 placeholder:text-slate-300";
 export const selectCls = "w-full text-xs border border-slate-200 rounded-xl px-3 py-2.5 bg-white focus:outline-none focus:ring-2 focus:ring-emerald-300";
 
+/**
+ * FormFileUpload — upload file đính kèm trong ModalForm
+ * Hỗ trợ: PDF, Word, Excel, ảnh (JPG/PNG)
+ * Hiển thị danh sách file đã chọn, cho phép xóa từng file
+ * 
+ * Dùng:
+ *   const [files, setFiles] = useState<File[]>([]);
+ *   <FormFileUpload files={files} onChange={setFiles} accept=".pdf,.docx,.xlsx,.jpg,.png" />
+ */
+export function FormFileUpload({
+  files, onChange, accept = '.pdf,.docx,.xlsx,.jpg,.jpeg,.png',
+  maxFiles = 5, label = 'Đính kèm hồ sơ / Ảnh',
+}: {
+  files: File[];
+  onChange: (files: File[]) => void;
+  accept?: string;
+  maxFiles?: number;
+  label?: string;
+}) {
+  const inputRef = React.useRef<HTMLInputElement>(null);
+
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const selected = Array.from(e.target.files || []);
+    const merged = [...files, ...selected].slice(0, maxFiles);
+    onChange(merged);
+    // Reset input để có thể chọn lại cùng file
+    if (inputRef.current) inputRef.current.value = '';
+  };
+
+  const removeFile = (idx: number) => {
+    onChange(files.filter((_, i) => i !== idx));
+  };
+
+  const formatSize = (bytes: number) => {
+    if (bytes < 1024) return `${bytes} B`;
+    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)} KB`;
+    return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
+  };
+
+  const getIcon = (file: File) => {
+    if (file.type.includes('pdf')) return '📄';
+    if (file.type.includes('word') || file.name.endsWith('.docx')) return '📝';
+    if (file.type.includes('sheet') || file.name.endsWith('.xlsx')) return '📊';
+    if (file.type.startsWith('image/')) return '🖼️';
+    return '📎';
+  };
+
+  return (
+    <div className="space-y-2">
+      <input
+        ref={inputRef}
+        type="file"
+        className="hidden"
+        accept={accept}
+        multiple={maxFiles > 1}
+        onChange={handleChange}
+      />
+      <button
+        type="button"
+        onClick={() => inputRef.current?.click()}
+        disabled={files.length >= maxFiles}
+        className="w-full flex items-center justify-center gap-2 px-3 py-2.5 border-2 border-dashed border-slate-200 rounded-xl text-xs text-slate-500 hover:border-emerald-300 hover:text-emerald-600 hover:bg-emerald-50 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+      >
+        <span>📎</span>
+        <span>{label}</span>
+        {maxFiles > 1 && <span className="text-slate-400">({files.length}/{maxFiles})</span>}
+      </button>
+      {files.length > 0 && (
+        <div className="space-y-1">
+          {files.map((file, idx) => (
+            <div key={idx} className="flex items-center gap-2 px-3 py-2 bg-slate-50 rounded-xl border border-slate-100">
+              <span className="text-sm">{getIcon(file)}</span>
+              <span className="flex-1 text-xs text-slate-700 truncate">{file.name}</span>
+              <span className="text-[10px] text-slate-400 shrink-0">{formatSize(file.size)}</span>
+              <button
+                type="button"
+                onClick={() => removeFile(idx)}
+                className="text-slate-400 hover:text-rose-500 transition-colors shrink-0"
+              >
+                ✕
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export function BtnCancel({ onClick }: { onClick: () => void }) {
   return (
     <button onClick={onClick} className="px-4 py-2 text-xs text-slate-600 bg-white border border-slate-200 rounded-xl hover:bg-slate-50 font-semibold">
