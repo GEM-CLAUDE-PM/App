@@ -41,13 +41,13 @@ import {
   usePermissions, createLegacyContext, LEGACY_ROLE_MAP,
   filterProjectsByScope, getRoleProjectScope,
   AUTHORITY_LEVEL, ROLES,
-  type RoleId, type Domain,
+  type RoleId, type Domain, type UserContext,
 } from './permissions';
 import { getPendingCount } from './approvalEngine';
 import {
   getCurrentMember, buildCtxFromMember, switchActiveRole, setActiveMemberSnap,
   seedMembersIfEmpty, loadMembers, saveMembers, type ProjectMember,
-  getCurrentScopeCtx, autoAssignMemberOnSeed,
+  autoAssignMemberOnSeed,
 } from './projectMember';
 
 
@@ -1107,7 +1107,13 @@ export default function ProjectDashboard({
     const allProjects: any[] = allowedProjectIds === null
       ? (projects as any[])
       : (projects as any[]).filter((p: any) => allowedProjectIds!.includes(p.id));
-    const scopeCtx = getCurrentScopeCtx(); // vẫn dùng cho filterProjectsByScope ở chỗ khác
+    // scopeCtx — dùng authRoleId từ useAuth() (source of truth), KHÔNG đọc localStorage
+    const _scopeRoleId = (authRoleId || 'chi_huy_truong') as RoleId;
+    const scopeCtx: UserContext = {
+      userId: user?.id || `user_${_scopeRoleId}`,
+      roleId: _scopeRoleId,
+      allowedProjectIds: allowedProjectIds ?? undefined,
+    };
 
     const inProgressProjects = allProjects.filter(p => p.type === 'in_progress');
     const potentialProjects   = allProjects.filter(p => p.type === 'potential');
