@@ -109,7 +109,6 @@ export default function MemberSwitcher({
   const [members,       setMembers]       = useState<ProjectMember[]>([]);
   const [activeMember,  setActiveMember]  = useState<ProjectMember | null>(null);
   const [showDropdown,  setShowDropdown]  = useState(false);
-  const [showUserPick,  setShowUserPick]  = useState(false);
 
   // ── Load ─────────────────────────────────────────────────────────────────
   const reload = useCallback(() => {
@@ -129,14 +128,6 @@ export default function MemberSwitcher({
       setActiveMember(updated);
       onChange(updated);
     }
-  };
-
-  const handleUserSwitch = (member: ProjectMember) => {
-    setActiveMemberSnap({ userId: member.userId, activeRoleId: member.activeRoleId });
-    setActiveMember(member);
-    setShowUserPick(false);
-    setShowDropdown(false);
-    onChange(member);
   };
 
   if (!activeMember) return null;
@@ -176,8 +167,6 @@ export default function MemberSwitcher({
               members={members}
               activeMember={activeMember}
               onRoleSwitch={handleRoleSwitch}
-              onUserSwitch={handleUserSwitch}
-              showUserPick={showUserPick}
               setShowUserPick={setShowUserPick}
             />
           </div>
@@ -193,8 +182,6 @@ export default function MemberSwitcher({
         members={members}
         activeMember={activeMember}
         onRoleSwitch={handleRoleSwitch}
-        onUserSwitch={handleUserSwitch}
-        showUserPick={showUserPick}
         setShowUserPick={setShowUserPick}
       />
     </div>
@@ -209,13 +196,11 @@ interface PanelProps {
   members:        ProjectMember[];
   activeMember:   ProjectMember;
   onRoleSwitch:   (r: RoleId) => void;
-  onUserSwitch:   (m: ProjectMember) => void;
-  showUserPick:   boolean;
   setShowUserPick: (v: boolean) => void;
 }
 
 function MemberSwitcherPanel({
-  members, activeMember, onRoleSwitch, onUserSwitch, showUserPick, setShowUserPick,
+  members, activeMember, onRoleSwitch,
 }: PanelProps) {
   const level     = AUTHORITY_LEVEL[activeMember.activeRoleId] || 1;
   const lc        = LEVEL_COLOR[level] || LEVEL_COLOR[1];
@@ -236,5 +221,143 @@ function MemberSwitcherPanel({
             <p className="text-[10px] text-slate-400 truncate">{activeMember.email}</p>
           )}
         </div>
+      </div>
+
+
+      {/* ── Current active role ── */}
+      <div>
+        <p className="text-[9px] font-bold text-slate-400 uppercase tracking-wider mb-1.5 flex items-center gap-1">
+          <Shield size={9}/> Vai trò đang hoạt động
+        </p>
+        <div className={`flex items-center gap-2 px-2.5 py-2 rounded-xl ${lc.bg} border border-current/10`}>
+          <span className={`text-[10px] font-black ${lc.text}`}>{lc.label}</span>
+          <span className={`text-xs font-bold ${lc.text}`}>{roleLabel}</span>
+          {activeMember.grantedExtras?.tempLevelBoost && (
+            <span className="ml-auto text-[9px] bg-amber-200 text-amber-800 font-bold px-1.5 py-0.5 rounded-full flex items-center gap-0.5">
+              <Zap size={8}/> Boost
+            </span>
+          )}
+        </div>
+      </div>
+
+      {/* ── Multi-role switcher ── */}
+      {multiRole && (
+        <div>
+          <p className="text-[9px] font-bold text-slate-400 uppercase tracking-wider mb-1.5 flex items-center gap-1">
+            <RotateCcw size={9}/> Chuyển vai trò
+          </p>
+          <div className="flex flex-wrap gap-1.5">
+            {activeMember.roles.map(r => (
+              <RoleChip
+                key={r}
+                roleId={r}
+                isActive={r === activeMember.activeRoleId}
+                onClick={() => r !== activeMember.activeRoleId && onRoleSwitch(r)}
+              />
+            ))}
+          </div>
+          <p className="text-[9px] text-slate-400 mt-1.5 leading-relaxed">
+            Click chip để đổi vai trò. Mỗi vai trò có thẩm quyền riêng.
+          </p>
+        </div>
+      )}
+
+      {/* ── Project scope indicator ── */}
+      {(() => {
+        const scope = getRoleProjectScope(activeMember.activeRoleId as RoleId);
+        if (scope === 'all') return null;
+        return (
+          <div className={`flex items-start gap-2 rounded-xl px-2.5 py-2 border ${
+            scope === 'single'
+              ? 'bg-amber-50 border-amber-200'
+              : 'bg-blue-50 border-blue-200'
+          }`}>
+            <span className="text-sm shrink-0">{scope === 'single' ? '🔒' : '📋'}</span>
+            <div>
+              <p className={`text-[10px] font-bold ${scope === 'single' ? 'text-amber-700' : 'text-blue-700'}`}>
+                {scope === 'single' ? 'Giới hạn 1 công trình' : 'Giới hạn công trình được gán'}
+              </p>
+              <p className={`text-[9px] leading-relaxed ${scope === 'single' ? 'text-amber-600' : 'text-blue-600'}`}>
+                {scope === 'single'
+                  ? 'Vai trò này chỉ được thao tác trong 1 công trình duy nhất.'
+                  : 'Vai trò L3 chỉ thấy công trình được gán. Có thể support nhiều CT.'}
+              </p>
+            </div>
+          </div>
+        );
+      })()}
+
+      {/* ── Granted extras indicator ── */}
+      {activeMember.grantedExtras?.reason && (
+        <div className="flex items-start gap-2 bg-amber-50 border border-amber-200 rounded-xl px-2.5 py-2">
+          <AlertTriangle size={11} className="text-amber-500 shrink-0 mt-0.5"/>
+          <div>
+            <p className="text-[10px] font-bold text-amber-700">Quyền được ủy quyền</p>
+            <p className="text-[9px] text-amber-600 leading-relaxed">{activeMember.grantedExtras.reason}</p>
+            {activeMember.grantedExtras.expiresAt && (
+              <p className="text-[9px] text-amber-500 mt-0.5">
+                Hết hạn: {new Date(activeMember.grantedExtras.expiresAt).toLocaleDateString('vi-VN')}
+              </p>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Dev hint */}
+      <p className="text-[9px] text-slate-300 text-center">
+        ⓘ Sau Supabase Auth, user & role sẽ tự động gán khi đăng nhập
+      </p>
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// FALLBACK HINT BANNER
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * FallbackHintBanner — hiển thị khi user không đủ quyền với activeRole
+ * nhưng có role khác có thể thực hiện được.
+ */
+interface FallbackHintBannerProps {
+  message:     string;
+  canSwitch:   boolean;
+  targetRole?: RoleId;
+  onSwitch?:   () => void;
+  onDismiss?:  () => void;
+}
+
+export function FallbackHintBanner({
+  message, canSwitch, targetRole, onSwitch, onDismiss,
+}: FallbackHintBannerProps) {
+  const targetLabel = targetRole ? ROLES[targetRole]?.label : undefined;
+
+  return (
+    <div className="flex items-start gap-2.5 bg-amber-50 border border-amber-300 rounded-xl px-4 py-3 animate-in fade-in slide-in-from-top-2 duration-200">
+      <AlertTriangle size={14} className="text-amber-500 shrink-0 mt-0.5"/>
+      <div className="flex-1 min-w-0">
+        <p className="text-xs font-bold text-amber-800 leading-snug">{message}</p>
+        {canSwitch && targetLabel && (
+          <p className="text-[10px] text-amber-700 mt-0.5">
+            Chuyển sang <strong>"{targetLabel}"</strong> để tiếp tục.
+          </p>
+        )}
+      </div>
+      <div className="flex items-center gap-1 shrink-0">
+        {canSwitch && onSwitch && (
+          <button
+            onClick={onSwitch}
+            className="text-[10px] font-bold bg-amber-600 text-white px-2.5 py-1 rounded-lg hover:bg-amber-700 transition-colors"
+          >
+            Chuyển
+          </button>
+        )}
+        {onDismiss && (
+          <button onClick={onDismiss} className="text-amber-400 hover:text-amber-600 transition-colors ml-1">
+            ✕
+          </button>
+        )}
+      </div>
+    </div>
   );
 }
