@@ -80,6 +80,13 @@ function AppInner() {
     }
   }, [user?.id]);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(() =>
+    localStorage.getItem('gem_sidebar_collapsed') === 'true'
+  );
+  const toggleSidebar = () => setSidebarCollapsed(v => {
+    localStorage.setItem('gem_sidebar_collapsed', String(!v));
+    return !v;
+  });
   const [activeTab, setActiveTab] = useState("dashboard");
   const [workspaceOpen, setWorkspaceOpen] = useState(false);
   const [showGemBubble, setShowGemBubble] = useState(false);
@@ -364,14 +371,28 @@ function AppInner() {
         />
       )}
 
-      {/* Sidebar */}
+      {/* Sidebar — ẩn khi đang trong ProjectDashboard (tasks) để tối đa chiều ngang */}
       <nav
-        className={`
-        ${isMobileMenuOpen ? "fixed inset-y-0 left-0 w-[min(280px,85vw)] h-full shadow-2xl z-40" : "hidden"} 
-        md:block md:w-64 bg-white border-r border-slate-200 md:h-screen md:sticky top-[60px] md:top-0 z-10 print:hidden
-      `}
+        className={[
+          'bg-white border-r border-slate-200 md:h-screen md:sticky top-[60px] md:top-0 z-10 print:hidden transition-all duration-200',
+          isMobileMenuOpen ? 'fixed inset-y-0 left-0 w-[min(280px,85vw)] h-full shadow-2xl z-40' : 'hidden',
+          activeTab === 'tasks' ? 'md:hidden' : (sidebarCollapsed ? 'md:block md:w-14' : 'md:block md:w-56'),
+        ].join(' ')}
       >
-        <div className="hidden md:block p-4 md:p-5 border-b border-slate-100">
+        {/* Toggle collapse button */}
+        <div className="hidden md:flex items-center justify-end px-2 pt-2 pb-1">
+          <button
+            onClick={toggleSidebar}
+            className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-400 hover:text-slate-600 transition-colors"
+            title={sidebarCollapsed ? 'Mở sidebar' : 'Thu sidebar'}
+          >
+            {sidebarCollapsed
+              ? <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M6 3l5 5-5 5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/><path d="M2 3l5 5-5 5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" opacity=".4"/></svg>
+              : <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M10 3l-5 5 5 5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/><path d="M14 3l-5 5 5 5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" opacity=".4"/></svg>
+            }
+          </button>
+        </div>
+        <div className={`hidden md:block border-b border-slate-100 ${sidebarCollapsed ? "hidden" : "p-4 md:p-5"}`}>
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-xl overflow-hidden shrink-0 shadow-sm bg-gradient-to-br from-teal-500 to-teal-700 flex items-center justify-center">
               <img
@@ -405,11 +426,12 @@ function AppInner() {
                 key={item.id}
                 onClick={() => handleNavigate(item.id)}
                 className={`w-full flex items-center gap-2 md:gap-3 px-3 py-2 md:px-4 md:py-3 rounded-lg md:rounded-xl transition-colors text-sm md:text-base ${
-                  isActive ? "bg-emerald-50 text-emerald-700 font-medium" : "text-slate-600 hover:bg-slate-50"
-                }`}
+                  isActive ? 'bg-emerald-50 text-emerald-700 font-medium' : 'text-slate-600 hover:bg-slate-50'
+                } ${sidebarCollapsed ? 'md:justify-center md:px-2' : ''}`}
+                title={sidebarCollapsed ? item.label : undefined}
               >
-                <Icon size={18} className={`md:w-5 md:h-5 ${isActive ? "text-emerald-600" : "text-slate-400"}`} />
-                {item.label}
+                <Icon size={18} className={`md:w-5 md:h-5 shrink-0 ${isActive ? 'text-emerald-600' : 'text-slate-400'}`} />
+                <span className={sidebarCollapsed ? 'md:hidden' : ''}>{item.label}</span>
               </button>
             );
           })}
@@ -417,7 +439,7 @@ function AppInner() {
       </nav>
 
       {/* Main Content Area */}
-      <main className="flex-1 p-2 md:p-4 overflow-y-auto min-w-0">
+      <main className={`flex-1 ${activeTab === 'tasks' ? 'p-0 md:p-2' : 'p-2 md:p-4'} overflow-y-auto min-w-0`}>
         <div className="w-full">
           {/* ── TOPBAR: WorkspaceActionBar + Bell + User ─────────────────── */}
           <header className="sticky top-0 z-20 mb-3 md:mb-4">
@@ -567,6 +589,7 @@ function AppInner() {
               showProfileForm={showProfileForm}
               showHseForm={showHseForm}
               onBackToList={handleBackToList}
+              onNavigateApp={setActiveTab}
               onPushNotification={(notif: any) =>
                 setNotifications((prev: any) => (prev.some((n: any) => n.id === notif.id) ? prev : [notif, ...prev]))
               }
