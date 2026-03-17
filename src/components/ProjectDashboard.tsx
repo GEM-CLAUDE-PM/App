@@ -211,18 +211,31 @@ export default function ProjectDashboard({
     const legacyToNew2: Record<string, string> = {
       giam_doc:'giam_doc', ke_toan:'ke_toan_site',
       chi_huy_truong:'chi_huy_truong', giam_sat:'ks_giam_sat',
+      admin:'giam_doc', thu_ky_ho:'thu_ky_site',
     };
     const domMap: Record<string, string[]> = {
-      giam_doc:['cross'], ke_toan_site:['finance'],
-      chi_huy_truong:['site','cross'], ks_giam_sat:['site','qaqc'],
-      pm:['cross'], chi_huy_pho:['site','cross'],
-      thu_kho:['warehouse'], qs_site:['qs'],
+      giam_doc:['cross','admin'], pm:['cross','finance','qs','site'],
+      ke_toan_truong:['finance','cross'], ke_toan_site:['finance'],
+      ke_toan_kho:['finance','warehouse'],
+      truong_qs:['qs','cross'], truong_qaqc:['qaqc','cross'],
+      truong_hse:['hse','cross'], hr_truong:['hr','cross'],
+      chi_huy_truong:['site','cross'], chi_huy_pho:['site','cross'],
+      ks_giam_sat:['site','qaqc'], qaqc_site:['qaqc'], qs_site:['qs'],
+      hse_site:['hse'], hr_site:['hr','site'],
+      thu_kho:['warehouse'], thu_ky_site:['admin'],
+      operator:['site'], ntp_site:['site'], to_doi:['site'],
+      ky_thuat_vien:['site','qaqc'],
     };
     const lvlMap: Record<string, number> = {
-      giam_doc:5, ke_toan_site:2, chi_huy_truong:3, ks_giam_sat:2,
-      pm:4, chi_huy_pho:3, thu_kho:1, qs_site:2,
+      giam_doc:5, pm:4, ke_toan_truong:4,
+      truong_qs:3, truong_qaqc:3, truong_hse:3, hr_truong:3,
+      chi_huy_truong:3, chi_huy_pho:3,
+      qs_site:2, qaqc_site:2, ks_giam_sat:2, hse_site:2,
+      ke_toan_site:2, ke_toan_kho:2, hr_site:2,
+      thu_kho:1, thu_ky_site:1, operator:1,
+      ntp_site:1, to_doi:1, ky_thuat_vien:1,
     };
-    const rid = legacyToNew2[currentRole] || 'ks_giam_sat';
+    const rid = legacyToNew2[currentRole] || currentRole;
     const d = domMap[rid] || [];
     const l = lvlMap[rid] || 1;
     setOpenGroups({
@@ -590,15 +603,26 @@ export default function ProjectDashboard({
       giam_doc:['cross','admin'], pm:['cross','finance','qs','site'],
       ke_toan_truong:['finance','cross'], truong_qs:['qs','cross'],
       truong_qaqc:['qaqc','cross'], truong_hse:['hse','cross'],
+      hr_truong:['hr','cross'],
       chi_huy_truong:['site','cross'], chi_huy_pho:['site','cross'],
       qs_site:['qs'], qaqc_site:['qaqc'], ks_giam_sat:['site','qaqc'],
       hse_site:['hse'], ke_toan_site:['finance'], ke_toan_kho:['finance','warehouse'],
-      thu_kho:['warehouse'], thu_ky_site:['admin'],
+      hr_site:['hr','site'],
+      thu_kho:['warehouse'], thu_ky_site:['admin'], operator:['site'],
+      ntp_site:['site'], to_doi:['site'], ky_thuat_vien:['site','qaqc'],
     };
     const _legacyToNew: Record<string, string> = {
       giam_doc:'giam_doc', ke_toan:'ke_toan_site', ke_toan_truong:'ke_toan_truong',
       chi_huy_truong:'chi_huy_truong', giam_sat:'ks_giam_sat',
       pm:'pm', chi_huy_pho:'chi_huy_pho', thu_kho:'thu_kho', qs_site:'qs_site',
+      // Legacy fallbacks
+      admin:'giam_doc', thu_ky_ho:'thu_ky_site',
+      // New roles pass-through
+      truong_qs:'truong_qs', truong_qaqc:'truong_qaqc', truong_hse:'truong_hse',
+      hr_truong:'hr_truong', qaqc_site:'qaqc_site', ks_giam_sat:'ks_giam_sat',
+      hse_site:'hse_site', ke_toan_kho:'ke_toan_kho', hr_site:'hr_site',
+      thu_ky_site:'thu_ky_site', operator:'operator',
+      ntp_site:'ntp_site', to_doi:'to_doi', ky_thuat_vien:'ky_thuat_vien',
     };
     const _roleKey = _legacyToNew[currentRole] || currentRole;
     const uLevel   = _lvlMap[_roleKey] ?? 1;
@@ -1725,6 +1749,10 @@ export default function ProjectDashboard({
           ke_toan: 'ke_toan_site', ke_toan_truong: 'ke_toan_truong',
           giam_sat: 'ks_giam_sat', chi_huy_truong: 'chi_huy_truong',
           chi_huy_pho: 'chi_huy_pho',
+          // Legacy admin → giam_doc (superuser)
+          admin: 'giam_doc',
+          // Legacy thu_ky_ho → thu_ky_site
+          thu_ky_ho: 'thu_ky_site',
           // New role IDs — pass-through
           truong_qs: 'truong_qs', truong_qaqc: 'truong_qaqc',
           truong_hse: 'truong_hse', hr_truong: 'hr_truong',

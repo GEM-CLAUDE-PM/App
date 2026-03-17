@@ -123,6 +123,8 @@ const ROLE_CFG: Record<string, { level: number; domains: string[]; label: string
   // Legacy aliases
   ke_toan:         { level:2, domains:['finance','cross'],        label:'Kế toán site',     homeTab:'accounting', color:'#059669' },
   giam_sat:        { level:2, domains:['site','qaqc'],            label:'KS Giám sát',      homeTab:'giam-sat',   color:'#16a34a' },
+  admin:           { level:5, domains:['cross','admin'],          label:'Giám đốc CT',      homeTab:'overview',   color:'#7c3aed' },
+  thu_ky_ho:       { level:1, domains:['admin'],                  label:'Thư ký HO',        homeTab:'office',     color:'#64748b' },
 };
 
 // ─── Color map ────────────────────────────────────────────────────────────────
