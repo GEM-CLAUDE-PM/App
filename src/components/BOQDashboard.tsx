@@ -40,7 +40,7 @@ function getVarianceClass(done: number, plan: number): string {
 // ══════════════════════════════════════════════════════════════════════════════
 // MAIN COMPONENT
 // ══════════════════════════════════════════════════════════════════════════════
-export default function BOQDashboard({ project }: DashboardProps) {
+export default function BOQDashboard({ project, maskSensitive = false }: DashboardProps & { maskSensitive?: boolean }) {
   const pid         = project?.id   || 'default';
   const projectName = project?.name || 'Dự án';
   const { ok: notifOk, err: notifErr, warn: notifWarn } = useNotification();
@@ -371,7 +371,7 @@ export default function BOQDashboard({ project }: DashboardProps) {
         {/* KPI */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
           {[
-            { label: 'Giá trị BOQ HĐ', value: fmtB(totalContract), cls: 'text-slate-700' },
+            ...(!maskSensitive ? [{ label: 'Giá trị BOQ HĐ', value: fmtB(totalContract), cls: 'text-slate-700' }] : []),
             { label: 'Đã thực hiện', value: `${fmtB(totalDone)} (${pct(totalDone, totalContract)}%)`, cls: 'text-emerald-700' },
             { label: 'Kế hoạch lũy kế', value: fmtB(totalPlan), cls: 'text-blue-700' },
             { label: 'SPI', value: spi.toFixed(2), cls: spi >= 1 ? 'text-emerald-700' : spi >= 0.9 ? 'text-amber-700' : 'text-red-700' },
@@ -462,7 +462,10 @@ export default function BOQDashboard({ project }: DashboardProps) {
                     <table className="w-full text-xs">
                       <thead className="bg-slate-50 border-b border-slate-200">
                         <tr>
-                          {['Mã HM', 'Tên hạng mục', 'ĐVT', 'KL HĐ', 'Đơn giá', 'GT HĐ', 'KL TH', 'GT TH', '% TH', ''].map((h, i) => (
+                          {(maskSensitive
+                            ? ['Mã HM', 'Tên hạng mục', 'ĐVT', 'KL HĐ', 'KL TH', '% TH', '']
+                            : ['Mã HM', 'Tên hạng mục', 'ĐVT', 'KL HĐ', 'Đơn giá', 'GT HĐ', 'KL TH', 'GT TH', '% TH', '']
+                          ).map((h, i) => (
                             <th key={i} className="px-2 py-2 text-left text-[10px] font-bold text-slate-500 uppercase tracking-wide whitespace-nowrap">{h}</th>
                           ))}
                         </tr>
@@ -492,16 +495,18 @@ export default function BOQDashboard({ project }: DashboardProps) {
                                   : fmt(item.qty_contract)
                                 }
                               </td>
-                              <td className="px-2 py-2 text-right font-mono">
-                                {isEditing
-                                  ? <input type="number" value={editRow.unit_price || 0} onChange={e => setEditRow(p => ({...p, unit_price: +e.target.value}))}
-                                      className="w-24 text-right border border-indigo-300 rounded px-1 py-0.5 text-xs focus:outline-none"/>
-                                  : fmt(item.unit_price)
-                                }
-                              </td>
-                              <td className="px-2 py-2 text-right font-mono font-semibold">{fmtM(gtHD)}</td>
+                              {!maskSensitive && (
+                                <td className="px-2 py-2 text-right font-mono">
+                                  {isEditing
+                                    ? <input type="number" value={editRow.unit_price || 0} onChange={e => setEditRow(p => ({...p, unit_price: +e.target.value}))}
+                                        className="w-24 text-right border border-indigo-300 rounded px-1 py-0.5 text-xs focus:outline-none"/>
+                                    : fmt(item.unit_price)
+                                  }
+                                </td>
+                              )}
+                              {!maskSensitive && <td className="px-2 py-2 text-right font-mono font-semibold">{fmtM(gtHD)}</td>}
                               <td className="px-2 py-2 text-right font-mono text-emerald-700">{fmt(item.qty_done)}</td>
-                              <td className="px-2 py-2 text-right font-mono text-emerald-700">{fmtM(gtTH)}</td>
+                              {!maskSensitive && <td className="px-2 py-2 text-right font-mono text-emerald-700">{fmtM(gtTH)}</td>}
                               <td className="px-2 py-2">
                                 <div className="flex items-center gap-1">
                                   <div className="w-14 h-1.5 bg-slate-200 rounded-full overflow-hidden">

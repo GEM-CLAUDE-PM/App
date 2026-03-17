@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react'
 import ReactDOM from 'react-dom';
 import { db } from './db';
+import { getSupabase } from './supabase';
 import { useNotification } from './NotificationEngine';
 import { LayoutDashboard, Folder, TrendingUp, Clock, HardDrive, CheckCircle2, Lock, FileText, Image as ImageIcon, Files, ClipboardList, ExternalLink, BookOpen, UploadCloud, Loader2, Plus, Printer, Users, HardHat, Camera, ShieldAlert, Sun, MessageCircle, Network, HeartPulse, AlertTriangle, Mic, Edit3, Unlock, X, Award, Target, GraduationCap, Briefcase, ChevronRight, ArrowRight, Building2, CheckCircle, CircleDashed, ArrowLeft, ChevronDown, Cloud, Download, Eye, MoreVertical, ChevronLeft, Calendar, ShieldCheck, Trash2, Sparkles, User, Info, ChevronUp, Wrench, Truck, Fuel, Activity, Zap, Settings, AlertCircle, Search, Scan, FileSpreadsheet, Save, Calculator, Copy, Bell, Package, ShoppingCart } from 'lucide-react';
 import { OnboardingTutorial } from './OnboardingTutorial';
@@ -228,7 +229,22 @@ export default function ProjectDashboard({
 
   // Role-based access control
   const canSeeContractTab  = currentRole !== 'giam_sat';
-  const canSeeFullValues   = currentRole === 'giam_doc' || currentRole === 'ke_toan';
+  // canSeeFullValues — L4+ hoặc có domain finance/qs/cross
+  const canSeeFullValues = (() => {
+    const _lvl: Record<string,number> = {
+      giam_doc:5,pm:4,ke_toan_truong:4,
+      truong_qs:3,chi_huy_truong:3,chi_huy_pho:3,
+      ke_toan_site:2,qs_site:2,
+    };
+    const _dom: Record<string,string[]> = {
+      giam_doc:['cross'],pm:['cross','finance','qs'],ke_toan_truong:['finance','cross'],
+      truong_qs:['qs','cross'],chi_huy_truong:['site','cross'],chi_huy_pho:['site','cross'],
+      ke_toan_site:['finance'],qs_site:['qs'],
+    };
+    const lvl = _lvl[currentRole] ?? 1;
+    const dom = _dom[currentRole] ?? [];
+    return lvl >= 4 || dom.includes('cross') || dom.includes('finance');
+  })();
 
   // Audit log helpers
   const writeAuditLog = React.useCallback((action: string, detail: string) => {
@@ -343,6 +359,29 @@ export default function ProjectDashboard({
 
   const [showTutorial, setShowTutorial]           = useState(false);
   const [showSetupWizard, setShowSetupWizard]       = useState(false);
+  // Permission overrides — { tab_id: 'full'|'readonly'|'hidden' } cho user hiện tại trong DA này
+  const [permOverrides, setPermOverrides] = useState<Record<string, 'full'|'readonly'|'hidden'>>({});
+
+  // Load permission overrides từ Supabase
+  useEffect(() => {
+    const sb = getSupabase();
+    const useReal = (import.meta as any).env?.VITE_USE_SUPABASE === 'true';
+    if (!sb || !useReal || !localProjectId) { setPermOverrides({}); return; }
+    sb.auth.getUser().then(({ data }) => {
+      if (!data.user) return;
+      sb.from('project_member_overrides')
+        .select('tab_id, access_level')
+        .eq('project_id', localProjectId)
+        .eq('user_id', data.user.id)
+        .then(({ data: rows }) => {
+          if (rows) {
+            const map: Record<string, 'full'|'readonly'|'hidden'> = {};
+            rows.forEach((r: any) => { map[r.tab_id] = r.access_level; });
+            setPermOverrides(map);
+          }
+        });
+    });
+  }, [localProjectId]);
   const [showDelegation, setShowDelegation]         = useState(false);
   const [showMaterialDetails, setShowMaterialDetails] = useState(false);
   const [materialFilter, setMaterialFilter] = useState<'all' | 'low' | 'sufficient' | 'excess'>('all');
@@ -527,20 +566,34 @@ export default function ProjectDashboard({
 
   // ── Tab content router ────────────────────────────────────────────────────
   const renderContent = () => {
-    // uLevel cho permission check trong renderContent
+    // ── Permission context cho renderContent ──────────────────────────────
     const _lvlMap: Record<string, number> = {
       giam_doc:5, pm:4, ke_toan_truong:4,
+      truong_qs:3, truong_qaqc:3, truong_hse:3, hr_truong:3,
       chi_huy_truong:3, chi_huy_pho:3,
-      ke_toan_site:2, ks_giam_sat:2, qaqc_site:2, qs_site:2,
-      thu_kho:1, thu_ky_site:1,
+      qs_site:2, qaqc_site:2, ks_giam_sat:2, hse_site:2,
+      ke_toan_site:2, ke_toan_kho:2, hr_site:2,
+      thu_kho:1, thu_ky_site:1, operator:1, ntp_site:1, to_doi:1, ky_thuat_vien:1,
+    };
+    const _domainMap: Record<string, string[]> = {
+      giam_doc:['cross','admin'], pm:['cross','finance','qs','site'],
+      ke_toan_truong:['finance','cross'], truong_qs:['qs','cross'],
+      truong_qaqc:['qaqc','cross'], truong_hse:['hse','cross'],
+      chi_huy_truong:['site','cross'], chi_huy_pho:['site','cross'],
+      qs_site:['qs'], qaqc_site:['qaqc'], ks_giam_sat:['site','qaqc'],
+      hse_site:['hse'], ke_toan_site:['finance'], ke_toan_kho:['finance','warehouse'],
+      thu_kho:['warehouse'], thu_ky_site:['admin'],
     };
     const _legacyToNew: Record<string, string> = {
-      giam_doc:'giam_doc', ke_toan:'ke_toan_site',
+      giam_doc:'giam_doc', ke_toan:'ke_toan_site', ke_toan_truong:'ke_toan_truong',
       chi_huy_truong:'chi_huy_truong', giam_sat:'ks_giam_sat',
-      pm:'pm', chi_huy_pho:'chi_huy_pho',
-      thu_kho:'thu_kho', qs_site:'qs_site',
+      pm:'pm', chi_huy_pho:'chi_huy_pho', thu_kho:'thu_kho', qs_site:'qs_site',
     };
-    const uLevel = _lvlMap[_legacyToNew[currentRole] || currentRole] ?? 1;
+    const _roleKey = _legacyToNew[currentRole] || currentRole;
+    const uLevel   = _lvlMap[_roleKey] ?? 1;
+    const uDomains = _domainMap[_roleKey] ?? [];
+    // maskSensitive = true → che đơn giá, giá trị HĐ trong BOQ/Contract
+    const maskSensitive = uLevel < 4 && !uDomains.includes('cross');
 
     if (activeTab === 'overview') {
       const p = selectedProject;
@@ -763,6 +816,7 @@ export default function ProjectDashboard({
           project={selectedProject}
           currentRole={currentRole}
           canSeeFullValues={canSeeFullValues}
+          maskSensitive={maskSensitive}
           contractUnlocked={contractUnlocked}
           SESSION_KEY={SESSION_KEY}
           writeAuditLog={writeAuditLog}
@@ -960,7 +1014,7 @@ export default function ProjectDashboard({
 
     if (activeTab === 'boq') {
       return (
-        <BOQDashboard project={selectedProject} />
+        <BOQDashboard project={selectedProject} maskSensitive={maskSensitive} />
       );
     }
 
@@ -1651,69 +1705,180 @@ export default function ProjectDashboard({
 
         // Permission check per tab
         const tabAccessMap: Record<string, 'full'|'readonly'|'hidden'> = {};
+
+        // ─── Domain map v2 — đầy đủ 24 roles ────────────────────────────────
         const domainMap: Record<string, string[]> = {
-          giam_doc:       ['cross'],
-          ke_toan_site:   ['finance'],
-          chi_huy_truong: ['site','cross'],
-          ks_giam_sat:    ['site','qaqc'],
-          pm:             ['cross'],
-          chi_huy_pho:    ['site','cross'],
-          thu_kho:        ['warehouse'],
-          qs_site:        ['qs'],
+          giam_doc:        ['cross', 'admin'],
+          pm:              ['cross', 'finance', 'qs', 'site'],
+          ke_toan_truong:  ['finance', 'cross'],
+          truong_qs:       ['qs', 'cross'],
+          truong_qaqc:     ['qaqc', 'cross'],
+          truong_hse:      ['hse', 'cross'],
+          hr_truong:       ['hr', 'cross'],
+          chi_huy_truong:  ['site', 'cross'],
+          chi_huy_pho:     ['site', 'cross'],
+          qs_site:         ['qs'],
+          qaqc_site:       ['qaqc'],
+          ks_giam_sat:     ['site', 'qaqc'],
+          hse_site:        ['hse'],
+          ke_toan_site:    ['finance'],
+          ke_toan_kho:     ['finance', 'warehouse'],
+          hr_site:         ['hr', 'site'],
+          thu_kho:         ['warehouse'],
+          thu_ky_site:     ['admin'],
+          operator:        ['site'],
+          ntp_site:        ['site'],
+          to_doi:          ['site'],
+          ky_thuat_vien:   ['site', 'qaqc'],
         };
+
+        // ─── Level map v2 ─────────────────────────────────────────────────────
         const levelMap: Record<string, number> = {
           giam_doc:5, pm:4, ke_toan_truong:4,
+          truong_qs:3, truong_qaqc:3, truong_hse:3, hr_truong:3,
           chi_huy_truong:3, chi_huy_pho:3,
-          ke_toan_site:2, ks_giam_sat:2, qaqc_site:2, qs_site:2,
-          thu_kho:1, thu_ky_site:1,
+          qs_site:2, qaqc_site:2, ks_giam_sat:2, hse_site:2,
+          ke_toan_site:2, ke_toan_kho:2, hr_site:2,
+          thu_kho:1, thu_ky_site:1, operator:1,
+          ntp_site:1, to_doi:1, ky_thuat_vien:1,
         };
-        const uLevel = levelMap[roleId] ?? 1;
-        const uDomains = domainMap[roleId] ?? [];
-        const isCross = uDomains.includes('cross');
 
-        // Simple permission logic (mirrors permissions.ts)
+        const uLevel   = levelMap[roleId] ?? 1;
+        const uDomains = domainMap[roleId] ?? [];
+        const isCross  = uDomains.includes('cross');
+        const isFinance = uDomains.includes('finance');
+        const isQS      = uDomains.includes('qs');
+        const isQAQC    = uDomains.includes('qaqc');
+        const isHSE     = uDomains.includes('hse');
+        const isSite    = uDomains.includes('site');
+        const isWH      = uDomains.includes('warehouse');
+        const isHR      = uDomains.includes('hr');
+
+        // ─── getAccess v2 ─────────────────────────────────────────────────────
+        // 'full'     = tạo/sửa/xóa
+        // 'readonly' = xem — có thể bị mask trường nhạy cảm (xử lý trong component)
+        // 'hidden'   = ẩn tab hoàn toàn
         const getAccess = (tabId: string): 'full'|'readonly'|'hidden' => {
+
+          // CORE — luôn mở
           if (tabId === 'overview' || tabId === 'notifs') return 'full';
-          if (tabId === 'contracts') return uLevel >= 3 ? 'full' : 'hidden';
+
+          // GEM AI — mở tất cả roles (core value, hỗ trợ nhập liệu từ L1)
+          if (tabId === 'gem-ai') return 'full';
+
+          // Phê duyệt
+          if (tabId === 'approval-queue') return uLevel >= 2 ? 'full' : 'hidden';
+
+          // Cài đặt dự án
           if (tabId === 'settings') return uLevel >= 3 ? 'full' : 'hidden';
-          if (tabId === 'gem-ai')    return uLevel >= 3 ? 'full' : 'hidden';
-          if (tabId === 'accounting') {
-            if (uDomains.includes('finance')) return 'full';
-            if (uLevel >= 4) return 'full';
-            return 'hidden';
+
+          // Cloud storage
+          if (tabId === 'cloud') return uLevel >= 3 ? 'full' : 'hidden';
+
+          // ── THI CÔNG ─────────────────────────────────────────────────────────
+          if (tabId === 'progress') {
+            if (isCross || isSite) return 'full';
+            return uLevel >= 2 ? 'readonly' : 'hidden'; // L2 mọi domain đều xem được
           }
-          if (tabId === 'qs') {
-            if (uDomains.includes('qs')) return 'full';
-            if (uLevel >= 3) return 'readonly';
-            return 'hidden';
+          if (tabId === 'equipment') {
+            if (isCross || isSite) return 'full';
+            if (isWH) return 'readonly';                // thủ kho xem thiết bị
+            return uLevel >= 2 ? 'readonly' : 'hidden';
           }
-          if (tabId === 'manpower') return uLevel >= 3 ? 'full' : 'hidden';
-          if (tabId === 'reports' || tabId === 'cloud') return uLevel >= 3 ? 'full' : 'hidden';
-          if (tabId === 'office') return uLevel >= 3 ? 'full' : 'hidden';
-          if (tabId === 'records') return uLevel >= 2 ? 'full' : 'hidden';
           if (tabId === 'resources') {
-            if (uDomains.includes('warehouse')) return 'full';
-            if (isCross || uLevel >= 3) return 'full';
-            return 'readonly';
+            if (isWH) return 'full';                    // thủ kho: full
+            if (isCross || isSite || uLevel >= 3) return 'full';
+            return 'readonly';                          // L2 khác: lập đề xuất vật tư
           }
           if (tabId === 'giam-sat') {
-            if (uDomains.includes('site') || uDomains.includes('qaqc')) return 'full';
+            if (isSite || isQAQC) return 'full';
+            if (isQS && uLevel >= 2) return 'readonly'; // qs_site xem giám sát
             if (uLevel >= 3) return 'readonly';
             return 'hidden';
           }
           if (tabId === 'qa-qc') {
-            if (uDomains.includes('qaqc') || uDomains.includes('site')) return 'full';
+            if (isQAQC || isSite) return 'full';
+            if (isQS && uLevel >= 2) return 'readonly'; // qs_site xem QA/QC
             if (uLevel >= 3) return 'readonly';
             return 'hidden';
           }
-          if (tabId === 'progress' || tabId === 'equipment') {
-            if (isCross || uDomains.includes('site')) return 'full';
-            return 'readonly';
+
+          // ── NHÂN SỰ ──────────────────────────────────────────────────────────
+          if (tabId === 'manpower') {
+            if (isCross || isSite) return 'full';
+            if (isHSE || isQAQC) return 'readonly';     // xem để kiểm tra chứng chỉ
+            return uLevel >= 3 ? 'full' : 'hidden';
           }
+          if (tabId === 'hse') {
+            if (isHSE || isSite || isCross) return 'full';
+            return uLevel >= 2 ? 'readonly' : 'hidden';
+          }
+          if (tabId === 'hr') {
+            if (isHR || isCross) return 'full';
+            if (isHSE && uLevel >= 3) return 'readonly'; // Trưởng HSE xem chứng chỉ
+            return uLevel >= 4 ? 'full' : 'hidden';
+          }
+
+          // ── TÀI CHÍNH ────────────────────────────────────────────────────────
+          if (tabId === 'boq') {
+            if (isQS || isCross) return 'full';
+            // L2: xem nhưng mask đơn giá (component tự xử lý dựa theo uLevel)
+            if (isQAQC || isSite || uLevel >= 2) return 'readonly';
+            return 'hidden';
+          }
+          if (tabId === 'contracts') {
+            if (isCross || uLevel >= 4) return 'full';
+            if (isSite && uLevel >= 3) return 'full';   // CHT ký hợp đồng NTP
+            // L2-L3 domain liên quan: xem nhưng mask giá trị
+            if (isQS || isSite || isQAQC) return 'readonly';
+            return 'hidden';
+          }
+          if (tabId === 'procurement') {
+            if (isCross || isSite || isQS || isFinance) return uLevel >= 3 ? 'full' : 'readonly';
+            if (uLevel >= 2) return 'readonly';
+            return 'hidden';
+          }
+          if (tabId === 'qs') {
+            if (isQS) return 'full';
+            if (isCross || uLevel >= 3) return 'readonly';
+            return 'hidden';
+          }
+          if (tabId === 'accounting') {
+            if (isFinance) return 'full';
+            if (isCross || uLevel >= 4) return 'full';
+            if (isSite && uLevel >= 3) return 'readonly'; // CHT xem dòng tiền công trường
+            if (isQS && uLevel >= 2) return 'readonly';   // QS site xem đối chiếu
+            return 'hidden';
+          }
+
+          // ── HÀNH CHÍNH ───────────────────────────────────────────────────────
+          if (tabId === 'risk') return uLevel >= 3 ? 'full' : 'hidden';
+          if (tabId === 'office') {
+            if (uDomains.includes('admin') || isCross) return 'full';
+            return uLevel >= 3 ? 'full' : 'hidden';
+          }
+          if (tabId === 'records') return uLevel >= 2 ? 'full' : 'hidden';
+
+          // Báo cáo — L2 xem trong domain, L3+ xem tất cả
+          if (tabId === 'reports') {
+            if (uLevel >= 3) return 'full';
+            if (uLevel >= 2) return 'readonly'; // filter theo domain trong component
+            return 'hidden';
+          }
+
           return 'full';
         };
 
         allTabs.forEach(t => { tabAccessMap[t.id] = getAccess(t.id); });
+
+        // Apply project-level overrides — chỉ nâng quyền, không hạ
+        const levelRank = { hidden: 0, readonly: 1, full: 2 } as const;
+        Object.entries(permOverrides).forEach(([tabId, overrideLevel]) => {
+          const current = tabAccessMap[tabId] || 'hidden';
+          if (levelRank[overrideLevel] > levelRank[current]) {
+            tabAccessMap[tabId] = overrideLevel;
+          }
+        });
 
         // Groups config
         type GroupDef = { id: string; label: string; icon: React.ReactNode; color: string; };
