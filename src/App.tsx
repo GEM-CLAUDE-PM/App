@@ -344,9 +344,16 @@ function AppInner() {
     <div className="min-h-screen bg-slate-50 flex flex-col md:flex-row font-sans text-slate-900 print:bg-white">
       {/* Mobile Header */}
       <div className="md:hidden bg-white border-b border-slate-200 p-2 flex justify-between items-center sticky top-0 z-20 print:hidden">
-        <h1 className="text-base font-bold text-emerald-600 flex items-center gap-1">
-          Nàng GEM <span className="text-orange-500 text-[9px] px-1.5 py-0.5 bg-orange-50 rounded-full">siêu việt</span>
-        </h1>
+        <div className="flex items-center gap-2">
+          <div className="w-7 h-7 rounded-lg overflow-hidden shrink-0 bg-gradient-to-br from-teal-500 to-teal-700 flex items-center justify-center">
+            <img src="/icon/icon_app_64.png" alt="GEM" className="w-7 h-7 object-cover"
+              onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }} />
+          </div>
+          <div className="leading-tight">
+            <p className="text-[11px] font-black text-slate-800 tracking-tight leading-none">GEM & CLAUDE</p>
+            <p className="text-[9px] font-bold leading-none mt-0.5" style={{ color: "#1a8a7a" }}>PM Pro</p>
+          </div>
+        </div>
         <div className="flex items-center gap-1">
           {/* Bell mobile — với dropdown */}
           <div className="relative">
