@@ -208,23 +208,36 @@ export class Permissions {
 // ─── Mock users (dev mode — before Supabase) ─────────────────────────────────
 export const MOCK_USERS: UserProfile[] = [
   // ── L5 Lãnh đạo ──────────────────────────────────────────────────────────
-  { id:'u1', email:'gdda@villaphat.vn',    full_name:'Trần Văn Bình',    job_role:'giam_doc',       tier:'admin',   project_ids:['p1','p2'], created_at:'2025-01-01', phone:'0901234567' },
+  { id:'u1',  email:'gdda@villaphat.vn',       full_name:'Trần Văn Bình',      job_role:'giam_doc',       tier:'admin',   project_ids:['p1','p2'], created_at:'2025-01-01', phone:'0901234567' },
   // ── L4 Quản lý DA ────────────────────────────────────────────────────────
-  { id:'u2', email:'pm@villaphat.vn',      full_name:'Nguyễn Thành Nam', job_role:'pm',             tier:'admin',   project_ids:['p1','p2'], created_at:'2025-01-01' },
-  { id:'u3', email:'ketoan@villaphat.vn',  full_name:'Nguyễn Thu Hà',    job_role:'ke_toan_truong', tier:'admin',   project_ids:['p1','p2'], created_at:'2025-01-01', phone:'0902345678' },
+  { id:'u2',  email:'pm@villaphat.vn',         full_name:'Nguyễn Thành Nam',   job_role:'pm',             tier:'admin',   project_ids:['p1','p2'], created_at:'2025-01-01' },
+  { id:'u3',  email:'ketoan@villaphat.vn',     full_name:'Nguyễn Thu Hà',      job_role:'ke_toan_truong', tier:'admin',   project_ids:['p1','p2'], created_at:'2025-01-01', phone:'0902345678' },
   // ── L3 HO ────────────────────────────────────────────────────────────────
-  { id:'u4', email:'truongqs@villaphat.vn',full_name:'Lê Minh Tuấn',     job_role:'truong_qs',      tier:'manager', project_ids:['p1','p2'], created_at:'2025-01-01' },
-  { id:'u5', email:'qaqc@villaphat.vn',    full_name:'Phạm Thị Thảo',    job_role:'truong_qaqc',    tier:'manager', project_ids:['p1','p2'], created_at:'2025-01-01' },
-  { id:'u6', email:'hse@villaphat.vn',     full_name:'Lê Văn Hải',       job_role:'truong_hse',     tier:'manager', project_ids:['p1','p2'], created_at:'2025-01-01' },
+  { id:'u4',  email:'truongqs@villaphat.vn',   full_name:'Lê Minh Tuấn',       job_role:'truong_qs',      tier:'manager', project_ids:['p1','p2'], created_at:'2025-01-01' },
+  { id:'u5',  email:'truongqaqc@villaphat.vn', full_name:'Phạm Thị Thảo',      job_role:'truong_qaqc',    tier:'manager', project_ids:['p1','p2'], created_at:'2025-01-01' },
+  { id:'u6',  email:'trunghse@villaphat.vn',   full_name:'Lê Văn Hải',         job_role:'truong_hse',     tier:'manager', project_ids:['p1','p2'], created_at:'2025-01-01' },
+  { id:'u6b', email:'hrnv@villaphat.vn',       full_name:'Nguyễn Thị Lan',     job_role:'hr_truong',      tier:'manager', project_ids:['p1','p2'], created_at:'2025-01-01' },
   // ── L3 Site ──────────────────────────────────────────────────────────────
-  { id:'u7', email:'cht@villaphat.vn',     full_name:'Nguyễn Văn Anh',   job_role:'chi_huy_truong', tier:'manager', project_ids:['p1'],      created_at:'2025-01-01', phone:'0903456789' },
-  { id:'u8', email:'chp@villaphat.vn',     full_name:'Trần Hữu Lộc',     job_role:'chi_huy_pho',    tier:'manager', project_ids:['p1'],      created_at:'2025-01-01' },
-  // ── L2 ───────────────────────────────────────────────────────────────────
-  { id:'u9', email:'gsat@villaphat.vn',    full_name:'Hoàng Việt Hùng',  job_role:'ks_giam_sat',    tier:'manager', project_ids:['p1'],      created_at:'2025-01-01' },
-  { id:'u10',email:'op01@villaphat.vn',    full_name:'Trần Quốc Tuấn',   job_role:'operator',       tier:'worker',  project_ids:['p1'],      created_at:'2025-01-01' },
+  { id:'u7',  email:'cht@villaphat.vn',        full_name:'Nguyễn Văn Anh',     job_role:'chi_huy_truong', tier:'manager', project_ids:['p1'],      created_at:'2025-01-01', phone:'0903456789' },
+  { id:'u8',  email:'chp@villaphat.vn',        full_name:'Trần Hữu Lộc',       job_role:'chi_huy_pho',    tier:'manager', project_ids:['p1'],      created_at:'2025-01-01' },
+  // ── L2 Site ──────────────────────────────────────────────────────────────
+  { id:'u9',  email:'gsat@villaphat.vn',       full_name:'Hoàng Việt Hùng',    job_role:'ks_giam_sat',    tier:'manager', project_ids:['p1'],      created_at:'2025-01-01' },
+  { id:'u9b', email:'qs01@villaphat.vn',       full_name:'Phạm Quang Minh',    job_role:'qs_site',        tier:'manager', project_ids:['p1'],      created_at:'2025-01-01' },
+  { id:'u9c', email:'qaqc01@villaphat.vn',     full_name:'Trần Thị Bích',      job_role:'qaqc_site',      tier:'manager', project_ids:['p1'],      created_at:'2025-01-01' },
+  { id:'u9d', email:'hse01@villaphat.vn',      full_name:'Ngô Thanh Sơn',      job_role:'hse_site',       tier:'manager', project_ids:['p1'],      created_at:'2025-01-01' },
+  { id:'u9e', email:'ktsite@villaphat.vn',     full_name:'Lê Thị Mai',         job_role:'ke_toan_site',   tier:'manager', project_ids:['p1'],      created_at:'2025-01-01' },
+  { id:'u9f', email:'ktkho@villaphat.vn',      full_name:'Đinh Văn Khoa',      job_role:'ke_toan_kho',    tier:'manager', project_ids:['p1'],      created_at:'2025-01-01' },
+  { id:'u9g', email:'hrsite@villaphat.vn',     full_name:'Nguyễn Thị Hoa',     job_role:'hr_site',        tier:'manager', project_ids:['p1'],      created_at:'2025-01-01' },
+  // ── L1 ───────────────────────────────────────────────────────────────────
+  { id:'u10', email:'thukho@villaphat.vn',     full_name:'Trần Quốc Tuấn',     job_role:'thu_kho',        tier:'worker',  project_ids:['p1'],      created_at:'2025-01-01' },
+  { id:'u11', email:'thuky@villaphat.vn',      full_name:'Nguyễn Phương Linh', job_role:'thu_ky_site',    tier:'worker',  project_ids:['p1'],      created_at:'2025-01-01' },
+  { id:'u12', email:'op01@villaphat.vn',       full_name:'Lê Văn Toàn',        job_role:'operator',       tier:'worker',  project_ids:['p1'],      created_at:'2025-01-01' },
+  { id:'u13', email:'todoi@villaphat.vn',      full_name:'Phạm Văn Đức',       job_role:'to_doi',         tier:'worker',  project_ids:['p1'],      created_at:'2025-01-01' },
+  { id:'u14', email:'ktvien@villaphat.vn',     full_name:'Trịnh Công Sơn',     job_role:'ky_thuat_vien',  tier:'worker',  project_ids:['p1'],      created_at:'2025-01-01' },
+  { id:'u15', email:'ntpsite@villaphat.vn',    full_name:'Công nhân NTP nội bộ',job_role:'ntp_site',      tier:'worker',  project_ids:['p1'],      created_at:'2025-01-01' },
   // ── External portals ─────────────────────────────────────────────────────
-  { id:'ntp01',  email:'ntp@phucthanh.vn', full_name:'NTP Phúc Thành',       job_role:'ntp',       tier:'worker', project_ids:['p1'], created_at:'2025-01-01', phone:'0909123456' },
-  { id:'cdt01',  email:'cdt@villaphat.vn', full_name:'Chủ đầu tư Villa PAT', job_role:'chu_dau_tu', tier:'worker', project_ids:['p1'], created_at:'2025-01-01', phone:'0901999888' },
+  { id:'ntp01', email:'ntp@phucthanh.vn',      full_name:'NTP Phúc Thành',        job_role:'ntp',        tier:'worker',  project_ids:['p1'], created_at:'2025-01-01', phone:'0909123456' },
+  { id:'cdt01', email:'cdt@villaphat.vn',      full_name:'Chủ đầu tư Villa PAT',  job_role:'chu_dau_tu', tier:'worker',  project_ids:['p1'], created_at:'2025-01-01', phone:'0901999888' },
 ];
 
 // ─── Auth service — wraps Supabase or falls back to mock ─────────────────────

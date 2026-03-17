@@ -96,70 +96,36 @@ export function setActiveMemberSnap(snap: ActiveMemberSnap): void {
 // SEED DATA — mock members cho dev mode
 // ─────────────────────────────────────────────────────────────────────────────
 
+// ─── MOCK_MEMBERS — đủ 24 roles, mỗi user 1 role chính ───────────────────────
+// Sync với MOCK_USERS trong supabase.ts
 export const MOCK_MEMBERS: Omit<ProjectMember, 'projectId' | 'joinedAt' | 'updatedAt'>[] = [
-  {
-    userId:       'user_giam_doc',
-    userName:     'Nguyễn Văn Giám',
-    email:        'giamdoc@gemclaude.vn',
-    roles:        ['giam_doc'],
-    activeRoleId: 'giam_doc',
-  },
-  {
-    userId:       'user_pm',
-    userName:     'Trần Minh PM',
-    email:        'pm@gemclaude.vn',
-    roles:        ['pm'],
-    activeRoleId: 'pm',
-  },
-  {
-    userId:       'user_chi_huy_truong',
-    userName:     'Lê Quốc Chỉ Huy',
-    email:        'chihuytruong@gemclaude.vn',
-    roles:        ['chi_huy_truong', 'ks_giam_sat'],  // ← kiêm GS
-    activeRoleId: 'chi_huy_truong',
-  },
-  {
-    userId:       'user_chi_huy_pho',
-    userName:     'Phạm Thị Phó',
-    email:        'chihuyPho@gemclaude.vn',
-    roles:        ['chi_huy_pho'],
-    activeRoleId: 'chi_huy_pho',
-  },
-  {
-    userId:       'user_ke_toan',
-    userName:     'Hoàng Kế Toán',
-    email:        'ketoan@gemclaude.vn',
-    roles:        ['ke_toan_site', 'ke_toan_kho'],    // ← kiêm KT kho
-    activeRoleId: 'ke_toan_site',
-  },
-  {
-    userId:       'user_giam_sat',
-    userName:     'Vũ KS Giám Sát',
-    email:        'giamsat@gemclaude.vn',
-    roles:        ['ks_giam_sat', 'qaqc_site'],       // ← kiêm QA/QC
-    activeRoleId: 'ks_giam_sat',
-  },
-  {
-    userId:       'user_qs_site',
-    userName:     'Đặng QS Site',
-    email:        'qs@gemclaude.vn',
-    roles:        ['qs_site'],
-    activeRoleId: 'qs_site',
-  },
-  {
-    userId:       'user_thu_kho',
-    userName:     'Ngô Thủ Kho',
-    email:        'thukho@gemclaude.vn',
-    roles:        ['thu_kho'],
-    activeRoleId: 'thu_kho',
-  },
-  {
-    userId:       'user_hse',
-    userName:     'Bùi HSE Site',
-    email:        'hse@gemclaude.vn',
-    roles:        ['hse_site', 'ks_giam_sat'],         // ← HSE kiêm GS
-    activeRoleId: 'hse_site',
-  },
+  // L5
+  { userId:'u1',  userName:'Trần Văn Bình',       email:'gdda@villaphat.vn',       roles:['giam_doc'],       activeRoleId:'giam_doc'       },
+  // L4
+  { userId:'u2',  userName:'Nguyễn Thành Nam',    email:'pm@villaphat.vn',         roles:['pm'],             activeRoleId:'pm'             },
+  { userId:'u3',  userName:'Nguyễn Thu Hà',       email:'ketoan@villaphat.vn',     roles:['ke_toan_truong'], activeRoleId:'ke_toan_truong' },
+  // L3 HO
+  { userId:'u4',  userName:'Lê Minh Tuấn',        email:'truongqs@villaphat.vn',   roles:['truong_qs'],      activeRoleId:'truong_qs'      },
+  { userId:'u5',  userName:'Phạm Thị Thảo',       email:'truongqaqc@villaphat.vn', roles:['truong_qaqc'],    activeRoleId:'truong_qaqc'    },
+  { userId:'u6',  userName:'Lê Văn Hải',          email:'trunghse@villaphat.vn',   roles:['truong_hse'],     activeRoleId:'truong_hse'     },
+  { userId:'u6b', userName:'Nguyễn Thị Lan',      email:'hrnv@villaphat.vn',       roles:['hr_truong'],      activeRoleId:'hr_truong'      },
+  // L3 Site
+  { userId:'u7',  userName:'Nguyễn Văn Anh',      email:'cht@villaphat.vn',        roles:['chi_huy_truong'], activeRoleId:'chi_huy_truong' },
+  { userId:'u8',  userName:'Trần Hữu Lộc',        email:'chp@villaphat.vn',        roles:['chi_huy_pho'],    activeRoleId:'chi_huy_pho'    },
+  // L2
+  { userId:'u9',  userName:'Hoàng Việt Hùng',     email:'gsat@villaphat.vn',       roles:['ks_giam_sat'],    activeRoleId:'ks_giam_sat'    },
+  { userId:'u9b', userName:'Phạm Quang Minh',     email:'qs01@villaphat.vn',       roles:['qs_site'],        activeRoleId:'qs_site'        },
+  { userId:'u9c', userName:'Trần Thị Bích',       email:'qaqc01@villaphat.vn',     roles:['qaqc_site'],      activeRoleId:'qaqc_site'      },
+  { userId:'u9d', userName:'Ngô Thanh Sơn',       email:'hse01@villaphat.vn',      roles:['hse_site'],       activeRoleId:'hse_site'       },
+  { userId:'u9e', userName:'Lê Thị Mai',          email:'ktsite@villaphat.vn',     roles:['ke_toan_site'],   activeRoleId:'ke_toan_site'   },
+  { userId:'u9f', userName:'Đinh Văn Khoa',       email:'ktkho@villaphat.vn',      roles:['ke_toan_kho'],    activeRoleId:'ke_toan_kho'    },
+  { userId:'u9g', userName:'Nguyễn Thị Hoa',      email:'hrsite@villaphat.vn',     roles:['hr_site'],        activeRoleId:'hr_site'        },
+  // L1
+  { userId:'u10', userName:'Trần Quốc Tuấn',      email:'thukho@villaphat.vn',     roles:['thu_kho'],        activeRoleId:'thu_kho'        },
+  { userId:'u11', userName:'Nguyễn Phương Linh',  email:'thuky@villaphat.vn',      roles:['thu_ky_site'],    activeRoleId:'thu_ky_site'    },
+  { userId:'u12', userName:'Lê Văn Toàn',         email:'op01@villaphat.vn',       roles:['operator'],       activeRoleId:'operator'       },
+  { userId:'u13', userName:'Phạm Văn Đức',        email:'todoi@villaphat.vn',      roles:['to_doi'],         activeRoleId:'to_doi'         },
+  { userId:'u14', userName:'Trịnh Công Sơn',      email:'ktvien@villaphat.vn',     roles:['ky_thuat_vien'],  activeRoleId:'ky_thuat_vien'  },
 ];
 
 /** Seed members cho project nếu chưa có */
