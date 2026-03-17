@@ -417,7 +417,7 @@ function AppInner() {
         className={[
           'bg-white border-r border-slate-200 md:h-screen md:sticky top-[60px] md:top-0 z-10 print:hidden transition-all duration-200',
           isMobileMenuOpen ? 'fixed inset-y-0 left-0 w-[min(280px,85vw)] h-full shadow-2xl z-40' : 'hidden',
-          sidebarCollapsed ? 'md:block md:w-14' : 'md:block md:w-56',
+          sidebarCollapsed ? 'md:block md:w-14' : 'md:block md:w-60',
         ].join(' ')}
       >
         {/* Toggle collapse button */}
@@ -470,12 +470,12 @@ function AppInner() {
               <button
                 key={item.id}
                 onClick={() => handleNavigate(item.id)}
-                className={`w-full flex items-center gap-2 md:gap-3 px-3 py-2 md:px-4 md:py-3 rounded-lg md:rounded-xl transition-colors text-sm md:text-base ${
+                className={`w-full flex items-center gap-2 px-3 py-2 rounded-xl transition-colors text-sm whitespace-nowrap ${
                   isActive ? 'bg-emerald-50 text-emerald-700 font-medium' : 'text-slate-600 hover:bg-slate-50'
                 } ${sidebarCollapsed ? 'md:justify-center md:px-2' : ''}`}
                 title={sidebarCollapsed ? item.label : undefined}
               >
-                <Icon size={18} className={`md:w-5 md:h-5 shrink-0 ${isActive ? 'text-emerald-600' : 'text-slate-400'}`} />
+                <Icon size={16} className={`shrink-0 ${isActive ? 'text-emerald-600' : 'text-slate-400'}`} />
                 <span className={sidebarCollapsed ? 'md:hidden' : ''}>{item.label}</span>
               </button>
             );

@@ -445,7 +445,7 @@ export default function ReportsDashboard({ project }: DashboardProps) {
               {byType.length > 0 && (
                 <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-4">
                   <p className="text-xs font-bold text-slate-500 uppercase tracking-wide mb-3">Theo loại</p>
-                  <ResponsiveContainer width="100%" height={140}>
+                  <ResponsiveContainer width="100%" height={140} minWidth={0}>
                     <BarChart data={byType} barSize={20}>
                       <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9"/>
                       <XAxis dataKey="name" tick={{ fontSize: 9 }}/>
@@ -459,7 +459,7 @@ export default function ReportsDashboard({ project }: DashboardProps) {
               {byStatus.length > 0 && (
                 <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-4">
                   <p className="text-xs font-bold text-slate-500 uppercase tracking-wide mb-3">Trạng thái</p>
-                  <ResponsiveContainer width="100%" height={140}>
+                  <ResponsiveContainer width="100%" height={140} minWidth={0}>
                     <RechartsPie>
                       <Pie data={byStatus} dataKey="value" cx="50%" cy="50%" outerRadius={55}
                         label={({ name, value }) => `${name}:${value}`} labelLine={false}>

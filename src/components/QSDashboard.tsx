@@ -649,7 +649,7 @@ export default function QSDashboard({ projectId, projectName, contractValue = 45
                 <h3 className="font-bold text-slate-800 flex items-center gap-2"><TrendingUp size={16} className="text-blue-600"/>Đường cong S — Tiến độ giá trị</h3>
                 <button onClick={()=>setActiveTab("evm")} className="text-xs text-blue-600 font-medium hover:underline flex items-center gap-1">EVM chi tiết <ChevronRight size={12}/></button>
               </div>
-              <ResponsiveContainer width="100%" height={200}>
+              <ResponsiveContainer width="100%" height={200} minWidth={0}>
                 <AreaChart data={S_CURVE_DATA} margin={{top:5,right:10,left:-10,bottom:0}}>
                   <defs>
                     <linearGradient id="gPV" x1="0" y1="0" x2="0" y2="1">
@@ -1520,7 +1520,7 @@ export default function QSDashboard({ projectId, projectName, contractValue = 45
                 <span className="flex items-center gap-1.5"><span className="w-4 h-0.5 bg-amber-400 inline-block rounded" style={{borderStyle:"dashed"}}/>Chi phí (AC)</span>
               </div>
             </div>
-            <ResponsiveContainer width="100%" height={280}>
+            <ResponsiveContainer width="100%" height={280} minWidth={0}>
               <AreaChart data={S_CURVE_DATA} margin={{top:5,right:20,left:-5,bottom:0}}>
                 <defs>
                   <linearGradient id="gPV2" x1="0" y1="0" x2="0" y2="1">

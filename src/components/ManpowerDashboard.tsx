@@ -800,7 +800,7 @@ useEffect(()=>{ if (dbLoaded) db.set('mp_people', pid, people); },[people, pid])
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-sm">
               <h3 className="font-bold text-slate-800 text-sm mb-3">Phân bổ theo đội</h3>
-              <ResponsiveContainer width="100%" height={180}>
+              <ResponsiveContainer width="100%" height={180} minWidth={0}>
                 <PieChart>
                   <Pie data={laborChart} cx="50%" cy="50%" innerRadius={50} outerRadius={75} paddingAngle={3} dataKey="value">
                     {laborChart.map((e,i)=><Cell key={i} fill={e.fill}/>)}

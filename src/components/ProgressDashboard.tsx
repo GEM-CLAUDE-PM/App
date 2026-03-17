@@ -469,7 +469,7 @@ export default function ProgressDashboard({ project: selectedProject, projectId:
                 ))}
               </div>
             </div>
-            <ResponsiveContainer width="100%" height={320}>
+            <ResponsiveContainer width="100%" height={320} minWidth={0}>
               <AreaChart data={EVM_DATA} margin={{top:10,right:10,left:0,bottom:0}}>
                 <defs>
                   <linearGradient id="gradPV" x1="0" y1="0" x2="0" y2="1">
@@ -560,7 +560,7 @@ export default function ProgressDashboard({ project: selectedProject, projectId:
           {/* SPI/CPI trend bar chart */}
           <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5">
             <h3 className="text-base font-bold text-slate-800 mb-4 flex items-center gap-2"><TrendingUp size={16} className="text-emerald-600"/>Xu hướng SV & CV theo tuần (tỷ VNĐ)</h3>
-            <ResponsiveContainer width="100%" height={240}>
+            <ResponsiveContainer width="100%" height={240} minWidth={0}>
               <BarChart data={EVM_DATA.filter(d=>d.ev!=null)} margin={{top:5,right:10,left:0,bottom:0}} barGap={4}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" vertical={false}/>
                 <XAxis dataKey="week" tick={{fontSize:11}} tickLine={false} axisLine={false}/>

@@ -594,7 +594,7 @@ export default function AccountingDashboard({ project, projectId }: Props) {
             <div className="space-y-4">
               <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-4">
                 <p className="text-xs font-bold text-slate-500 uppercase mb-3 tracking-wide">Cơ cấu công nợ (tỷ VNĐ)</p>
-                <ResponsiveContainer width="100%" height={160}>
+                <ResponsiveContainer width="100%" height={160} minWidth={0}>
                   <PieChart>
                     <Pie data={[
                       { name:'Phải thu', value:+totalReceivable.toFixed(1) },
@@ -716,7 +716,7 @@ export default function AccountingDashboard({ project, projectId }: Props) {
                 ))}
               </div>
             </div>
-            <ResponsiveContainer width="100%" height={280}>
+            <ResponsiveContainer width="100%" height={280} minWidth={0}>
               <BarChart data={CASHFLOW} margin={{top:5,right:10,left:0,bottom:0}}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" vertical={false}/>
                 <XAxis dataKey="month" tick={{fontSize:11}} tickLine={false} axisLine={false}/>
@@ -729,7 +729,7 @@ export default function AccountingDashboard({ project, projectId }: Props) {
           </div>
           <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5">
             <h3 className="font-bold text-slate-800 mb-4 flex items-center gap-2"><BarChart2 size={15} className="text-blue-600"/>Dòng tiền tích lũy</h3>
-            <ResponsiveContainer width="100%" height={200}>
+            <ResponsiveContainer width="100%" height={200} minWidth={0}>
               <LineChart data={CASHFLOW} margin={{top:5,right:10,left:0,bottom:0}}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9"/>
                 <XAxis dataKey="month" tick={{fontSize:11}} tickLine={false} axisLine={false}/>
