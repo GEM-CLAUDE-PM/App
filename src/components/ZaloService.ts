@@ -64,22 +64,6 @@ export interface ZaloSendResult {
   }>;
 }
 
-// ─── Mock send results (dev mode) ─────────────────────────────────────────────
-async function mockSend(msg: ZaloMessage): Promise<ZaloSendResult> {
-  await new Promise(r => setTimeout(r, 600));
-  console.log('[ZaloService DEV] Would send:', msg.text.slice(0, 80));
-  return {
-    success: true,
-    sent: msg.recipients.length,
-    failed: 0,
-    results: msg.recipients.map(r => ({
-      recipient: r.name,
-      status: 'sent',
-      msg_id: 'mock_' + Date.now(),
-    })),
-  };
-}
-
 // ─── Real send via Express proxy ──────────────────────────────────────────────
 async function realSend(msg: ZaloMessage): Promise<ZaloSendResult> {
   const res = await fetch('/api/zalo/send', {
@@ -101,9 +85,8 @@ export const ZaloService = {
   },
 
   async send(msg: ZaloMessage): Promise<ZaloSendResult> {
-    const useReal = (import.meta as any).env?.VITE_USE_SUPABASE === 'true' && this.isEnabled();
-    if (useReal) return realSend(msg);
-    return mockSend(msg);
+    if (!this.isEnabled()) throw new Error('Zalo chưa được cấu hình.');
+    return realSend(msg);
   },
 
   /** Gửi cảnh báo khẩn cấp (HSE, deadline, tài chính) */

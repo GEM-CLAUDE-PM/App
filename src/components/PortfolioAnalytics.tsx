@@ -7,7 +7,6 @@ import {
   Eye, GitCompare
 } from 'lucide-react';
 import { filterProjectsByScope } from './permissions';
-import { getCurrentScopeCtx } from './projectMember';
 import { useAuth } from './AuthProvider';
 import {
   BarChart, Bar, LineChart, Line, RadarChart, Radar, PolarGrid,

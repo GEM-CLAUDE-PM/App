@@ -9,7 +9,7 @@
  *      → processQueue() flushes all pending items to Supabase in order
  *   4. Items removed from queue only after successful flush
  *
- * In dev mode (VITE_USE_SUPABASE != 'true'):
+ * Offline queue for Supabase writes when navigator is offline.
  *   → Queue is still written to IndexedDB for testing
  *   → processQueue() simulates success after 500ms
  *
@@ -162,14 +162,12 @@ export const OfflineQueue = {
 
       console.log(`[OfflineQueue] Processing ${pending.length} pending items...`);
 
-      const useReal = (import.meta as any).env?.VITE_USE_SUPABASE === 'true';
 
       for (const item of pending) {
         try {
           // Mark as syncing
           await idbPut(db, { ...item, status: 'syncing' });
 
-          if (useReal) {
             // Import dynamically to avoid circular dep
             const { getSupabase } = await import('./supabase');
             const sb = getSupabase();
@@ -191,7 +189,6 @@ export const OfflineQueue = {
             // Write to localStorage as fallback
             const key = `gem_db__${item.collection}__${item.project_id}`;
             localStorage.setItem(key, JSON.stringify(item.payload));
-          }
 
           // Success — remove from queue
           if (item.id !== undefined) await idbDelete(db, item.id);
@@ -268,9 +265,8 @@ export async function dbSet<T>(
   userId?: string,
 ): Promise<void> {
   const isOnline  = navigator.onLine;
-  const useReal   = (import.meta as any).env?.VITE_USE_SUPABASE === 'true';
 
-  if (!isOnline && useReal) {
+  if (!isOnline ) {
     // Offline + prod → queue the write
     await OfflineQueue.enqueue({ collection, project_id: projectId, payload: data, user_id: userId });
     // Still write to localStorage so UI stays responsive
@@ -278,7 +274,6 @@ export async function dbSet<T>(
     return;
   }
 
-  // Online or dev mode → write directly via db.ts
   const { db } = await import('./db');
   await db.set(collection, projectId, data, userId);
 }

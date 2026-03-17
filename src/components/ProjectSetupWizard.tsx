@@ -19,7 +19,6 @@ import {
   PROJECT_TEMPLATES, TEMPLATE_LIST, applyTemplate, saveProjectTemplate,
   type ProjectTypeId, type ProjectTemplate,
 } from './projectTemplates';
-import { seedMembersIfEmpty } from './projectMember';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // TYPES
@@ -453,7 +452,6 @@ export default function ProjectSetupWizard({ onConfirm, onCancel }: ProjectSetup
     saveProjectTemplate(id, templateId);
 
     // Seed members cho project
-    seedMembersIfEmpty(id);
 
     // Lưu thresholds
     const thresholds = PROJECT_TEMPLATES[templateId].thresholds;

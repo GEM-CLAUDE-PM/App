@@ -92,7 +92,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return user.project_ids ?? [];            // L1-L3 — chỉ project được admin gán
   })();
 
-  // Sync vào localStorage — dùng key thống nhất cho cả AuthProvider và getCurrentScopeCtx
+  // Sync roleId và allowedProjectIds vào localStorage (cache cho getCurrentMember)
   if (user) {
     localStorage.setItem('gem_user_role', roleId);
     if (allowedProjectIds !== null) {

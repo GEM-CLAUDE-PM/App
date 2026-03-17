@@ -2,9 +2,7 @@
  * db.ts — GEM&CLAUDE PM Pro / Nàng GEM Siêu Việt
  * Unified data persistence layer.
  *
- * Dev mode  (VITE_USE_SUPABASE != 'true') → localStorage (key-value JSON)
- * Prod mode (VITE_USE_SUPABASE = 'true')  → Supabase Postgres via RPC / REST
- *
+ * Unified data layer — localStorage write-through cache + Supabase sync.
  * All components import ONLY from this file — never touch localStorage directly.
  *
  * Usage:
@@ -55,8 +53,6 @@
  */
 
 import { getSupabase } from './supabase';
-
-const USE_REAL = () => (import.meta as any).env?.VITE_USE_SUPABASE === 'true';
 
 // ─── Local storage helpers ────────────────────────────────────────────────────
 function lsKey(collection: string, projectId: string) {
@@ -142,7 +138,8 @@ export const db = {
    * Returns `fallback` if not found.
    */
   async get<T>(collection: string, projectId: string, fallback: T): Promise<T> {
-    if (USE_REAL()) return sbGet(collection, projectId, fallback);
+    const sb = getSupabase();
+    if (sb) return sbGet(collection, projectId, fallback);
     return lsGet(collection, projectId, fallback);
   },
 
@@ -155,7 +152,8 @@ export const db = {
     // Always write to localStorage for instant UI responsiveness
     lsSet(collection, projectId, data);
 
-    if (!USE_REAL()) return; // dev mode done
+    const sb = getSupabase();
+    if (!sb) return; // no Supabase configured
 
     if (!navigator.onLine) {
       // Offline + prod → queue for background sync
@@ -172,8 +170,9 @@ export const db = {
 
   /** Delete a collection for a project. */
   async remove(collection: string, projectId: string): Promise<void> {
-    if (USE_REAL()) return sbRemove(collection, projectId);
     lsRemove(collection, projectId);
+    const sb = getSupabase();
+    if (sb) return sbRemove(collection, projectId);
   },
 
   /**
@@ -317,7 +316,7 @@ export function useRealtimeSync(
   onRefresh: () => void,
 ) {
   useEffect(() => {
-    if (!USE_REAL()) return;
+    if (!getSupabase()) return;
     const sb = getSupabase();
     if (!sb) return;
     let timer: ReturnType<typeof setTimeout>;
