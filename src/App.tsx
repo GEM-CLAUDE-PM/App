@@ -848,7 +848,6 @@ function AppInner() {
 // ─── AuthProvider wrapper ────────────────────────────────────────────────────
 export default function App() {
   // Show splash một lần duy nhất mỗi session (không lặp lại khi F5)
-  const { ok: notifOk, err: notifErr, warn: notifWarn, info: notifInfo } = useNotification();
   const [showSplash, setShowSplash] = React.useState(() => {
     return !sessionStorage.getItem("gem_splash_done");
   });

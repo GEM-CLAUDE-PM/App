@@ -439,7 +439,7 @@ Rủi ro: 6 NCR mở, 3 HĐ NTP chưa TT ~12.8 Tỷ, 2 thiết bị sắp hạn 
               </button>
             </div>
 
-            <div className="h-48 md:h-52">
+            <div className="h-48 md:h-52 min-w-0">
               {isMounted && (
                 <ResponsiveContainer width="100%" height="100%">
                   <AreaChart data={mockPortfolioCashFlow} margin={{top:5,right:5,left:-22,bottom:0}}>
