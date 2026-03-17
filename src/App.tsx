@@ -127,11 +127,21 @@ function AppInner() {
   const [showQueuePanel, setShowQueuePanel] = useState(false);
 
   // ── Current role — sync với ProjectDashboard qua localStorage ─────────────
-  const [appCurrentRole, setAppCurrentRole] = useState<string>(() => localStorage.getItem("gem_user_role") || "chi_huy_truong");
-  // Listen to storage changes (khi ProjectDashboard thay role)
+  // appCurrentRole — từ AuthProvider, không đọc localStorage
+  const { roleId: _authRoleId } = useAuth();
+  const [appCurrentRole, setAppCurrentRole] = useState<string>(() =>
+    _authRoleId || localStorage.getItem("gem_user_role") || "chi_huy_truong"
+  );
+  // Sync appCurrentRole khi authRoleId thay đổi (login/logout)
+  useEffect(() => {
+    if (_authRoleId) setAppCurrentRole(_authRoleId);
+  }, [_authRoleId]);
+
+  // Listen to storage changes (khi ProjectDashboard dev switcher thay role)
   useEffect(() => {
     const handler = (e: StorageEvent) => {
       if (e.key === "gem_user_role" && e.newValue) setAppCurrentRole(e.newValue);
+      if (e.key === "gem_user_role_dev_override" && e.newValue) setAppCurrentRole(e.newValue);
     };
     window.addEventListener("storage", handler);
     const poll = setInterval(() => {

@@ -95,7 +95,7 @@ export default function ProjectDashboard({
   const [dailyLogNotes, setDailyLogNotes] = useState<Record<string, string>>({});
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
   // ── Auth & Permissions ───────────────────────────────────────────────────
-  const { perm, user } = useAuth();
+  const { perm, user, roleId: authRoleId, allowedProjectIds } = useAuth();
 
   // Gate component — renders lock screen for unauthorised tabs
   const AccessDenied = ({ label }: { label: string }) => (
@@ -155,28 +155,27 @@ export default function ProjectDashboard({
     hse:'hse_site', hr:'hr_site', thu_ky:'thu_ky_site',
   };
 
-  const _resolveRole = (jobRole?: string): UserRole => {
-    if (!jobRole) return 'operator';
-    // Ưu tiên JOB_TO_ROLE, fallback: dùng jobRole trực tiếp nếu là role hợp lệ
-    return (JOB_TO_ROLE[jobRole] || jobRole) as UserRole;
-  };
-
+  // currentRole — lấy trực tiếp từ AuthProvider (đã resolve đúng)
+  // Dev mode: có thể override qua Dev Switcher
+  const _authRole = (authRoleId || user?.job_role || 'operator') as UserRole;
   const [currentRole, setCurrentRole] = useState<UserRole>(() => {
-    // Ưu tiên: auth user.job_role > localStorage > default operator
-    if (user?.job_role) return _resolveRole(user.job_role);
-    const stored = localStorage.getItem('gem_user_role');
-    return (stored as UserRole) || 'operator';
+    const devOverride = localStorage.getItem('gem_user_role_dev_override');
+    return (devOverride || _authRole) as UserRole;
   });
 
-  // Sync khi user thay đổi (login/logout) — LUÔN ưu tiên user.job_role
+  // Sync khi auth user thay đổi — reset dev override, dùng role thật
   useEffect(() => {
-    if (user?.job_role) {
-      const resolved = _resolveRole(user.job_role);
-      setCurrentRole(resolved);
-      localStorage.setItem('gem_user_role', resolved);
+    if (_authRole && _authRole !== 'operator') {
+      localStorage.removeItem('gem_user_role_dev_override');
+      setCurrentRole(_authRole);
+      localStorage.setItem('gem_user_role', _authRole);
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user?.id, user?.job_role]);
+    // Xóa override khi user = null (logout)
+    if (!user) {
+      localStorage.removeItem('gem_user_role_dev_override');
+      localStorage.removeItem('gem_user_role');
+    }
+  }, [user?.id, authRoleId]);
   const [contractUnlocked, setContractUnlocked] = useState<boolean>(() => {
     try {
       const s = JSON.parse(localStorage.getItem(SESSION_KEY) || 'null');
@@ -235,21 +234,26 @@ export default function ProjectDashboard({
   }, [currentRole]);
 
   // Role-based access control
-  const canSeeContractTab  = currentRole !== 'giam_sat';
-  // canSeeFullValues — L4+ hoặc có domain finance/qs/cross
+  const canSeeContractTab  = true; // Controlled by getAccess() in sidebar
+  // canSeeFullValues — dùng authRoleId từ AuthProvider (đã resolve đúng)
   const canSeeFullValues = (() => {
-    const _lvl: Record<string,number> = {
-      giam_doc:5,pm:4,ke_toan_truong:4,
-      truong_qs:3,chi_huy_truong:3,chi_huy_pho:3,
-      ke_toan_site:2,qs_site:2,
+    const lvlMap: Record<string,number> = {
+      giam_doc:5, pm:4, ke_toan_truong:4,
+      truong_qs:3, truong_qaqc:3, truong_hse:3, hr_truong:3,
+      chi_huy_truong:3, chi_huy_pho:3,
+      qs_site:2, qaqc_site:2, ks_giam_sat:2, hse_site:2,
+      ke_toan_site:2, ke_toan_kho:2, hr_site:2,
+      thu_kho:1, thu_ky_site:1, operator:1,
     };
-    const _dom: Record<string,string[]> = {
-      giam_doc:['cross'],pm:['cross','finance','qs'],ke_toan_truong:['finance','cross'],
-      truong_qs:['qs','cross'],chi_huy_truong:['site','cross'],chi_huy_pho:['site','cross'],
-      ke_toan_site:['finance'],qs_site:['qs'],
+    const domMap: Record<string,string[]> = {
+      giam_doc:['cross','admin'], pm:['cross','finance','qs','site'],
+      ke_toan_truong:['finance','cross'], truong_qs:['qs','cross'],
+      chi_huy_truong:['site','cross'], chi_huy_pho:['site','cross'],
+      ke_toan_site:['finance'], ke_toan_kho:['finance','warehouse'], qs_site:['qs'],
     };
-    const lvl = _lvl[currentRole] ?? 1;
-    const dom = _dom[currentRole] ?? [];
+    const role = authRoleId || currentRole;
+    const lvl = lvlMap[role] ?? 1;
+    const dom = domMap[role] ?? [];
     return lvl >= 4 || dom.includes('cross') || dom.includes('finance');
   })();
 
@@ -1074,9 +1078,12 @@ export default function ProjectDashboard({
     const filterLabel: Record<string, string> = {
       all: 'Tất cả', in_progress: 'Đang chạy', potential: 'Tiềm năng', completed: 'Hoàn thành'
     };
-    // Project scope: L1-L2 chỉ thấy project của mình, L3 thấy assigned, L4+ thấy tất cả
-    const scopeCtx    = getCurrentScopeCtx();
-    const allProjects: any[] = filterProjectsByScope(scopeCtx, projects) as any[];
+    // Project scope — dùng allowedProjectIds từ AuthProvider (source of truth)
+    // allowedProjectIds=null → L4+ thấy tất cả; array → L1-L3 chỉ thấy DA được gán
+    const allProjects: any[] = allowedProjectIds === null
+      ? (projects as any[])
+      : (projects as any[]).filter((p: any) => allowedProjectIds!.includes(p.id));
+    const scopeCtx = getCurrentScopeCtx(); // vẫn dùng cho filterProjectsByScope ở chỗ khác
 
     const inProgressProjects = allProjects.filter(p => p.type === 'in_progress');
     const potentialProjects   = allProjects.filter(p => p.type === 'potential');
@@ -1608,6 +1615,7 @@ export default function ProjectDashboard({
                       onClick={() => {
                         // Set role chính
                         setCurrentRole(u.roleId as UserRole);
+                        localStorage.setItem('gem_user_role_dev_override', u.roleId);
                         localStorage.setItem('gem_user_role', u.roleId);
                         localStorage.removeItem(SESSION_KEY);
                         setContractUnlocked(false);

@@ -104,8 +104,14 @@ export default function QSDashboard({ projectId, projectName, contractValue = 45
     giam_sat:'ks_giam_sat', thu_kho:'thu_kho', ke_toan_kho:'ke_toan_kho',
   };
   const LEVEL_MAP: Record<string,number> = {
-    giam_doc:5, pm:4, chi_huy_truong:3, chi_huy_pho:3,
-    qs_site:2, ke_toan:2, giam_sat:2, ke_toan_kho:2, thu_kho:1,
+    giam_doc:5, pm:4, ke_toan_truong:4,
+    truong_qs:3, truong_qaqc:3, truong_hse:3, hr_truong:3,
+    chi_huy_truong:3, chi_huy_pho:3,
+    qs_site:2, qaqc_site:2, ks_giam_sat:2, hse_site:2,
+    ke_toan_site:2, ke_toan_kho:2, hr_site:2,
+    thu_kho:1, thu_ky_site:1, operator:1,
+    // legacy
+    ke_toan:2, giam_sat:2,
   };
   const qsRoleId  = ROLE_MAP[currentRole] || 'qs_site';
   const qsLevel   = LEVEL_MAP[currentRole] ?? 2;

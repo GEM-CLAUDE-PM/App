@@ -8,6 +8,7 @@ import {
 } from 'lucide-react';
 import { filterProjectsByScope } from './permissions';
 import { getCurrentScopeCtx } from './projectMember';
+import { useAuth } from './AuthProvider';
 import {
   BarChart, Bar, LineChart, Line, RadarChart, Radar, PolarGrid,
   PolarAngleAxis, XAxis, YAxis, CartesianGrid, Tooltip, Legend,
@@ -145,12 +146,13 @@ export default function PortfolioAnalytics({ projects, onNavigate }: Props) {
   const [sortBy, setSortBy] = useState<'spi'|'progress'|'budget'|'health'>('spi');
   const [activeTab, setActiveTab] = useState<'overview'|'kpi'|'financial'|'risk'|'benchmark'>('overview');
 
-  // ── Scope filter — L1/L2/L3 chỉ thấy projects được phép ──────────────────
-  const scopeCtx       = getCurrentScopeCtx();
+  // ── Scope filter — dùng allowedProjectIds từ AuthProvider ──────────────────
+  const { allowedProjectIds } = useAuth();
   const scopedProjects = useMemo(
-    () => filterProjectsByScope(scopeCtx, projects as any[]) as Project[],
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [projects, scopeCtx.allowedProjectIds, scopeCtx.roleId]
+    () => allowedProjectIds === null
+      ? projects
+      : projects.filter(p => allowedProjectIds.includes(p.id)),
+    [projects, allowedProjectIds]
   );
 
   // ── Filtered projects ──────────────────────────────────────────────────────

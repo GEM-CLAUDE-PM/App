@@ -148,13 +148,19 @@ export default function MaterialsDashboard({ project, onAlert, currentRole = 'ch
   const { ok: notifOk, err: notifErr, info: notifInfo } = useNotification();
   // Derive UserContext from legacy role
   const legacyRoleMap: Record<string, string> = {
-    giam_doc:'giam_doc', ke_toan:'ke_toan_site', ke_toan_kho:'ke_toan_kho',
+    // Pass-through 24 roles
+    giam_doc:'giam_doc', pm:'pm', ke_toan_truong:'ke_toan_truong',
+    truong_qs:'truong_qs', truong_qaqc:'truong_qaqc', truong_hse:'truong_hse', hr_truong:'hr_truong',
     chi_huy_truong:'chi_huy_truong', chi_huy_pho:'chi_huy_pho',
-    giam_sat:'ks_giam_sat', pm:'pm', thu_kho:'thu_kho', qs_site:'qs_site',
+    qs_site:'qs_site', qaqc_site:'qaqc_site', ks_giam_sat:'ks_giam_sat', hse_site:'hse_site',
+    ke_toan_site:'ke_toan_site', ke_toan_kho:'ke_toan_kho', hr_site:'hr_site',
+    thu_kho:'thu_kho', thu_ky_site:'thu_ky_site', operator:'operator',
+    // Legacy aliases
+    ke_toan:'ke_toan_site', giam_sat:'ks_giam_sat',
   };
   const matCtx = {
     userId: `user_${currentRole}`,
-    roleId: (legacyRoleMap[currentRole] || 'ks_giam_sat') as any,
+    roleId: (legacyRoleMap[currentRole] || currentRole || 'operator') as any,
   };
   const projectId = project?.id || 'default_project';
 
@@ -165,7 +171,7 @@ export default function MaterialsDashboard({ project, onAlert, currentRole = 'ch
     ke_toan_site:2, ke_toan_kho:2, ks_giam_sat:2, qaqc_site:2, qs_site:2,
     thu_kho:1, thu_ky_site:1,
   };
-  const matRoleId = legacyRoleMap[currentRole] || 'ks_giam_sat';
+  const matRoleId = legacyRoleMap[currentRole] || currentRole || 'operator';
   const matLevel  = APPROVE_LEVEL_MAP[matRoleId] ?? 1;
   const canApproveVoucher = matLevel >= 2; // L1 (thủ kho) KHÔNG được duyệt
   const pid = project?.id ?? 'p1';

@@ -92,14 +92,37 @@ function canAccess(action: WorkspaceAction, userLevel: number, userDomains: stri
 
 // ─── Role config ──────────────────────────────────────────────────────────────
 const ROLE_CFG: Record<string, { level: number; domains: string[]; label: string; homeTab: string; color: string }> = {
-  giam_doc:       { level:5, domains:['cross'],             label:'Giám đốc DA',     homeTab:'overview',   color:'#7c3aed' },
-  pm:             { level:4, domains:['cross'],             label:'Project Manager', homeTab:'overview',   color:'#0891b2' },
-  ke_toan:        { level:2, domains:['finance','cross'],   label:'Kế toán site',    homeTab:'accounting', color:'#059669' },
-  chi_huy_truong: { level:3, domains:['site','cross'],      label:'Chỉ huy trưởng', homeTab:'progress',   color:'#2563eb' },
-  chi_huy_pho:    { level:3, domains:['site','cross'],      label:'Chỉ huy phó',    homeTab:'progress',   color:'#2563eb' },
-  giam_sat:       { level:2, domains:['site','qaqc'],       label:'KS Giám sát',     homeTab:'giam-sat',   color:'#16a34a' },
-  thu_kho:        { level:1, domains:['warehouse'],         label:'Thủ kho',         homeTab:'resources',  color:'#d97706' },
-  qs_site:        { level:2, domains:['qs'],                label:'QS site',         homeTab:'qs',         color:'#7c3aed' },
+  // L5
+  giam_doc:        { level:5, domains:['cross','admin'],          label:'Giám đốc CT',      homeTab:'overview',   color:'#7c3aed' },
+  // L4
+  pm:              { level:4, domains:['cross','finance','qs'],   label:'Project Manager',  homeTab:'overview',   color:'#0891b2' },
+  ke_toan_truong:  { level:4, domains:['finance','cross'],        label:'Kế toán trưởng',   homeTab:'accounting', color:'#059669' },
+  // L3 HO
+  truong_qs:       { level:3, domains:['qs','cross'],             label:'Trưởng QS',        homeTab:'boq',        color:'#0284c7' },
+  truong_qaqc:     { level:3, domains:['qaqc','cross'],           label:'Trưởng QA/QC',     homeTab:'qa-qc',      color:'#059669' },
+  truong_hse:      { level:3, domains:['hse','cross'],            label:'Trưởng HSE',       homeTab:'hse',        color:'#dc2626' },
+  hr_truong:       { level:3, domains:['hr','cross'],             label:'Trưởng nhân sự',   homeTab:'hr',         color:'#7c3aed' },
+  // L3 Site
+  chi_huy_truong:  { level:3, domains:['site','cross'],           label:'Chỉ huy trưởng',  homeTab:'progress',   color:'#2563eb' },
+  chi_huy_pho:     { level:3, domains:['site','cross'],           label:'Chỉ huy phó',     homeTab:'progress',   color:'#2563eb' },
+  // L2
+  qs_site:         { level:2, domains:['qs'],                     label:'QS site',          homeTab:'qs',         color:'#7c3aed' },
+  qaqc_site:       { level:2, domains:['qaqc'],                   label:'QA/QC site',       homeTab:'qa-qc',      color:'#059669' },
+  ks_giam_sat:     { level:2, domains:['site','qaqc'],            label:'KS Giám sát',      homeTab:'giam-sat',   color:'#16a34a' },
+  hse_site:        { level:2, domains:['hse'],                    label:'HSE site',         homeTab:'hse',        color:'#dc2626' },
+  ke_toan_site:    { level:2, domains:['finance'],                label:'Kế toán site',     homeTab:'accounting', color:'#059669' },
+  ke_toan_kho:     { level:2, domains:['finance','warehouse'],    label:'Kế toán kho',      homeTab:'resources',  color:'#0891b2' },
+  hr_site:         { level:2, domains:['hr','site'],              label:'Nhân sự site',     homeTab:'hr',         color:'#7c3aed' },
+  // L1
+  thu_kho:         { level:1, domains:['warehouse'],              label:'Thủ kho',          homeTab:'resources',  color:'#d97706' },
+  thu_ky_site:     { level:1, domains:['admin'],                  label:'Thư ký site',      homeTab:'office',     color:'#64748b' },
+  operator:        { level:1, domains:['site'],                   label:'Vận hành thiết bị',homeTab:'equipment',  color:'#64748b' },
+  ntp_site:        { level:1, domains:['site'],                   label:'NTP nội bộ',       homeTab:'progress',   color:'#ea580c' },
+  to_doi:          { level:1, domains:['site'],                   label:'Tổ đội thi công',  homeTab:'progress',   color:'#ea580c' },
+  ky_thuat_vien:   { level:1, domains:['site','qaqc'],            label:'Kỹ thuật viên',    homeTab:'qa-qc',      color:'#64748b' },
+  // Legacy aliases
+  ke_toan:         { level:2, domains:['finance','cross'],        label:'Kế toán site',     homeTab:'accounting', color:'#059669' },
+  giam_sat:        { level:2, domains:['site','qaqc'],            label:'KS Giám sát',      homeTab:'giam-sat',   color:'#16a34a' },
 };
 
 // ─── Color map ────────────────────────────────────────────────────────────────
