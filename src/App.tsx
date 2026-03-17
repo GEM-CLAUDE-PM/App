@@ -376,7 +376,7 @@ function AppInner() {
         className={[
           'bg-white border-r border-slate-200 md:h-screen md:sticky top-[60px] md:top-0 z-10 print:hidden transition-all duration-200',
           isMobileMenuOpen ? 'fixed inset-y-0 left-0 w-[min(280px,85vw)] h-full shadow-2xl z-40' : 'hidden',
-          activeTab === 'tasks' ? 'md:hidden' : (sidebarCollapsed ? 'md:block md:w-14' : 'md:block md:w-56'),
+          sidebarCollapsed ? 'md:block md:w-14' : 'md:block md:w-56',
         ].join(' ')}
       >
         {/* Toggle collapse button */}
@@ -443,7 +443,7 @@ function AppInner() {
       </nav>
 
       {/* Main Content Area */}
-      <main className={`flex-1 ${activeTab === 'tasks' ? 'p-0 md:p-2' : 'p-2 md:p-4'} overflow-y-auto min-w-0 flex flex-col`}>
+      <main className="flex-1 p-2 md:p-4 overflow-y-auto min-w-0 flex flex-col">
           {/* ── TOPBAR: WorkspaceActionBar + Bell + User — sticky trong scroll container ── */}
           <header className="sticky top-0 z-20 mb-3 md:mb-4 shrink-0">
             {/* Desktop topbar */}

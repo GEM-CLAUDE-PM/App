@@ -79,6 +79,7 @@ interface ProjectDashboardProps {
   onBackToList?: () => void;
   onPushNotification?: (notif: any) => void;
   onRequestNewProject?: () => void;
+  onNavigateApp?: (tab: string) => void;
 }
 
 export default function ProjectDashboard({
@@ -86,7 +87,7 @@ export default function ProjectDashboard({
   generateWeeklyReport, setShowRecordForm, setRecordType,
   setShowProfileForm, setShowHseForm, isGeneratingReport, generatedReport,
   showRecordForm, recordType, recordData, setRecordData, isGeneratingRecord, generateGemRecord,
-  showProfileForm, showHseForm, onBackToList, onPushNotification, onRequestNewProject
+  showProfileForm, showHseForm, onBackToList, onPushNotification, onRequestNewProject, onNavigateApp
 }: ProjectDashboardProps) {
   const { ok: notifOk, info: notifInfo } = useNotification();
   const [activeTab, setActiveTab] = useState(initialTab || 'overview');
@@ -1308,7 +1309,7 @@ export default function ProjectDashboard({
   }
 
   return (
-    <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-3 md:p-6 lg:p-8 animate-in fade-in duration-200">
+    <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-3 md:p-4 animate-in fade-in duration-200">
 
       {/* ── PIN Dialog Overlay ──────────────────────────────────────────── */}
       {showPinDialog && (
@@ -1406,14 +1407,24 @@ export default function ProjectDashboard({
       )}
 
       {/* Header */}
-      <div className="mb-3 md:mb-4">
-        <button 
-          onClick={() => { setSelectedProjectId(null); setLocalProjectId(null); onBackToList?.(); }}
-          className="flex items-center gap-2 text-xs md:text-sm font-medium text-slate-500 hover:text-emerald-600 transition-colors mb-2"
-        >
-          <ArrowLeft size={14} className="md:w-4 md:h-4" /> Quay lại danh sách
-
-        </button>
+      <div className="mb-2 md:mb-3">
+        {/* Top bar: back + mini app nav */}
+        <div className="flex items-center justify-between mb-2">
+          <button
+            onClick={() => { setSelectedProjectId(null); setLocalProjectId(null); onBackToList?.(); }}
+            className="flex items-center gap-1.5 text-xs font-medium text-slate-500 hover:text-emerald-600 transition-colors"
+          >
+            <ArrowLeft size={13} /> Danh sách
+          </button>
+          {/* Mini app nav — hiện khi App nav ẩn ở fullscreen */}
+          {onNavigateApp && (
+            <div className="hidden md:flex items-center gap-0.5 text-xs text-slate-400">
+              <button onClick={() => onNavigateApp('calendar')} className="px-2 py-1 hover:bg-slate-100 rounded-lg hover:text-slate-600 transition-colors">Lịch trình</button>
+              <button onClick={() => onNavigateApp('contacts')} className="px-2 py-1 hover:bg-slate-100 rounded-lg hover:text-slate-600 transition-colors">Đối tác</button>
+              <button onClick={() => onNavigateApp('admin')}    className="px-2 py-1 hover:bg-slate-100 rounded-lg hover:text-slate-600 transition-colors">Quản lý User</button>
+            </div>
+          )}
+        </div>
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-2">
           <div className="flex items-center gap-2 md:gap-3">
             <h2 className="text-lg md:text-xl lg:text-2xl font-bold text-slate-800 truncate max-w-[160px] sm:max-w-[240px] md:max-w-none">{selectedProject?.name}</h2>
@@ -1564,7 +1575,7 @@ export default function ProjectDashboard({
       )}
 
       {/* ── Responsive Hybrid Layout: Desktop = Master-Detail, Mobile = FAB ── */}
-      <div className="md:flex md:gap-3 md:items-start">
+      <div className="md:flex md:gap-2 md:items-start">
 
         {/* Mobile overlay backdrop */}
         {mobileSidebarOpen && (
@@ -1578,7 +1589,7 @@ export default function ProjectDashboard({
         <div className={[
           'print:hidden shrink-0',
           // Desktop
-          'md:w-[180px] md:sticky md:top-16 md:block',
+          'md:w-[200px] md:sticky md:top-2 md:block md:max-h-[calc(100vh-16px)] md:overflow-y-auto md:overscroll-contain',
           // Mobile: hidden by default, shown as fixed drawer when open
           mobileSidebarOpen
             ? 'fixed inset-y-0 left-0 w-[min(280px,85vw)] bg-white z-40 shadow-2xl overflow-y-auto p-4 md:relative md:inset-auto md:shadow-none md:p-0'
