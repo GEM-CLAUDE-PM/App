@@ -392,32 +392,36 @@ function AppInner() {
             }
           </button>
         </div>
-        <div className={`hidden md:block border-b border-slate-100 ${sidebarCollapsed ? "hidden" : "p-4 md:p-5"}`}>
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl overflow-hidden shrink-0 shadow-sm bg-gradient-to-br from-teal-500 to-teal-700 flex items-center justify-center">
-              <img
-                src="/icon/icon_app_64.png"
-                alt=""
-                className="w-10 h-10 object-cover"
-                onError={(e) => {
-                  (e.target as HTMLImageElement).style.display = "none";
-                }}
-              />
+        {/* Logo block — expanded: full, collapsed: icon only */}
+        <div className="hidden md:block border-b border-slate-100">
+          {sidebarCollapsed ? (
+            /* Collapsed: chỉ icon căn giữa */
+            <div className="flex items-center justify-center py-3">
+              <div className="w-8 h-8 rounded-lg overflow-hidden shrink-0 bg-gradient-to-br from-teal-500 to-teal-700 flex items-center justify-center">
+                <img src="/icon/icon_app_64.png" alt="GEM" className="w-8 h-8 object-cover"
+                  onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }} />
+              </div>
             </div>
-            <div className="min-w-0">
-              <h1 className="text-sm font-black text-slate-800 leading-tight tracking-tight">GEM & CLAUDE</h1>
-              <p className="text-[10px] font-bold mt-0.5" style={{ color: "#1a8a7a" }}>
-                PM Pro
+          ) : (
+            /* Expanded: logo + text + slogan */
+            <div className="p-4">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl overflow-hidden shrink-0 shadow-sm bg-gradient-to-br from-teal-500 to-teal-700 flex items-center justify-center">
+                  <img src="/icon/icon_app_64.png" alt="" className="w-10 h-10 object-cover"
+                    onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }} />
+                </div>
+                <div className="min-w-0 overflow-hidden">
+                  <h1 className="text-sm font-black text-slate-800 leading-tight tracking-tight whitespace-nowrap">GEM & CLAUDE</h1>
+                  <p className="text-[10px] font-bold mt-0.5 whitespace-nowrap" style={{ color: "#1a8a7a" }}>PM Pro</p>
+                </div>
+              </div>
+              <p className="text-[10px] text-slate-400 mt-3 font-medium leading-relaxed">
+                Quản lý dự án chuyên nghiệp<br/>Kiểm soát QA/QC/QS & Dòng tiền
               </p>
             </div>
-          </div>
-          <p className="text-[10px] text-slate-400 mt-3 font-medium leading-relaxed">
-            Quản lý dự án chuyên nghiệp
-            <br />
-            Kiểm soát QA/QC/QS & Dòng tiền
-          </p>
+          )}
         </div>
-        <div className="p-2 md:p-4 space-y-1 md:space-y-2">
+        <div className={`space-y-1 ${sidebarCollapsed ? "p-1.5" : "p-2 md:p-4 md:space-y-2"}`}>
           {navItems.map((item) => {
             const Icon = item.icon;
             const isActive = activeTab === item.id;
