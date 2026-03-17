@@ -230,9 +230,9 @@ function ActionPanel({ onAction, onClose }: { onAction: (key: string) => void; o
   return (
     <div
       ref={ref}
-      className="absolute bottom-full mb-3 left-0
+      className="absolute bottom-full mb-3 left-0 right-0 sm:left-0 sm:right-auto
         bg-slate-900/95 backdrop-blur-xl border border-slate-700/60
-        rounded-2xl shadow-2xl p-3 w-[min(88vw,400px)]
+        rounded-2xl shadow-2xl p-3 w-auto sm:w-[min(88vw,400px)]
         animate-in slide-in-from-bottom-2 fade-in-0 duration-200 z-[9998]
         max-h-[70vh] overflow-y-auto"
     >
@@ -519,7 +519,7 @@ export const Taskbar: React.FC<TaskbarProps> = ({
 export default Taskbar;
 
 // ─── UserMenuBar — fixed top-right, shown alongside Taskbar ──────────────────
-export function UserMenuBar() {
+export function UserMenuBar({ onNavigate }: { onNavigate?: (tab: string) => void }) {
   return (
     <>
       {/* Logo — top left */}
@@ -547,7 +547,7 @@ export function UserMenuBar() {
       </div>
       {/* User menu — top right */}
       <div className="fixed top-4 right-4 z-[9001] print:hidden">
-        <UserMenu onNavigate={onNavigateApp} />
+        <UserMenu onNavigate={onNavigate} />
       </div>
     </>
   );

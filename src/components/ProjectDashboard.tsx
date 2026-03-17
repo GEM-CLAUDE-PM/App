@@ -1142,7 +1142,7 @@ export default function ProjectDashboard({
 
     return (
       <>{/* list-view-root */}
-      <div className="space-y-6 animate-in fade-in duration-300">
+      <div className="space-y-6">
 
         {/* ── Scope restriction banner (L3 trở xuống) ── */}
         {scopeType !== 'all' && (
@@ -1406,17 +1406,17 @@ export default function ProjectDashboard({
       )}
 
       {/* Header */}
-      <div className="mb-6 md:mb-8">
+      <div className="mb-3 md:mb-4">
         <button 
           onClick={() => { setSelectedProjectId(null); setLocalProjectId(null); onBackToList?.(); }}
-          className="flex items-center gap-2 text-xs md:text-sm font-medium text-slate-500 hover:text-emerald-600 transition-colors mb-3 md:mb-4"
+          className="flex items-center gap-2 text-xs md:text-sm font-medium text-slate-500 hover:text-emerald-600 transition-colors mb-2"
         >
           <ArrowLeft size={14} className="md:w-4 md:h-4" /> Quay lại danh sách
 
         </button>
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-2">
           <div className="flex items-center gap-2 md:gap-3">
-            <h2 className="text-lg md:text-xl lg:text-2xl font-bold text-slate-800 truncate max-w-[200px] md:max-w-none">{selectedProject?.name}</h2>
+            <h2 className="text-lg md:text-xl lg:text-2xl font-bold text-slate-800 truncate max-w-[160px] sm:max-w-[240px] md:max-w-none">{selectedProject?.name}</h2>
             <span className={`px-2 py-0.5 md:px-2.5 md:py-1 rounded-full text-[10px] md:text-xs font-medium whitespace-nowrap ${
               selectedProject?.type === 'potential' ? 'bg-orange-100 text-orange-700' :
               selectedProject?.type === 'in_progress' ? 'bg-emerald-100 text-emerald-700' :
@@ -1564,7 +1564,7 @@ export default function ProjectDashboard({
       )}
 
       {/* ── Responsive Hybrid Layout: Desktop = Master-Detail, Mobile = FAB ── */}
-      <div className="md:flex md:gap-5 md:items-start">
+      <div className="md:flex md:gap-3 md:items-start">
 
         {/* Mobile overlay backdrop */}
         {mobileSidebarOpen && (
@@ -1578,10 +1578,10 @@ export default function ProjectDashboard({
         <div className={[
           'print:hidden shrink-0',
           // Desktop
-          'md:w-60 md:sticky md:top-4 md:block',
+          'md:w-[180px] md:sticky md:top-4 md:block',
           // Mobile: hidden by default, shown as fixed drawer when open
           mobileSidebarOpen
-            ? 'fixed inset-y-0 left-0 w-72 bg-white z-40 shadow-2xl overflow-y-auto p-4 md:relative md:inset-auto md:shadow-none md:p-0'
+            ? 'fixed inset-y-0 left-0 w-[min(280px,85vw)] bg-white z-40 shadow-2xl overflow-y-auto p-4 md:relative md:inset-auto md:shadow-none md:p-0'
             : 'hidden md:block',
         ].join(' ')}>
 

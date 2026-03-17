@@ -36,6 +36,7 @@ import SubconPortal from "./components/SubconPortal";
 import ClientPortal from "./components/ClientPortal";
 import BillingPage from "./components/BillingPage";
 import OnboardingFlow from "./components/OnboardingFlow";
+import { saveProjectConfig, loadProjectConfig } from "./components/ProjectConfigPanel";
 import SplashScreen from "./components/SplashScreen";
 import { PWAManager } from "./components/PWABanner";
 import { useOfflineQueue, OfflineQueuePanel } from "./components/useOfflineQueue";
@@ -355,10 +356,18 @@ function AppInner() {
         </div>
       </div>
 
+      {/* Mobile backdrop */}
+      {isMobileMenuOpen && (
+        <div
+          className="fixed inset-0 bg-black/40 z-30 md:hidden"
+          onClick={() => setIsMobileMenuOpen(false)}
+        />
+      )}
+
       {/* Sidebar */}
       <nav
         className={`
-        ${isMobileMenuOpen ? "block absolute w-64 h-[calc(100vh-60px)] shadow-2xl" : "hidden"} 
+        ${isMobileMenuOpen ? "fixed inset-y-0 left-0 w-[min(280px,85vw)] h-full shadow-2xl z-40" : "hidden"} 
         md:block md:w-64 bg-white border-r border-slate-200 md:h-screen md:sticky top-[60px] md:top-0 z-10 print:hidden
       `}
       >
@@ -776,9 +785,25 @@ function AppInner() {
       {/* Onboarding — trigger lần đầu login */}
       {showOnboarding && user && (
         <OnboardingFlow
-          onComplete={({ company, project }) => {
+          onComplete={({ company, project, members }) => {
             localStorage.setItem(`gem_onboarded_${user.id}`, '1');
             if (company.name) localStorage.setItem('gem_company_name', company.name);
+            // Pre-fill ProjectConfigPanel với data từ onboarding
+            const newProjectId = projects[projects.length - 1]?.id;
+            if (newProjectId && (company.name || project.name)) {
+              const cfg = loadProjectConfig(newProjectId);
+              saveProjectConfig({
+                ...cfg,
+                projectId: newProjectId,
+                projectName: project.name || cfg.projectName,
+                projectAddress: project.location || cfg.projectAddress,
+                contractorName: company.name || cfg.contractorName,
+                contractorAddress: company.address || cfg.contractorAddress,
+                contractorPhone: company.phone || cfg.contractorPhone,
+                contractorMST: company.tax_code || cfg.contractorMST,
+                ownerName: project.client_name || cfg.ownerName,
+              });
+            }
             setShowOnboarding(false);
             setActiveTab('tasks');
             notifOk(`🎉 Chào mừng ${company.name || 'anh'} đến với GEM & CLAUDE PM Pro!`);
