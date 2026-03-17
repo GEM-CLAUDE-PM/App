@@ -46,7 +46,7 @@ import {
 import { getPendingCount } from './approvalEngine';
 import {
   getCurrentMember, buildCtxFromMember, switchActiveRole, setActiveMemberSnap,
-  seedMembersIfEmpty, type ProjectMember,
+  seedMembersIfEmpty, loadMembers, saveMembers, type ProjectMember,
   getCurrentScopeCtx, autoAssignMemberOnSeed,
 } from './projectMember';
 
@@ -1606,12 +1606,23 @@ export default function ProjectDashboard({
                   {DEV_USERS.map(u => (
                     <button key={u.roleId}
                       onClick={() => {
+                        // Set role chính
                         setCurrentRole(u.roleId as UserRole);
                         localStorage.setItem('gem_user_role', u.roleId);
                         localStorage.removeItem(SESSION_KEY);
                         setContractUnlocked(false);
                         setShowDevPicker(false);
                         setActiveTab('overview');
+                        // Cập nhật member.roles trong DA để union logic đúng
+                        if (localProjectId) {
+                          const members = loadMembers(localProjectId);
+                          const matchIdx = members.findIndex(m => m.activeRoleId === u.roleId || m.roles.includes(u.roleId));
+                          if (matchIdx >= 0) {
+                            members[matchIdx] = { ...members[matchIdx], activeRoleId: u.roleId };
+                            saveMembers(localProjectId, members);
+                            localStorage.setItem(`gem_current_member_${localProjectId}`, JSON.stringify(members[matchIdx]));
+                          }
+                        }
                       }}
                       className={`flex items-center gap-2 px-2.5 py-2 rounded-xl text-left transition-colors ${
                         u.roleId === currentRole
@@ -1718,10 +1729,27 @@ export default function ProjectDashboard({
           ky_thuat_vien: 'ky_thuat_vien',
         };
         // Fallback về operator (L1 site) thay vì ks_giam_sat (L2)
-        const roleId = (legacyToNew[currentRole] || 'operator') as RoleId;
-        // Use member-based ctx for consistency
+        // ── Union roles: user được làm gì = union của TẤT CẢ roles trong DA ──
+        // Không phải "đóng vai" — 1 user có thể kiêm nhiều roles
         const _member = localProjectId ? getCurrentMember(localProjectId) : null;
-        const permCtx = _member ? buildCtxFromMember(_member) : { userId: `user_${currentRole}`, roleId };
+        const activeRoleId = (legacyToNew[currentRole] || 'operator') as RoleId;
+        const permCtx = _member ? buildCtxFromMember(_member) : { userId: `user_${currentRole}`, roleId: activeRoleId };
+
+        // Tính union domains và max level từ tất cả roles của member
+        const allMemberRoles: string[] = _member?.roles?.length
+          ? _member.roles
+          : [activeRoleId]; // fallback: chỉ role hiện tại
+
+        // Union domains — user thấy tab của TẤT CẢ roles mình có
+        const uDomainsSet = new Set<string>();
+        let uLevel = 1;
+        allMemberRoles.forEach(r => {
+          const lvl = levelMap[r] ?? 1;
+          if (lvl > uLevel) uLevel = lvl;
+          (domainMap[r] ?? []).forEach(d => uDomainsSet.add(d));
+        });
+        const uDomains = Array.from(uDomainsSet);
+        const roleId = activeRoleId; // activeRoleId dùng cho workflow context (ai ký/duyệt)
 
         // Tab definitions with group info
         type TabDef = {
@@ -1803,8 +1831,6 @@ export default function ProjectDashboard({
           ntp_site:1, to_doi:1, ky_thuat_vien:1,
         };
 
-        const uLevel   = levelMap[roleId] ?? 1;
-        const uDomains = domainMap[roleId] ?? [];
         const isCross  = uDomains.includes('cross');
         const isFinance = uDomains.includes('finance');
         const isQS      = uDomains.includes('qs');
