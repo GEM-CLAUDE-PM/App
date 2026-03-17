@@ -1652,13 +1652,26 @@ export default function ProjectDashboard({
       {/* ── Progressive Disclosure Sidebar Nav ── */}
       {(() => {
         // Map legacy role → new permission context
+        // Map đầy đủ 24 roles — không fallback mặc định
         const legacyToNew: Record<string, string> = {
-          giam_doc: 'giam_doc',           ke_toan: 'ke_toan_site',
-          chi_huy_truong: 'chi_huy_truong', giam_sat: 'ks_giam_sat',
-          pm: 'pm',                       chi_huy_pho: 'chi_huy_pho',
-          thu_kho: 'thu_kho',             qs_site: 'qs_site',
+          // Legacy strings
+          giam_doc: 'giam_doc',    pm: 'pm',
+          ke_toan: 'ke_toan_site', ke_toan_truong: 'ke_toan_truong',
+          giam_sat: 'ks_giam_sat', chi_huy_truong: 'chi_huy_truong',
+          chi_huy_pho: 'chi_huy_pho',
+          // New role IDs — pass-through
+          truong_qs: 'truong_qs', truong_qaqc: 'truong_qaqc',
+          truong_hse: 'truong_hse', hr_truong: 'hr_truong',
+          qs_site: 'qs_site', qaqc_site: 'qaqc_site',
+          ks_giam_sat: 'ks_giam_sat', hse_site: 'hse_site',
+          ke_toan_site: 'ke_toan_site', ke_toan_kho: 'ke_toan_kho',
+          hr_site: 'hr_site', thu_kho: 'thu_kho',
+          thu_ky_site: 'thu_ky_site', operator: 'operator',
+          ntp_site: 'ntp_site', to_doi: 'to_doi',
+          ky_thuat_vien: 'ky_thuat_vien',
         };
-        const roleId = (legacyToNew[currentRole] || 'ks_giam_sat') as RoleId;
+        // Fallback về operator (L1 site) thay vì ks_giam_sat (L2)
+        const roleId = (legacyToNew[currentRole] || 'operator') as RoleId;
         // Use member-based ctx for consistency
         const _member = localProjectId ? getCurrentMember(localProjectId) : null;
         const permCtx = _member ? buildCtxFromMember(_member) : { userId: `user_${currentRole}`, roleId };
