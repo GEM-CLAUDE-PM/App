@@ -1,6 +1,6 @@
 /**
  * StorageService.ts — GEM&CLAUDE PM Pro / Nàng GEM Siêu Việt
- * Abstraction over Supabase Storage with dev-mode mock fallback.
+ * Abstraction over Supabase Storage.
  *
  * Bucket structure (Supabase):
  *   gem-docs/
@@ -17,7 +17,6 @@
  * SETUP:
  *   1. Supabase Dashboard → Storage → Create bucket "gem-docs" (private)
  *   2. Set RLS policies (see bottom of file)
- *   3. Set VITE_USE_SUPABASE=true in .env
  */
 
 import { getSupabase } from './supabase';
@@ -62,49 +61,40 @@ export interface UploadProgress {
 const BUCKET = 'gem-docs';
 const LS_KEY  = 'gem_storage_files';
 
-
 // ─── StorageService ───────────────────────────────────────────────────────────
 export const StorageService = {
 
   /** List files for a project, optionally filtered by category */
   async listFiles(projectId: string, category?: FileCategory): Promise<StorageFile[]> {
     const sb = getSupabase();
-
-    if (sb) {
-      const prefix = category ? `${projectId}/${category}/` : `${projectId}/`;
-      const { data, error } = await sb.storage.from(BUCKET).list(prefix, {
-        limit: 200, sortBy: { column: 'created_at', order: 'desc' },
-      });
-      if (error) throw error;
-      // Map Supabase objects to StorageFile
-      return (data || []).map((obj: any) => ({
-        id: obj.id || obj.name,
-        name: obj.name,
-        category: (category ?? obj.name.split('/')[1] ?? 'other') as FileCategory,
-        project_id: projectId,
-        size: obj.metadata?.size ?? 0,
-        mime_type: obj.metadata?.mimetype ?? 'application/octet-stream',
-        uploaded_by: obj.metadata?.uploadedBy ?? 'Unknown',
-        uploaded_at: new Date(obj.created_at).toLocaleString('vi-VN'),
-        version: obj.metadata?.version ?? 1,
-        tags: obj.metadata?.tags ? JSON.parse(obj.metadata.tags) : [],
-        description: obj.metadata?.description ?? '',
-      }));
-    }
-
-    // Dev mock
-    await new Promise(r => setTimeout(r, 300));
-    if (!sb) return [];,
+    if (!sb) return [];
+    const prefix = category ? `${projectId}/${category}/` : `${projectId}/`;
+    const { data, error } = await sb.storage.from(BUCKET).list(prefix, {
+      limit: 200, sortBy: { column: 'created_at', order: 'desc' },
+    });
+    if (error) throw error;
+    return (data || []).map((obj: any) => ({
+      id: obj.id || obj.name,
+      name: obj.name,
+      category: (category ?? obj.name.split('/')[1] ?? 'other') as FileCategory,
+      project_id: projectId,
+      size: obj.metadata?.size ?? 0,
+      mime_type: obj.metadata?.mimetype ?? 'application/octet-stream',
+      uploaded_by: obj.metadata?.uploadedBy ?? 'Unknown',
+      uploaded_at: new Date(obj.created_at).toLocaleString('vi-VN'),
+      version: obj.metadata?.version ?? 1,
+      tags: obj.metadata?.tags ? JSON.parse(obj.metadata.tags) : [],
+      description: obj.metadata?.description ?? '',
+    }));
+  },
 
   /** Get a signed download URL (expires in 1 hour) */
   async getSignedUrl(projectId: string, category: FileCategory, fileName: string): Promise<string | null> {
     const sb = getSupabase();
-    if (sb) {
-      const path = `${projectId}/${category}/${fileName}`;
-      const { data } = await sb.storage.from(BUCKET).createSignedUrl(path, 3600);
-      return data?.signedUrl ?? null;
-    }
-    return null;
+    if (!sb) return null;
+    const path = `${projectId}/${category}/${fileName}`;
+    const { data } = await sb.storage.from(BUCKET).createSignedUrl(path, 3600);
+    return data?.signedUrl ?? null;
   },
 
   /** Upload a file with progress callback */
@@ -116,7 +106,6 @@ export const StorageService = {
     onProgress?: (pct: number) => void,
   ): Promise<{ file: StorageFile | null; error: string | null }> {
     const sb = getSupabase();
-
     if (sb) {
       const path = `${projectId}/${category}/${Date.now()}_${file.name}`;
       // Supabase JS v2 doesn't expose upload progress natively — simulate
@@ -149,7 +138,25 @@ export const StorageService = {
       return { file: stored, error: null };
     }
 
-    if (!sb) return { file: null, error: 'Supabase chưa được cấu hình.' };
+    // Dev mock — simulate upload
+    for (let p = 10; p <= 100; p += 20) {
+      await new Promise(r => setTimeout(r, 120));
+      onProgress?.(p);
+    }
+    const mock: StorageFile = {
+      id: 'f_' + Date.now(),
+      name: file.name,
+      category,
+      project_id: projectId,
+      size: file.size,
+      mime_type: file.type,
+      uploaded_by: meta.uploadedBy,
+      uploaded_at: new Date().toLocaleString('vi-VN'),
+      version: 1,
+      tags: meta.tags,
+      description: meta.description,
+    };
+    return { file: mock, error: null };
   },
 
   /** Delete a file */
