@@ -1729,6 +1729,41 @@ export default function ProjectDashboard({
           ky_thuat_vien: 'ky_thuat_vien',
         };
         // Fallback về operator (L1 site) thay vì ks_giam_sat (L2)
+        // ─── Domain map v2 — đầy đủ 24 roles (khai báo trước union logic) ──────
+        const domainMap: Record<string, string[]> = {
+          giam_doc:        ['cross', 'admin'],
+          pm:              ['cross', 'finance', 'qs', 'site'],
+          ke_toan_truong:  ['finance', 'cross'],
+          truong_qs:       ['qs', 'cross'],
+          truong_qaqc:     ['qaqc', 'cross'],
+          truong_hse:      ['hse', 'cross'],
+          hr_truong:       ['hr', 'cross'],
+          chi_huy_truong:  ['site', 'cross'],
+          chi_huy_pho:     ['site', 'cross'],
+          qs_site:         ['qs'],
+          qaqc_site:       ['qaqc'],
+          ks_giam_sat:     ['site', 'qaqc'],
+          hse_site:        ['hse'],
+          ke_toan_site:    ['finance'],
+          ke_toan_kho:     ['finance', 'warehouse'],
+          hr_site:         ['hr', 'site'],
+          thu_kho:         ['warehouse'],
+          thu_ky_site:     ['admin'],
+          operator:        ['site'],
+          ntp_site:        ['site'],
+          to_doi:          ['site'],
+          ky_thuat_vien:   ['site', 'qaqc'],
+        };
+        const levelMap: Record<string, number> = {
+          giam_doc:5, pm:4, ke_toan_truong:4,
+          truong_qs:3, truong_qaqc:3, truong_hse:3, hr_truong:3,
+          chi_huy_truong:3, chi_huy_pho:3,
+          qs_site:2, qaqc_site:2, ks_giam_sat:2, hse_site:2,
+          ke_toan_site:2, ke_toan_kho:2, hr_site:2,
+          thu_kho:1, thu_ky_site:1, operator:1,
+          ntp_site:1, to_doi:1, ky_thuat_vien:1,
+        };
+
         // ── Union roles: user được làm gì = union của TẤT CẢ roles trong DA ──
         // Không phải "đóng vai" — 1 user có thể kiêm nhiều roles
         const _member = localProjectId ? getCurrentMember(localProjectId) : null;
@@ -1793,43 +1828,6 @@ export default function ProjectDashboard({
 
         // Permission check per tab
         const tabAccessMap: Record<string, 'full'|'readonly'|'hidden'> = {};
-
-        // ─── Domain map v2 — đầy đủ 24 roles ────────────────────────────────
-        const domainMap: Record<string, string[]> = {
-          giam_doc:        ['cross', 'admin'],
-          pm:              ['cross', 'finance', 'qs', 'site'],
-          ke_toan_truong:  ['finance', 'cross'],
-          truong_qs:       ['qs', 'cross'],
-          truong_qaqc:     ['qaqc', 'cross'],
-          truong_hse:      ['hse', 'cross'],
-          hr_truong:       ['hr', 'cross'],
-          chi_huy_truong:  ['site', 'cross'],
-          chi_huy_pho:     ['site', 'cross'],
-          qs_site:         ['qs'],
-          qaqc_site:       ['qaqc'],
-          ks_giam_sat:     ['site', 'qaqc'],
-          hse_site:        ['hse'],
-          ke_toan_site:    ['finance'],
-          ke_toan_kho:     ['finance', 'warehouse'],
-          hr_site:         ['hr', 'site'],
-          thu_kho:         ['warehouse'],
-          thu_ky_site:     ['admin'],
-          operator:        ['site'],
-          ntp_site:        ['site'],
-          to_doi:          ['site'],
-          ky_thuat_vien:   ['site', 'qaqc'],
-        };
-
-        // ─── Level map v2 ─────────────────────────────────────────────────────
-        const levelMap: Record<string, number> = {
-          giam_doc:5, pm:4, ke_toan_truong:4,
-          truong_qs:3, truong_qaqc:3, truong_hse:3, hr_truong:3,
-          chi_huy_truong:3, chi_huy_pho:3,
-          qs_site:2, qaqc_site:2, ks_giam_sat:2, hse_site:2,
-          ke_toan_site:2, ke_toan_kho:2, hr_site:2,
-          thu_kho:1, thu_ky_site:1, operator:1,
-          ntp_site:1, to_doi:1, ky_thuat_vien:1,
-        };
 
         const isCross  = uDomains.includes('cross');
         const isFinance = uDomains.includes('finance');
