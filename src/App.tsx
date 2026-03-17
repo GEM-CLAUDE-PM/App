@@ -343,22 +343,56 @@ function AppInner() {
   return (
     <div className="min-h-screen bg-slate-50 flex flex-col md:flex-row font-sans text-slate-900 print:bg-white">
       {/* Mobile Header */}
-      <div className="md:hidden bg-white border-b border-slate-200 p-2 md:p-4 flex justify-between items-center sticky top-0 z-20 print:hidden">
-        <h1 className="text-base md:text-lg font-bold text-emerald-600 flex items-center gap-1 md:gap-2">
-          Nàng GEM <span className="text-orange-500 text-[9px] md:text-xs px-1.5 py-0.5 bg-orange-50 rounded-full">siêu việt</span>
+      <div className="md:hidden bg-white border-b border-slate-200 p-2 flex justify-between items-center sticky top-0 z-20 print:hidden">
+        <h1 className="text-base font-bold text-emerald-600 flex items-center gap-1">
+          Nàng GEM <span className="text-orange-500 text-[9px] px-1.5 py-0.5 bg-orange-50 rounded-full">siêu việt</span>
         </h1>
-        <div className="flex items-center gap-1 md:gap-2">
-          <button onClick={() => setShowNotifications(!showNotifications)} className="p-1.5 md:p-2 text-slate-600 relative">
-            <Bell size={20} className="md:w-6 md:h-6" />
-            {unreadCount > 0 && (
-              <span className="absolute top-0.5 right-0.5 md:top-1 md:right-1 bg-rose-500 text-white text-[9px] md:text-[10px] font-bold w-3.5 h-3.5 md:w-4 md:h-4 flex items-center justify-center rounded-full">
-                {unreadCount}
-              </span>
+        <div className="flex items-center gap-1">
+          {/* Bell mobile — với dropdown */}
+          <div className="relative">
+            <button
+              onClick={() => setShowNotifications(!showNotifications)}
+              className="p-1.5 text-slate-600 relative"
+            >
+              <Bell size={20} />
+              {unreadCount > 0 && (
+                <span className="absolute top-0.5 right-0.5 bg-rose-500 text-white text-[9px] font-bold w-3.5 h-3.5 flex items-center justify-center rounded-full">
+                  {unreadCount}
+                </span>
+              )}
+            </button>
+            {showNotifications && (
+              <div className="fixed left-2 right-2 top-14 bg-white rounded-2xl shadow-2xl border border-slate-200 z-50 overflow-hidden animate-in fade-in slide-in-from-top-2 duration-200 max-h-[70vh] overflow-y-auto">
+                <div className="p-4 border-b border-slate-100 bg-slate-50 flex justify-between items-center sticky top-0">
+                  <h3 className="font-bold text-slate-800 text-sm">Thông báo khẩn</h3>
+                  <button
+                    onClick={() => setNotifications(notifications.map((n) => ({ ...n, read: true })))}
+                    className="text-xs text-emerald-600 font-medium"
+                  >Đánh dấu đã đọc</button>
+                </div>
+                <div className="divide-y divide-slate-50">
+                  {notifications.length === 0 ? (
+                    <p className="text-sm text-slate-400 text-center py-8">Không có thông báo mới</p>
+                  ) : notifications.map((n) => (
+                    <button
+                      key={n.id}
+                      onClick={() => { handleNotificationClick(n); setShowNotifications(false); }}
+                      className={`w-full p-3 text-left hover:bg-slate-50 transition-colors flex gap-3 items-start ${!n.read ? "bg-emerald-50/30" : ""}`}
+                    >
+                      <span className={`mt-0.5 w-2 h-2 rounded-full shrink-0 ${n.type === "warning" ? "bg-amber-400" : n.type === "error" ? "bg-rose-500" : "bg-emerald-400"}`} />
+                      <div className="min-w-0">
+                        <p className="text-xs font-semibold text-slate-800 line-clamp-2">{n.message}</p>
+                        <p className="text-[10px] text-slate-400 mt-0.5">{new Date(n.timestamp).toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit" })}</p>
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              </div>
             )}
-          </button>
+          </div>
           <UserMenu onNavigate={setActiveTab} />
-          <button onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)} className="p-1.5 md:p-2 text-slate-600">
-            {isMobileMenuOpen ? <X size={20} className="md:w-6 md:h-6" /> : <Menu size={20} className="md:w-6 md:h-6" />}
+          <button onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)} className="p-1.5 text-slate-600">
+            {isMobileMenuOpen ? <X size={20} /> : <Menu size={20} />}
           </button>
         </div>
       </div>
@@ -548,16 +582,7 @@ function AppInner() {
             {/* Mobile: WorkspaceActionBar strip */}
             <div className="md:hidden flex items-center gap-2 py-1.5">
               <WorkspaceActionBar currentRole={appCurrentRole} onNavigate={handleWorkspaceNavigate} pendingCount={pendingCount} forceOpen={workspaceOpen} onOpenChange={setWorkspaceOpen} />
-              <div className="ml-auto">
-                <button onClick={() => setShowNotifications(!showNotifications)} className="relative p-2 text-slate-500">
-                  <Bell size={16} />
-                  {unreadCount > 0 && (
-                    <span className="absolute -top-0.5 -right-0.5 bg-rose-500 text-white text-[9px] font-bold w-3.5 h-3.5 flex items-center justify-center rounded-full">
-                      {unreadCount}
-                    </span>
-                  )}
-                </button>
-              </div>
+
             </div>
           </header>
 
