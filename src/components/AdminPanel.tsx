@@ -20,12 +20,19 @@ import { getSupabase, JOB_LABELS, TIER_LABELS, TIER_COLORS, JOB_TO_TIER, JOB_ROL
 import { mockProjects } from '../constants/mockData';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
+// project_roles: { [projectId]: string[] } — roles của user trong từng DA
+interface ProjectRoleAssignment {
+  projectId: string;
+  roles: JobRole[]; // union roles trong DA này
+}
+
 interface NewUserForm {
   email: string;
   full_name: string;
   phone: string;
-  job_role: JobRole;
-  project_ids: string[];
+  job_role: JobRole;           // role chính (scope HO / all-projects)
+  project_ids: string[];       // legacy — derived từ projectRoles
+  project_roles: ProjectRoleAssignment[]; // roles theo từng DA
   password: string;
 }
 
@@ -33,6 +40,7 @@ const EMPTY_FORM: NewUserForm = {
   email: '', full_name: '', phone: '',
   job_role: 'chi_huy_truong',
   project_ids: [],
+  project_roles: [],
   password: '',
 };
 
@@ -117,6 +125,12 @@ export default function AdminPanel({ currentUserId, onClose }: AdminPanelProps) 
       full_name: u.full_name,
       phone: u.phone ?? '',
       job_role: u.job_role,
+      // Khi edit: reconstruct project_roles từ project_ids + job_role chính
+      // (sẽ được cải thiện khi có DB thực — hiện tại assign role chính cho tất cả DA)
+      project_roles: (u.project_ids ?? []).map(pid => ({
+        projectId: pid,
+        roles: [u.job_role as JobRole],
+      })),
       project_ids: u.project_ids ?? [],
       password: '',
     });
@@ -218,17 +232,35 @@ export default function AdminPanel({ currentUserId, onClose }: AdminPanelProps) 
   };
 
   // ── Toggle project ────────────────────────────────────────────────────────────
-  const toggleProject = (pid: string) => {
-    setForm(f => ({
-      ...f,
-      project_ids: f.project_ids.includes(pid)
-        ? f.project_ids.filter(p => p !== pid)
-        : [...f.project_ids, pid],
-    }));
+  // ─── Render ───────────────────────────────────────────────────────────────
+  // Toggle role trong 1 project cụ thể
+  const toggleProjectRole = (projectId: string, role: JobRole) => {
+    setForm(f => {
+      const existing = f.project_roles.find(pr => pr.projectId === projectId);
+      if (!existing) {
+        // Thêm project với role đầu tiên — cũng thêm vào project_ids
+        return {
+          ...f,
+          project_roles: [...f.project_roles, { projectId, roles: [role] }],
+          project_ids: f.project_ids.includes(projectId) ? f.project_ids : [...f.project_ids, projectId],
+        };
+      }
+      const hasRole = existing.roles.includes(role);
+      const newRoles = hasRole
+        ? existing.roles.filter(r => r !== role)
+        : [...existing.roles, role];
+      const newProjectRoles = newRoles.length === 0
+        ? f.project_roles.filter(pr => pr.projectId !== projectId)
+        : f.project_roles.map(pr => pr.projectId === projectId ? { ...pr, roles: newRoles } : pr);
+      // Sync project_ids
+      const newProjectIds = newProjectRoles.map(pr => pr.projectId);
+      return { ...f, project_roles: newProjectRoles, project_ids: newProjectIds };
+    });
   };
 
-  // ─── Render ───────────────────────────────────────────────────────────────
-  // Roles hiển thị trong AdminPanel — chỉ nội bộ, không có external portal
+  const getProjectRoles = (projectId: string): JobRole[] =>
+    form.project_roles.find(pr => pr.projectId === projectId)?.roles ?? [];
+
   const ROLE_GROUPS: { label: string; roles: JobRole[] }[] = [
     { label: 'Lãnh đạo', roles: ['giam_doc', 'pm', 'ke_toan_truong'] },
     { label: 'Quản lý HO (nhiều dự án)', roles: ['truong_qs', 'truong_qaqc', 'truong_hse', 'hr_truong'] },
@@ -553,35 +585,69 @@ export default function AdminPanel({ currentUserId, onClose }: AdminPanelProps) 
                 </div>
               )}
 
-              {/* Gán dự án */}
+              {/* Gán dự án + roles trong từng DA */}
               <div>
-                <label className="text-xs font-semibold text-slate-600 mb-2 block">
-                  Gán dự án <span className="font-normal text-slate-400">(có thể chọn nhiều)</span>
+                <label className="text-xs font-semibold text-slate-600 mb-1 block">
+                  Gán dự án & phân quyền theo DA
                 </label>
-                <div className="space-y-2 max-h-44 overflow-y-auto pr-1">
+                <p className="text-[11px] text-slate-400 mb-2">
+                  1 user có thể kiêm nhiều roles trong cùng 1 dự án — quyền = union của tất cả roles.
+                </p>
+                <div className="space-y-3 max-h-80 overflow-y-auto pr-1">
                   {mockProjects.map(p => {
-                    const checked = form.project_ids.includes(p.id);
+                    const assignedRoles = getProjectRoles(p.id);
+                    const isAssigned = assignedRoles.length > 0;
+                    // Roles phù hợp với scope DA (site roles + cross roles)
+                    const SITE_ROLE_GROUPS = [
+                      { label: 'Quản lý site', roles: ['chi_huy_truong','chi_huy_pho'] as JobRole[] },
+                      { label: 'Kỹ thuật', roles: ['ks_giam_sat','qs_site','qaqc_site','hse_site'] as JobRole[] },
+                      { label: 'Kế toán / Kho', roles: ['ke_toan_site','ke_toan_kho','thu_kho'] as JobRole[] },
+                      { label: 'Nhân sự / Hành chính', roles: ['hr_site','thu_ky_site','operator'] as JobRole[] },
+                      { label: 'HO (tất cả DA)', roles: ['giam_doc','pm','ke_toan_truong','truong_qs','truong_qaqc','truong_hse','hr_truong'] as JobRole[] },
+                    ];
                     return (
-                      <label
-                        key={p.id}
-                        className={`flex items-center gap-3 p-2.5 rounded-xl border cursor-pointer transition-colors ${
-                          checked
-                            ? 'bg-violet-50 border-violet-200'
-                            : 'bg-white border-slate-200 hover:bg-slate-50'
-                        }`}
-                      >
-                        <input
-                          type="checkbox"
-                          checked={checked}
-                          onChange={() => toggleProject(p.id)}
-                          className="accent-violet-600"
-                        />
-                        <div className="flex-1 min-w-0">
-                          <p className="text-sm font-medium text-slate-800 truncate">{p.name}</p>
-                          <p className="text-[11px] text-slate-400">{p.status === 'in_progress' ? '🟢 Đang thi công' : '⚪ Tạm dừng'}</p>
+                      <div key={p.id} className={`border rounded-2xl overflow-hidden transition-colors ${isAssigned ? 'border-violet-200 bg-violet-50/40' : 'border-slate-200 bg-white'}`}>
+                        {/* Project header */}
+                        <div className="flex items-center gap-2 px-3 py-2.5 border-b border-slate-100">
+                          <Building2 size={13} className="text-slate-400 shrink-0"/>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-semibold text-slate-800 truncate">{p.name}</p>
+                            <p className="text-[10px] text-slate-400">{p.status === 'in_progress' ? '🟢 Đang thi công' : '⚪ Tạm dừng'}</p>
+                          </div>
+                          {isAssigned && (
+                            <span className="text-[10px] font-bold text-violet-700 bg-violet-100 px-2 py-0.5 rounded-full shrink-0">
+                              {assignedRoles.length} role
+                            </span>
+                          )}
                         </div>
-                        {checked && <CheckCircle2 size={15} className="text-violet-500 flex-shrink-0"/>}
-                      </label>
+                        {/* Role checkboxes per project */}
+                        <div className="p-2.5 space-y-2">
+                          {SITE_ROLE_GROUPS.map(grp => (
+                            <div key={grp.label}>
+                              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wide mb-1">{grp.label}</p>
+                              <div className="flex flex-wrap gap-1.5">
+                                {grp.roles.map(role => {
+                                  const active = assignedRoles.includes(role);
+                                  return (
+                                    <button
+                                      key={role}
+                                      type="button"
+                                      onClick={() => toggleProjectRole(p.id, role)}
+                                      className={`text-[11px] font-medium px-2.5 py-1 rounded-lg border transition-all ${
+                                        active
+                                          ? 'bg-violet-600 text-white border-violet-600'
+                                          : 'bg-white text-slate-600 border-slate-200 hover:border-violet-300 hover:text-violet-700'
+                                      }`}
+                                    >
+                                      {JOB_LABELS[role] ?? role}
+                                    </button>
+                                  );
+                                })}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
                     );
                   })}
                 </div>
