@@ -281,11 +281,11 @@ export default function NotificationEngine({ project }: Props) {
         ))}
       </div>
 
-      {/* Tabs */}
-      <div className="flex gap-1 bg-slate-100 p-1 rounded-2xl w-fit">
+      {/* Tabs — underline style */}
+      <div className="flex border-b border-slate-200">
         {tabs.map(t=>(
           <button key={t.id} onClick={()=>setTab(t.id)}
-            className={`flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-semibold transition-all ${tab===t.id?'bg-white shadow-sm text-violet-700':'text-slate-500 hover:text-slate-700'}`}>
+            className={`flex items-center gap-1.5 px-4 py-2.5 text-sm font-medium transition-all border-b-2 -mb-px ${tab===t.id?'border-violet-600 text-violet-700':'border-transparent text-slate-500 hover:text-slate-700'}`}>
             {t.icon}{t.label}
           </button>
         ))}
@@ -297,22 +297,17 @@ export default function NotificationEngine({ project }: Props) {
           {/* Channel status */}
           <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-4">
             <p className="text-xs font-bold text-slate-500 uppercase mb-3 tracking-wide">Trạng thái kênh gửi</p>
-            <div className="flex gap-4 flex-wrap">
+            <div className="flex gap-2 flex-wrap">
               {(Object.entries(CHANNEL_CFG) as [NotifChannel, typeof CHANNEL_CFG[NotifChannel]][]).map(([k,v])=>(
-                <div key={k} className={`flex items-center gap-2 px-3 py-2 rounded-xl ${v.cls} border border-current/20`}>
-                  {v.icon}<span className="text-xs font-bold">{v.label}</span>
-                  <span className={`w-2 h-2 rounded-full ${v.dot} animate-pulse`}/>
-                  <span className="text-[10px] font-bold opacity-70">Hoạt động</span>
+                <div key={k} className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-xs font-medium ${v.cls} border-current/20`}>
+                  {v.icon}<span>{v.label}</span>
+                  {k==='zalo' && <span className={`w-1.5 h-1.5 rounded-full ${v.dot} animate-pulse`}/>}
                 </div>
               ))}
             </div>
           </div>
 
-          <div className="flex justify-end">
-            <button onClick={()=>setShowForm(true)} className="flex items-center gap-2 px-4 py-2 bg-violet-600 text-white rounded-xl text-sm font-semibold hover:bg-violet-700">
-              <Plus size={15}/> Thêm quy tắc
-            </button>
-          </div>
+
 
           {rules.map(rule=>{
             const trig = TRIG_CFG[rule.trigger];
@@ -321,8 +316,8 @@ export default function NotificationEngine({ project }: Props) {
               <div key={rule.id} className={`bg-white border rounded-2xl shadow-sm overflow-hidden ${rule.active?'border-slate-200':'border-slate-100 opacity-60'}`}>
                 <div className="p-4 flex items-center gap-3 cursor-pointer hover:bg-slate-50" onClick={()=>setExpandedRule(isExp?null:rule.id)}>
                   <button onClick={e=>{e.stopPropagation();toggleRule(rule.id);}}
-                    className={`shrink-0 w-10 h-6 rounded-full transition-colors ${rule.active?'bg-violet-600':'bg-slate-200'} relative`}>
-                    <span className={`absolute top-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform ${rule.active?'translate-x-4':'translate-x-0.5'}`}/>
+                    className={`shrink-0 w-9 h-5 rounded-full transition-colors ${rule.active?'bg-violet-600':'bg-slate-200'} relative`}>
+                    <span className={`absolute top-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform ${rule.active?'translate-x-[18px]':'translate-x-0.5'}`}/>
                   </button>
                   <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${rule.active?'bg-violet-100':'bg-slate-100'}`}>
                     {CAT_ICON[rule.category]||<Bell size={14} className="text-slate-400"/>}
@@ -357,16 +352,21 @@ export default function NotificationEngine({ project }: Props) {
                     <div className="flex gap-4 text-xs text-slate-600 flex-wrap">
                       <div><span className="font-bold text-slate-400">Người nhận: </span>{rule.recipients.join(' · ')}</div>
                     </div>
-                    <div className="flex gap-2">
-                      <button className="flex items-center gap-1.5 px-3 py-1.5 bg-violet-50 text-violet-700 border border-violet-200 rounded-lg text-xs font-bold hover:bg-violet-100"><Send size={10}/>Gửi test</button>
-                      <button className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-100 text-slate-600 rounded-lg text-xs font-bold hover:bg-slate-200"><Edit3 size={10}/>Sửa</button>
-                      <button onClick={()=>setRules(p=>p.filter(r=>r.id!==rule.id))} className="flex items-center gap-1.5 px-3 py-1.5 bg-rose-50 text-rose-600 border border-rose-200 rounded-lg text-xs font-bold hover:bg-rose-100"><Trash2 size={10}/>Xóa</button>
+                    <div className="flex gap-3">
+                      <button className="flex items-center gap-1.5 px-3 py-1.5 bg-violet-50 text-violet-700 border border-violet-200 rounded-lg text-xs font-medium hover:bg-violet-100 transition-colors"><Send size={13}/>Gửi test</button>
+                      <button className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-50 text-slate-600 border border-slate-200 rounded-lg text-xs font-medium hover:bg-slate-100 transition-colors"><Edit3 size={13}/>Sửa</button>
+                      <button onClick={()=>setRules(p=>p.filter(r=>r.id!==rule.id))} className="flex items-center gap-1.5 px-3 py-1.5 text-rose-600 border border-rose-200 rounded-lg text-xs font-medium hover:bg-rose-50 transition-colors"><Trash2 size={13}/>Xóa</button>
                     </div>
                   </div>
                 )}
               </div>
             );
           })}
+          {/* Dashed add button — cuối list */}
+          <button onClick={()=>setShowForm(true)}
+            className="w-full flex items-center justify-center gap-2 py-3 border border-dashed border-slate-300 rounded-xl text-sm text-slate-500 hover:border-violet-400 hover:text-violet-600 hover:bg-violet-50/50 transition-all">
+            <Plus size={14}/> Thêm quy tắc mới
+          </button>
         </div>
       )}
 
@@ -375,7 +375,7 @@ export default function NotificationEngine({ project }: Props) {
         <div className="space-y-3">
           <div className="flex gap-2 items-center">
             <span className="text-sm text-slate-500">Tổng {logs.length} thông báo</span>
-            <button className="flex items-center gap-1.5 ml-auto px-3 py-1.5 bg-slate-100 text-slate-600 rounded-lg text-xs font-bold hover:bg-slate-200"><RefreshCw size={11}/>Làm mới</button>
+            <button className="flex items-center gap-1.5 ml-auto px-3 py-1.5 bg-slate-50 text-slate-600 border border-slate-200 rounded-lg text-xs font-medium hover:bg-slate-100 transition-colors"><RefreshCw size={13}/>Làm mới</button>
           </div>
           {logs.map(log=>{
             const ch = CHANNEL_CFG[log.channel]; const st = STATUS_CFG[log.status];
