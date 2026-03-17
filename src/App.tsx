@@ -443,10 +443,9 @@ function AppInner() {
       </nav>
 
       {/* Main Content Area */}
-      <main className={`flex-1 ${activeTab === 'tasks' ? 'p-0 md:p-2' : 'p-2 md:p-4'} overflow-y-auto min-w-0`}>
-        <div className="w-full">
-          {/* ── TOPBAR: WorkspaceActionBar + Bell + User ─────────────────── */}
-          <header className="sticky top-0 z-20 mb-3 md:mb-4">
+      <main className={`flex-1 ${activeTab === 'tasks' ? 'p-0 md:p-2' : 'p-2 md:p-4'} overflow-y-auto min-w-0 flex flex-col`}>
+          {/* ── TOPBAR: WorkspaceActionBar + Bell + User — sticky trong scroll container ── */}
+          <header className="sticky top-0 z-20 mb-3 md:mb-4 shrink-0">
             {/* Desktop topbar */}
             <div className="hidden md:flex items-center gap-3 bg-white/95 backdrop-blur-sm border border-slate-200 rounded-2xl px-4 py-2.5 shadow-sm mb-4">
               {/* Title */}
@@ -562,7 +561,8 @@ function AppInner() {
             </div>
           </header>
 
-          {/* Content Area */}
+          {/* Content Area — flex-1 để header sticky ở trên */}
+          <div className="flex-1 min-h-0">
           {activeTab === "dashboard" ? (
             <Dashboard onNavigate={handleNavigate} />
           ) : activeTab === "tasks" ? (
@@ -618,7 +618,7 @@ function AppInner() {
               <p className="text-slate-500 max-w-md">Chúng ta sẽ xây dựng các tính năng chi tiết cho phần này trong các bước tiếp theo.</p>
             </div>
           )}
-        </div>
+          </div>{/* end content area */}
       </main>
 
       {/* Floating Nàng GEM Bubble */}
