@@ -44,6 +44,7 @@ import {
 import { GEM_MODEL } from './gemini';
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import { mockProjects } from "../constants/mockData";
+import { useNotification } from './NotificationEngine';
 
 // ── Gemini init — đúng theo SI v2: @google/generative-ai ─────────────────────
 const genAI = new GoogleGenerativeAI((import.meta as any).env?.VITE_GEMINI_API_KEY || "");
