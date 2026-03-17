@@ -9,10 +9,6 @@
  *      → processQueue() flushes all pending items to Supabase in order
  *   4. Items removed from queue only after successful flush
  *
- * Offline queue for Supabase writes when navigator is offline.
- *   → Queue is still written to IndexedDB for testing
- *   → processQueue() simulates success after 500ms
- *
  * Integration:
  *   - db.ts calls enqueueWrite() automatically when offline
  *   - usePWA.ts listens for 'gem:sync-queue' event (from SW) → triggers processQueue()
@@ -168,27 +164,21 @@ export const OfflineQueue = {
           // Mark as syncing
           await idbPut(db, { ...item, status: 'syncing' });
 
-            // Import dynamically to avoid circular dep
-            const { getSupabase } = await import('./supabase');
-            const sb = getSupabase();
-            if (!sb) throw new Error('Supabase not configured');
+          // Import dynamically to avoid circular dep
+          const { getSupabase } = await import('./supabase');
+          const sb = getSupabase();
+          if (!sb) throw new Error('Supabase not configured');
 
-            await sb.from('project_data').upsert(
-              {
-                project_id: item.project_id,
-                collection: item.collection,
-                payload: item.payload,
-                updated_at: new Date().toISOString(),
-                updated_by: userId ?? null,
-              },
-              { onConflict: 'project_id,collection' }
-            );
-          } else {
-            // Dev mode: simulate network delay
-            await new Promise(r => setTimeout(r, 80));
-            // Write to localStorage as fallback
-            const key = `gem_db__${item.collection}__${item.project_id}`;
-            localStorage.setItem(key, JSON.stringify(item.payload));
+          await sb.from('project_data').upsert(
+            {
+              project_id: item.project_id,
+              collection: item.collection,
+              payload: item.payload,
+              updated_at: new Date().toISOString(),
+              updated_by: userId ?? null,
+            },
+            { onConflict: 'project_id,collection' }
+          );
 
           // Success — remove from queue
           if (item.id !== undefined) await idbDelete(db, item.id);
@@ -265,8 +255,7 @@ export async function dbSet<T>(
   userId?: string,
 ): Promise<void> {
   const isOnline  = navigator.onLine;
-
-  if (!isOnline ) {
+  if (!isOnline) {
     // Offline + prod → queue the write
     await OfflineQueue.enqueue({ collection, project_id: projectId, payload: data, user_id: userId });
     // Still write to localStorage so UI stays responsive
@@ -274,6 +263,7 @@ export async function dbSet<T>(
     return;
   }
 
+  // Online → write directly via db.ts
   const { db } = await import('./db');
   await db.set(collection, projectId, data, userId);
 }
