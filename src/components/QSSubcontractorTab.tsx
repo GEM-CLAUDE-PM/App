@@ -115,12 +115,12 @@ export default function SubcontractorTab({ projectId, boqItems, acceptanceLots, 
   useEffect(() => {
     (async () => {
       const [s, sp, matVouchers] = await Promise.all([
-        db.get('qs_subs',         projectId, subs),
-        db.get('qs_sub_payments', projectId, subPayments),
+        db.get<typeof subs>('qs_subs',         projectId, []),
+        db.get<typeof subPayments>('qs_sub_payments', projectId, []),
         db.get('mat_vouchers',    projectId, []),
       ]);
-      if ((s as any[]).length)      setSubs(s as any);
-      if ((sp as any[]).length)     setSubPayments(sp as any);
+      if (s.length)  setSubs(s);
+      if (sp.length) setSubPayments(sp);
       setDbLoaded(true);
 
       // Tổng hợp vật tư nhập kho đã duyệt từ MaterialsDashboard

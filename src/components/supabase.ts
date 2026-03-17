@@ -262,6 +262,38 @@ export const AuthService = {
     localStorage.removeItem('gem_user_role');
   },
 
+  /** Sign up — tạo account mới + tenant mới */
+  async signUp(params: {
+    email: string;
+    password: string;
+    full_name: string;
+    company_name: string;
+  }): Promise<{ error: string | null }> {
+    const sb = getSupabase();
+    const useReal = (import.meta as any).env?.VITE_USE_SUPABASE === 'true';
+
+    if (sb && useReal) {
+      const { error } = await sb.auth.signUp({
+        email: params.email,
+        password: params.password,
+        options: {
+          data: {
+            full_name:    params.full_name,
+            company_name: params.company_name,
+            job_role:     'giam_doc',
+            tier:         'admin',
+          },
+        },
+      });
+      if (error) return { error: error.message };
+      return { error: null };
+    }
+
+    // Dev mock: simulate signup
+    await new Promise(r => setTimeout(r, 800));
+    return { error: null };
+  },
+
   /** Restore session from localStorage (dev) or Supabase session (prod) */
   async restoreSession(): Promise<UserProfile | null> {
     const sb = getSupabase();

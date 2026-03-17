@@ -25,8 +25,8 @@ import {
 import { getRoleProjectScope } from './permissions';
 import {
   LogIn, LogOut, User, Shield, ChevronDown, Loader2,
-  Eye, EyeOff, AlertCircle, CheckCircle2, Lock, Building2,
-  Sparkles, RefreshCw, UserCircle, Settings, X, Mail,
+  Eye, EyeOff, AlertCircle, CheckCircle2, CheckCircle, Lock, Building2,
+  Sparkles, RefreshCw, UserCircle, Settings, X, Mail, UserPlus,
   Phone, Calendar, Badge, Key, Users, CreditCard,
 } from 'lucide-react';
 
@@ -148,12 +148,31 @@ function SplashScreen() {
 
 // ─── Login Screen ─────────────────────────────────────────────────────────────
 function LoginScreen({ onSignIn, isDevMode }: { onSignIn: (e: string, p: string) => Promise<string | null>; isDevMode: boolean }) {
+  const [mode, setMode]         = useState<'login' | 'signup'>('login');
   const [email, setEmail]       = useState('');
   const [password, setPassword] = useState('');
   const [showPw, setShowPw]     = useState(false);
   const [error, setError]       = useState('');
+  const [success, setSuccess]   = useState('');
   const [loading, setLoading]   = useState(false);
   const [showQuickLogin, setShowQuickLogin] = useState(false);
+  // Signup fields
+  const [fullName, setFullName]       = useState('');
+  const [companyName, setCompanyName] = useState('');
+  const [confirmPw, setConfirmPw]     = useState('');
+
+  const handleSignup = async () => {
+    if (!fullName.trim())    { setError('Vui lòng nhập họ tên.'); return; }
+    if (!companyName.trim()) { setError('Vui lòng nhập tên công ty.'); return; }
+    if (!email.trim())       { setError('Vui lòng nhập email.'); return; }
+    if (password.length < 6) { setError('Mật khẩu tối thiểu 6 ký tự.'); return; }
+    if (password !== confirmPw) { setError('Mật khẩu xác nhận không khớp.'); return; }
+    setLoading(true); setError('');
+    const { error: err } = await AuthService.signUp({ email, password, full_name: fullName, company_name: companyName });
+    setLoading(false);
+    if (err) { setError(err); return; }
+    setSuccess('Tài khoản đã tạo thành công! Kiểm tra email để xác nhận trước khi đăng nhập.');
+  };
 
   const handleLogin = async (e?: React.FormEvent) => {
     e?.preventDefault();
@@ -198,61 +217,129 @@ function LoginScreen({ onSignIn, isDevMode }: { onSignIn: (e: string, p: string)
           )}
         </div>
 
-        {/* Login form */}
+        {/* Login / Signup form */}
         <div className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-3xl p-6 shadow-2xl space-y-4">
-          <h2 className="text-white font-bold text-lg">Đăng nhập hệ thống</h2>
-
-          {/* Email */}
-          <div>
-            <label className="text-violet-200 text-xs font-semibold mb-1.5 block">Email</label>
-            <div className="relative">
-              <Mail size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-              <input
-                type="email" value={email}
-                onChange={e => { setEmail(e.target.value); setError(''); }}
-                onKeyDown={e => e.key === 'Enter' && handleLogin()}
-                placeholder="email@villaphat.vn"
-                className="w-full pl-9 pr-4 py-3 bg-white/10 border border-white/20 rounded-xl text-white placeholder-slate-400 text-sm focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent"
-              />
-            </div>
+          {/* Mode toggle */}
+          <div className="flex bg-white/10 rounded-2xl p-1 gap-1">
+            <button onClick={() => { setMode('login'); setError(''); setSuccess(''); }}
+              className={`flex-1 py-2 rounded-xl text-sm font-bold transition-all ${mode==='login' ? 'bg-violet-600 text-white shadow' : 'text-violet-300 hover:text-white'}`}>
+              Đăng nhập
+            </button>
+            <button onClick={() => { setMode('signup'); setError(''); setSuccess(''); }}
+              className={`flex-1 py-2 rounded-xl text-sm font-bold transition-all ${mode==='signup' ? 'bg-violet-600 text-white shadow' : 'text-violet-300 hover:text-white'}`}>
+              Đăng ký dùng thử
+            </button>
           </div>
 
-          {/* Password */}
-          <div>
-            <label className="text-violet-200 text-xs font-semibold mb-1.5 block">Mật khẩu</label>
-            <div className="relative">
-              <Lock size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-              <input
-                type={showPw ? 'text' : 'password'} value={password}
-                onChange={e => { setPassword(e.target.value); setError(''); }}
-                onKeyDown={e => e.key === 'Enter' && handleLogin()}
-                placeholder={isDevMode ? 'Nhập bất kỳ (demo mode)' : '••••••••'}
-                className="w-full pl-9 pr-10 py-3 bg-white/10 border border-white/20 rounded-xl text-white placeholder-slate-400 text-sm focus:outline-none focus:ring-2 focus:ring-violet-500"
-              />
-              <button onClick={() => setShowPw(p => !p)} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-200">
-                {showPw ? <EyeOff size={15} /> : <Eye size={15} />}
-              </button>
-            </div>
-          </div>
-
-          {/* Error */}
-          {error && (
-            <div className="flex items-center gap-2 p-3 bg-rose-500/20 border border-rose-500/30 rounded-xl text-rose-300 text-sm">
-              <AlertCircle size={15} className="shrink-0" /> {error}
+          {/* Success message */}
+          {success && (
+            <div className="flex items-start gap-2 p-3 bg-emerald-500/20 border border-emerald-500/30 rounded-xl text-emerald-300 text-sm">
+              <CheckCircle size={16} className="shrink-0 mt-0.5" /> {success}
             </div>
           )}
 
-          {/* Submit */}
-          <button
-            onClick={() => handleLogin()}
-            disabled={loading}
-            className="w-full py-3 bg-gradient-to-r from-violet-600 to-purple-600 text-white rounded-xl font-bold text-sm hover:opacity-90 disabled:opacity-60 flex items-center justify-center gap-2 shadow-lg shadow-violet-900/40 transition-all"
-          >
-            {loading ? <><Loader2 size={15} className="animate-spin" />Đang đăng nhập...</> : <><LogIn size={15} />Đăng nhập</>}
-          </button>
+          {mode === 'signup' && !success && (
+            <>
+              {/* Full name */}
+              <div>
+                <label className="text-violet-200 text-xs font-semibold mb-1.5 block">Họ và tên *</label>
+                <div className="relative">
+                  <UserCircle size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                  <input type="text" value={fullName} onChange={e => { setFullName(e.target.value); setError(''); }}
+                    placeholder="Nguyễn Văn A"
+                    className="w-full pl-9 pr-4 py-3 bg-white/10 border border-white/20 rounded-xl text-white placeholder-slate-400 text-sm focus:outline-none focus:ring-2 focus:ring-violet-500" />
+                </div>
+              </div>
+              {/* Company name */}
+              <div>
+                <label className="text-violet-200 text-xs font-semibold mb-1.5 block">Tên công ty *</label>
+                <div className="relative">
+                  <Building2 size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                  <input type="text" value={companyName} onChange={e => { setCompanyName(e.target.value); setError(''); }}
+                    placeholder="Công ty TNHH Xây dựng ABC"
+                    className="w-full pl-9 pr-4 py-3 bg-white/10 border border-white/20 rounded-xl text-white placeholder-slate-400 text-sm focus:outline-none focus:ring-2 focus:ring-violet-500" />
+                </div>
+              </div>
+            </>
+          )}
+
+          {!success && (
+            <>
+              {/* Email */}
+              <div>
+                <label className="text-violet-200 text-xs font-semibold mb-1.5 block">Email *</label>
+                <div className="relative">
+                  <Mail size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                  <input type="email" value={email} onChange={e => { setEmail(e.target.value); setError(''); }}
+                    onKeyDown={e => e.key === 'Enter' && mode === 'login' && handleLogin()}
+                    placeholder="email@company.vn"
+                    className="w-full pl-9 pr-4 py-3 bg-white/10 border border-white/20 rounded-xl text-white placeholder-slate-400 text-sm focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent" />
+                </div>
+              </div>
+
+              {/* Password */}
+              <div>
+                <label className="text-violet-200 text-xs font-semibold mb-1.5 block">Mật khẩu *</label>
+                <div className="relative">
+                  <Lock size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                  <input type={showPw ? 'text' : 'password'} value={password}
+                    onChange={e => { setPassword(e.target.value); setError(''); }}
+                    onKeyDown={e => e.key === 'Enter' && mode === 'login' && handleLogin()}
+                    placeholder={mode === 'signup' ? 'Tối thiểu 6 ký tự' : (isDevMode ? 'Nhập bất kỳ (demo mode)' : '••••••••')}
+                    className="w-full pl-9 pr-10 py-3 bg-white/10 border border-white/20 rounded-xl text-white placeholder-slate-400 text-sm focus:outline-none focus:ring-2 focus:ring-violet-500" />
+                  <button onClick={() => setShowPw(p => !p)} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-200">
+                    {showPw ? <EyeOff size={15} /> : <Eye size={15} />}
+                  </button>
+                </div>
+              </div>
+
+              {/* Confirm password (signup only) */}
+              {mode === 'signup' && (
+                <div>
+                  <label className="text-violet-200 text-xs font-semibold mb-1.5 block">Xác nhận mật khẩu *</label>
+                  <div className="relative">
+                    <Lock size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                    <input type={showPw ? 'text' : 'password'} value={confirmPw}
+                      onChange={e => { setConfirmPw(e.target.value); setError(''); }}
+                      placeholder="Nhập lại mật khẩu"
+                      className="w-full pl-9 pr-4 py-3 bg-white/10 border border-white/20 rounded-xl text-white placeholder-slate-400 text-sm focus:outline-none focus:ring-2 focus:ring-violet-500" />
+                  </div>
+                </div>
+              )}
+
+              {/* Error */}
+              {error && (
+                <div className="flex items-center gap-2 p-3 bg-rose-500/20 border border-rose-500/30 rounded-xl text-rose-300 text-sm">
+                  <AlertCircle size={15} className="shrink-0" /> {error}
+                </div>
+              )}
+
+              {/* Trial note (signup) */}
+              {mode === 'signup' && (
+                <div className="flex items-center gap-2 p-3 bg-violet-500/10 border border-violet-500/20 rounded-xl text-violet-300 text-xs">
+                  <Sparkles size={13} className="shrink-0" />
+                  Dùng thử miễn phí 30 ngày — đầy đủ tính năng, không cần thẻ tín dụng
+                </div>
+              )}
+
+              {/* Submit */}
+              <button
+                onClick={() => mode === 'login' ? handleLogin() : handleSignup()}
+                disabled={loading}
+                className="w-full py-3 bg-gradient-to-r from-violet-600 to-purple-600 text-white rounded-xl font-bold text-sm hover:opacity-90 disabled:opacity-60 flex items-center justify-center gap-2 shadow-lg shadow-violet-900/40 transition-all"
+              >
+                {loading
+                  ? <><Loader2 size={15} className="animate-spin" />{mode === 'login' ? 'Đang đăng nhập...' : 'Đang tạo tài khoản...'}</>
+                  : mode === 'login'
+                    ? <><LogIn size={15} />Đăng nhập</>
+                    : <><UserPlus size={15} />Tạo tài khoản & bắt đầu dùng thử</>
+                }
+              </button>
+            </>
+          )}
 
           {/* Quick login (dev only) */}
-          {isDevMode && (
+          {isDevMode && mode === 'login' && (
             <div>
               <button
                 onClick={() => setShowQuickLogin(p => !p)}

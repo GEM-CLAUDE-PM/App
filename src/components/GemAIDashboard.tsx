@@ -6,6 +6,7 @@ import {
   PlusCircle, ArrowRight, Info, TrendingUp, DollarSign, Shield,
   ClipboardList, HardHat, Maximize2, Minimize2
 } from 'lucide-react';
+import { GEM_MODEL } from './gemini';
 import { GoogleGenerativeAI } from '@google/generative-ai';
 
 // ── Gemini init — SI v4: @google/generative-ai, gemini-3-flash-preview ────────
@@ -254,7 +255,7 @@ export default function GemAIDashboard({ projectName = 'Dự án', projectId }: 
     setError(null);
     try {
       const model = genAI.getGenerativeModel({
-        model: 'gemini-3-flash-preview',
+        model: GEM_MODEL,
         systemInstruction: (() => {
           // Inject template risk context nếu có
           if (!projectId) return SYSTEM_PROMPT;

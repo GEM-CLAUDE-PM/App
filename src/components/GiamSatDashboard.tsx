@@ -233,29 +233,35 @@ export default function GiamSatDashboard({ project }: Props) {
   });
 
   // ── useEffect SAU tất cả useState ──────────────────────────────────────────
+  const dbLoaded = useRef(false);
+
   useEffect(() => {
+    dbLoaded.current = false;
     (async () => {
-      const [l, r, d] = await Promise.all([
-        db.get('gs_logs',     pid, SEED_LOGS),
-        db.get('gs_rfi',      pid, SEED_RFI),
-        db.get('gs_drawings', pid, SEED_DRAWINGS),
-      ]);
-      if ((l as any[]).length) setLogs(l as any);
-      if ((r as any[]).length) setRfis(r as any);
-      if ((d as any[]).length) setDrawings(d as any);
+      try {
+        const [l, r, d] = await Promise.all([
+          db.get<SupervisionLog[]>  ('gs_logs',      pid, []),
+          db.get<RFIItem[]>         ('gs_rfi',        pid, []),
+          db.get<DrawingRevision[]> ('gs_drawings',   pid, []),
+        ]);
+        setLogs(l.length     ? l : SEED_LOGS);
+        setRfis(r.length     ? r : SEED_RFI);
+        setDrawings(d.length ? d : SEED_DRAWINGS);
+      } catch { /* fallback to seed */ }
+      finally { dbLoaded.current = true; }
     })();
   }, [pid]);
 
   // ── Realtime sync ──────────────────────────────────────────────────────────
   useRealtimeSync(pid, ['gs_logs', 'gs_rfi', 'gs_drawings'], async () => {
     const [l, r, d] = await Promise.all([
-      db.get('gs_logs',     pid, SEED_LOGS),
-      db.get('gs_rfi',      pid, SEED_RFI),
-      db.get('gs_drawings', pid, SEED_DRAWINGS),
+      db.get<SupervisionLog[]>  ('gs_logs',      pid, []),
+      db.get<RFIItem[]>         ('gs_rfi',        pid, []),
+      db.get<DrawingRevision[]> ('gs_drawings',   pid, []),
     ]);
-    if ((l as any[]).length) setLogs(l as any);
-    if ((r as any[]).length) setRfis(r as any);
-    if ((d as any[]).length) setDrawings(d as any);
+    if (l.length) setLogs(l);
+    if (r.length) setRfis(r);
+    if (d.length) setDrawings(d);
   });
 
   // ── Approval wiring ─────────────────────────────────────────────────────────

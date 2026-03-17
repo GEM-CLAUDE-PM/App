@@ -41,6 +41,7 @@ import {
   Volume2,
   VolumeX,
 } from "lucide-react";
+import { GEM_MODEL } from './gemini';
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import { mockProjects } from "../constants/mockData";
 
@@ -576,7 +577,7 @@ export default function ChatAssistant() {
   // ── Init Gemini session — đúng SI v2: getGenerativeModel + startChat ───────
   useEffect(() => {
     const model = genAI.getGenerativeModel({
-      model: "gemini-3-flash-preview",
+      model: GEM_MODEL,
       systemInstruction: SYSTEM_PROMPT,
       generationConfig: { temperature: 0.3, maxOutputTokens: 8192 },
     });
@@ -840,7 +841,7 @@ export default function ChatAssistant() {
   // ── Reset chat ──────────────────────────────────────────────────────────────
   const handleReset = () => {
     const model = genAI.getGenerativeModel({
-      model: "gemini-3-flash-preview",
+      model: GEM_MODEL,
       systemInstruction: SYSTEM_PROMPT,
       generationConfig: { temperature: 0.3, maxOutputTokens: 8192 },
     });

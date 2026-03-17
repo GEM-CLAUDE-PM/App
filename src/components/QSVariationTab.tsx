@@ -8,6 +8,7 @@ import {
   Check, Clock, TrendingUp, Hash, Calculator, Printer, Download,
   AlertTriangle
 } from "lucide-react";
+import { GEM_MODEL } from './gemini';
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import type { UserContext } from "./permissions";
 import { seedApprovalDocs, canApproveDoc, processApproval } from "./approvalEngine";
@@ -90,7 +91,7 @@ function VariationOrdersTab({ fmtB, fmt, projectId, qsCtx, qsLevel, submitQSDoc,
     setGemLoading(true); setGemText("");
     try {
       const { genAI: g } = await import('./gemini');
-      const model = g.getGenerativeModel({ model:"gemini-3-flash-preview", systemInstruction: GEM_QS_SYSTEM });
+      const model = g.getGenerativeModel({ model: GEM_MODEL, systemInstruction: GEM_QS_SYSTEM });
       const prompt = `Phân tích Variation Order sau:\nVO: ${vo.vo_no} — ${vo.title}\nLoại: ${VO_TYPE_CFG[vo.type].label}\nGiá trị thay đổi: ${fmtB(vo.value_change)} VNĐ\nMô tả: ${vo.description}\nLý do: ${vo.reason}\n${vo.note?'Ghi chú: '+vo.note:''}\n\nHãy phân tích: (1) Tính hợp lệ của VO này, (2) Rủi ro pháp lý, (3) Khuyến nghị xử lý, (4) Các điểm cần làm rõ trước khi phê duyệt.`;
       const result = await model.generateContent(prompt);
       setGemText(result.response.text());

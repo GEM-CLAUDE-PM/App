@@ -10,7 +10,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import ModalForm, { BtnCancel, BtnSubmit } from './ModalForm';
 import {
-  Users, UserPlus, Trash2, Edit3, Save, X, Shield,
+  Users, UserPlus, Trash2, Edit3, Save, X, Shield, ShieldCheck,
   Building2, ChevronDown, CheckCircle2, AlertCircle,
   Loader2, RefreshCw, Key, Mail, Phone, Lock,
   Eye, EyeOff, Copy, Check,
@@ -61,7 +61,22 @@ export default function AdminPanel({ currentUserId, onClose }: AdminPanelProps) 
   const [form, setForm]             = useState<NewUserForm>(EMPTY_FORM);
   const [showPwd, setShowPwd]       = useState(false);
   const [copiedPwd, setCopiedPwd]   = useState(false);
-  const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
+  const [deleteConfirm, setDeleteConfirm]     = useState<string | null>(null);
+  const [transferConfirm, setTransferConfirm] = useState<string | null>(null);
+
+  // L4/L5 roles có thể làm tenant admin
+  const ADMIN_ELIGIBLE_ROLES: JobRole[] = ['giam_doc', 'pm', 'ke_toan_truong'];
+
+  const handleTransferAdmin = async (toUserId: string, toUserName: string) => {
+    if (!sb) { showToast('err', 'Chỉ khả dụng khi kết nối Supabase.'); return; }
+    setSaving(true);
+    const { error } = await sb.rpc('transfer_tenant_admin', { new_admin_user_id: toUserId });
+    setSaving(false);
+    setTransferConfirm(null);
+    if (error) { showToast('err', 'Lỗi chuyển giao: ' + error.message); return; }
+    showToast('ok', `Đã chuyển quyền Admin cho "${toUserName}".`);
+    await loadUsers();
+  };
 
   // ── Load users ──────────────────────────────────────────────────────────────
   const loadUsers = useCallback(async () => {
@@ -357,6 +372,31 @@ export default function AdminPanel({ currentUserId, onClose }: AdminPanelProps) 
                           >
                             <Edit3 size={14}/>
                           </button>
+                          {/* Transfer Admin — chỉ hiện với L4/L5, không phải mình, không phải admin hiện tại */}
+                          {!isMe && ADMIN_ELIGIBLE_ROLES.includes(u.job_role as JobRole) && !(u as any).is_tenant_admin && (
+                            transferConfirm === u.id ? (
+                              <div className="flex items-center gap-1">
+                                <span className="text-xs text-amber-600 font-medium">Chuyển Admin?</span>
+                                <button
+                                  onClick={() => handleTransferAdmin(u.id, u.full_name)}
+                                  disabled={saving}
+                                  className="text-[10px] bg-amber-500 text-white px-1.5 py-0.5 rounded font-medium hover:bg-amber-600 disabled:opacity-50"
+                                >Xác nhận</button>
+                                <button
+                                  onClick={() => setTransferConfirm(null)}
+                                  className="text-[10px] bg-slate-200 text-slate-700 px-1.5 py-0.5 rounded font-medium hover:bg-slate-300"
+                                >Hủy</button>
+                              </div>
+                            ) : (
+                              <button
+                                onClick={() => setTransferConfirm(u.id)}
+                                className="p-1.5 hover:bg-amber-50 rounded-lg transition-colors text-slate-400 hover:text-amber-500"
+                                title="Chuyển quyền Admin cho người này"
+                              >
+                                <ShieldCheck size={14}/>
+                              </button>
+                            )
+                          )}
                           {!isMe && (
                             deleteConfirm === u.id ? (
                               <div className="flex items-center gap-1">
