@@ -138,35 +138,42 @@ export default function ProjectDashboard({
   const AUDIT_KEY    = `gem_db__contract_audit__${selectedProjectId || 'default'}`;
   const SESSION_TTL  = 15 * 60 * 1000; // 15 phút
 
-  // Bug 1 Fix: Sync role từ auth user.job_role khi login
-  const JOB_TO_ROLE: Record<string, UserRole> = {
-    giam_doc:       'giam_doc',
-    ke_toan:        'ke_toan',
-    chi_huy_truong: 'chi_huy_truong',
-    ks_giam_sat:    'giam_sat',
-    tvgs:           'giam_sat',
-    qs:             'qs_site',
-    qa_qc:          'giam_sat',
-    hse:            'giam_sat',
-    hr:             'giam_sat',
-    thu_ky:         'giam_sat',
-    operator:       'thu_kho',
-    ntp:            'thu_kho',
+  // Sync role từ auth user.job_role — pass-through vì job_role = roleId chuẩn v3
+  // Legacy aliases cho các role cũ
+  const JOB_TO_ROLE: Record<string, string> = {
+    // Pass-through — 24 roles v3 (job_role = roleId)
+    giam_doc:'giam_doc', pm:'pm', ke_toan_truong:'ke_toan_truong',
+    truong_qs:'truong_qs', truong_qaqc:'truong_qaqc', truong_hse:'truong_hse', hr_truong:'hr_truong',
+    chi_huy_truong:'chi_huy_truong', chi_huy_pho:'chi_huy_pho',
+    qs_site:'qs_site', qaqc_site:'qaqc_site', ks_giam_sat:'ks_giam_sat',
+    hse_site:'hse_site', ke_toan_site:'ke_toan_site', ke_toan_kho:'ke_toan_kho', hr_site:'hr_site',
+    thu_kho:'thu_kho', thu_ky_site:'thu_ky_site', operator:'operator',
+    ntp_site:'ntp_site', to_doi:'to_doi', ky_thuat_vien:'ky_thuat_vien',
+    // Legacy aliases
+    ke_toan:'ke_toan_site', giam_sat:'ks_giam_sat',
+    tvgs:'ks_giam_sat', qs:'qs_site', qa_qc:'qaqc_site',
+    hse:'hse_site', hr:'hr_site', thu_ky:'thu_ky_site',
   };
+
+  const _resolveRole = (jobRole?: string): UserRole => {
+    if (!jobRole) return 'operator';
+    // Ưu tiên JOB_TO_ROLE, fallback: dùng jobRole trực tiếp nếu là role hợp lệ
+    return (JOB_TO_ROLE[jobRole] || jobRole) as UserRole;
+  };
+
   const [currentRole, setCurrentRole] = useState<UserRole>(() => {
-    // Ưu tiên: auth user > localStorage > default
-    if (user?.job_role && JOB_TO_ROLE[user.job_role]) {
-      return JOB_TO_ROLE[user.job_role];
-    }
-    return (localStorage.getItem('gem_user_role') as UserRole) || 'chi_huy_truong';
+    // Ưu tiên: auth user.job_role > localStorage > default operator
+    if (user?.job_role) return _resolveRole(user.job_role);
+    const stored = localStorage.getItem('gem_user_role');
+    return (stored as UserRole) || 'operator';
   });
 
-  // Sync lại currentRole khi user đổi (login/logout/switchMockUser)
+  // Sync khi user thay đổi (login/logout) — LUÔN ưu tiên user.job_role
   useEffect(() => {
-    if (user?.job_role && JOB_TO_ROLE[user.job_role]) {
-      const mapped = JOB_TO_ROLE[user.job_role];
-      setCurrentRole(mapped);
-      localStorage.setItem('gem_user_role', mapped);
+    if (user?.job_role) {
+      const resolved = _resolveRole(user.job_role);
+      setCurrentRole(resolved);
+      localStorage.setItem('gem_user_role', resolved);
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.id, user?.job_role]);
@@ -1469,14 +1476,7 @@ export default function ProjectDashboard({
           >
             <ArrowLeft size={13} /> Danh sách
           </button>
-          {/* Mini app nav — hiện khi App nav ẩn ở fullscreen */}
-          {onNavigateApp && (
-            <div className="hidden md:flex items-center gap-0.5 text-xs text-slate-400">
-              <button onClick={() => onNavigateApp('calendar')} className="px-2 py-1 hover:bg-slate-100 rounded-lg hover:text-slate-600 transition-colors">Lịch trình</button>
-              <button onClick={() => onNavigateApp('contacts')} className="px-2 py-1 hover:bg-slate-100 rounded-lg hover:text-slate-600 transition-colors">Đối tác</button>
-              <button onClick={() => onNavigateApp('admin')}    className="px-2 py-1 hover:bg-slate-100 rounded-lg hover:text-slate-600 transition-colors">Quản lý User</button>
-            </div>
-          )}
+
         </div>
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-2">
           <div className="flex items-center gap-2 md:gap-3">
