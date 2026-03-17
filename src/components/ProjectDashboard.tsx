@@ -1261,7 +1261,7 @@ export default function ProjectDashboard({
                   {totalNcr > 0 && <span className="text-[10px] font-bold bg-rose-100 text-rose-700 px-2 py-0.5 rounded-full">{totalNcr} NCR tổng</span>}
                   {totalHse > 0 && <span className="text-[10px] font-bold bg-orange-100 text-orange-700 px-2 py-0.5 rounded-full">{totalHse} vi phạm HSE</span>}
                 </div>
-                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-3">
                   {filteredProjects.filter(p => p.type === 'in_progress').map(p => <ProjectCard key={p.id} project={p} />)}
                 </div>
               </div>
@@ -1272,7 +1272,7 @@ export default function ProjectDashboard({
                   <div className="flex items-center gap-2"><Target size={15} className="text-amber-500"/><span className="text-sm font-bold text-slate-700">Tiềm năng</span><span className="text-xs text-slate-400">({filteredProjects.filter(p => p.type === 'potential').length})</span></div>
                   <ChevronDown size={15} className={`text-slate-400 transition-transform ${potentialOpen ? 'rotate-180' : ''}`}/>
                 </button>
-                {potentialOpen && <div className="px-4 pb-4 grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">{filteredProjects.filter(p => p.type === 'potential').map(p => <ProjectCard key={p.id} project={p}/>)}</div>}
+                {potentialOpen && <div className="px-4 pb-4 grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-3">{filteredProjects.filter(p => p.type === 'potential').map(p => <ProjectCard key={p.id} project={p}/>)}</div>}
               </div>
             )}
             {filteredProjects.filter(p => p.type === 'completed').length > 0 && (
@@ -1281,7 +1281,7 @@ export default function ProjectDashboard({
                   <div className="flex items-center gap-2"><CheckCircle size={15} className="text-emerald-500"/><span className="text-sm font-bold text-slate-700">Đã hoàn thành</span><span className="text-xs text-slate-400">({filteredProjects.filter(p => p.type === 'completed').length})</span></div>
                   <ChevronDown size={15} className={`text-slate-400 transition-transform ${completedOpen ? 'rotate-180' : ''}`}/>
                 </button>
-                {completedOpen && <div className="px-4 pb-4 grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">{filteredProjects.filter(p => p.type === 'completed').map(p => <ProjectCard key={p.id} project={p}/>)}</div>}
+                {completedOpen && <div className="px-4 pb-4 grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-3">{filteredProjects.filter(p => p.type === 'completed').map(p => <ProjectCard key={p.id} project={p}/>)}</div>}
               </div>
             )}
           </>
@@ -1578,7 +1578,7 @@ export default function ProjectDashboard({
         <div className={[
           'print:hidden shrink-0',
           // Desktop
-          'md:w-[180px] md:sticky md:top-4 md:block',
+          'md:w-[180px] md:sticky md:top-16 md:block',
           // Mobile: hidden by default, shown as fixed drawer when open
           mobileSidebarOpen
             ? 'fixed inset-y-0 left-0 w-[min(280px,85vw)] bg-white z-40 shadow-2xl overflow-y-auto p-4 md:relative md:inset-auto md:shadow-none md:p-0'
