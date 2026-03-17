@@ -196,7 +196,7 @@ export default function ProjectDashboard({
 
   const [openGroups, setOpenGroups] = useState<Record<string, boolean>>(() => {
     // Default: mở dựa trên role — set lại khi role thay đổi
-    return { 'thi-cong': true, 'nhan-su': false, 'vat-tu': false, 'tai-chinh': false, 'hanh-chinh': false };
+    return { 'thi-cong': true, 'nhan-su': false, 'tai-chinh': false, 'hanh-chinh': false };
   });
 
   // Sync openGroups defaults when role changes
@@ -221,7 +221,6 @@ export default function ProjectDashboard({
     setOpenGroups({
       'thi-cong':  d.includes('site') || d.includes('qaqc') || l >= 3,
       'nhan-su':   l >= 3,
-      'vat-tu':    d.includes('warehouse') || l >= 3,
       'tai-chinh': d.includes('finance') || d.includes('qs') || l >= 4,
       'hanh-chinh':l >= 4,
     });
@@ -1613,40 +1612,39 @@ export default function ProjectDashboard({
         // Tab definitions with group info
         type TabDef = {
           id: string; label: string; icon: React.ReactNode;
-          group: 'core' | 'thi-cong' | 'nhan-su' | 'vat-tu' | 'tai-chinh' | 'hanh-chinh';
+          group: 'core' | 'thi-cong' | 'nhan-su' | 'tai-chinh' | 'hanh-chinh';
           badge?: number;
         };
 
         const pendingCount = getPendingCount(localProjectId, permCtx);
 
         const allTabs: TabDef[] = [
-          // CORE — always visible for permitted users
-          { id:'overview',   label:'Tổng quan',        icon:<LayoutDashboard size={14}/>, group:'core' },
-          { id:'notifs',     label:'Thông báo',        icon:<Bell size={14}/>,            group:'core' },
-          { id:'gem-ai',     label:'GEM AI',           icon:<Sparkles size={14}/>,        group:'core' },
-          { id:'approval-queue', label:'Phê duyệt',      icon:<CheckCircle2 size={14}/>,    group:'core', badge: pendingCount },
-          // THI CÔNG
+          // CORE — Tổng quan trước, Phê duyệt lên thứ 2 (hay dùng nhất), rồi Thông báo, GEM AI
+          { id:'overview',       label:'Tổng quan',        icon:<LayoutDashboard size={14}/>, group:'core' },
+          { id:'approval-queue', label:'Phê duyệt',        icon:<CheckCircle2 size={14}/>,    group:'core', badge: pendingCount },
+          { id:'notifs',         label:'Thông báo',        icon:<Bell size={14}/>,            group:'core' },
+          { id:'gem-ai',         label:'GEM AI',           icon:<Sparkles size={14}/>,        group:'core' },
+          // THI CÔNG — theo luồng: Tiến độ → Vật tư (đầu vào) → Thiết bị → Giám sát → QA/QC (đầu ra)
           { id:'progress',   label:'Tiến độ',          icon:<Clock size={14}/>,           group:'thi-cong' },
+          { id:'resources',  label:'Vật tư & Kho',     icon:<Package size={14}/>,         group:'thi-cong' },
           { id:'equipment',  label:'Thiết bị',         icon:<Truck size={14}/>,           group:'thi-cong' },
           { id:'giam-sat',   label:'KS Giám sát',      icon:<Eye size={14}/>,             group:'thi-cong' },
           { id:'qa-qc',      label:'QA/QC',            icon:<ShieldCheck size={14}/>,     group:'thi-cong' },
-          // NHÂN SỰ
+          // NHÂN SỰ & AN TOÀN — Nhân lực → HSE (gắn liền) → Nhân sự HR (back-office)
           { id:'manpower',   label:'Nhân lực',         icon:<Users size={14}/>,           group:'nhan-su' },
-          { id:'hr',         label:'Nhân sự & HR',     icon:<Briefcase size={14}/>,       group:'nhan-su' },
           { id:'hse',        label:'An toàn HSE',      icon:<ShieldCheck size={14}/>,     group:'nhan-su' },
-          { id:'risk',       label:'Rủi ro',           icon:<AlertTriangle size={14}/>,   group:'nhan-su' },
-          // VẬT TƯ
-          { id:'resources',  label:'Vật tư & Kho',     icon:<Package size={14}/>,         group:'vat-tu' },
-          // TÀI CHÍNH
-          { id:'contracts',  label:'Hợp đồng',         icon:<Lock size={14}/>,            group:'tai-chinh' },
+          { id:'hr',         label:'Nhân sự & HR',     icon:<Briefcase size={14}/>,       group:'nhan-su' },
+          // TÀI CHÍNH — theo luồng: BOQ → Hợp đồng → Mua sắm → QS → Kế toán
           { id:'boq',        label:'BOQ & Dự toán',    icon:<FileSpreadsheet size={14}/>,  group:'tai-chinh' },
-          { id:'procurement', label:'Mua sắm',            icon:<ShoppingCart size={14}/>,     group:'tai-chinh' },
+          { id:'contracts',  label:'Hợp đồng',         icon:<Lock size={14}/>,            group:'tai-chinh' },
+          { id:'procurement', label:'Mua sắm',         icon:<ShoppingCart size={14}/>,    group:'tai-chinh' },
           { id:'qs',         label:'QS & Thanh toán',  icon:<Calculator size={14}/>,      group:'tai-chinh' },
           { id:'accounting', label:'Kế toán',          icon:<Calculator size={14}/>,      group:'tai-chinh' },
-          // HÀNH CHÍNH
+          // HÀNH CHÍNH — Rủi ro (toàn dự án) → Văn phòng → Hồ sơ → Báo cáo → Cloud → Cài đặt (cuối)
+          { id:'risk',       label:'Rủi ro',           icon:<AlertTriangle size={14}/>,   group:'hanh-chinh' },
+          { id:'office',     label:'Văn phòng',        icon:<Building2 size={14}/>,       group:'hanh-chinh' },
           { id:'records',    label:'Hồ sơ',            icon:<Files size={14}/>,           group:'hanh-chinh' },
           { id:'reports',    label:'Báo cáo',          icon:<ClipboardList size={14}/>,   group:'hanh-chinh' },
-          { id:'office',     label:'Văn phòng',        icon:<Building2 size={14}/>,       group:'hanh-chinh' },
           { id:'cloud',      label:'Cloud Storage',    icon:<Cloud size={14}/>,           group:'hanh-chinh' },
           { id:'settings',   label:'Cài đặt dự án',    icon:<Settings size={14}/>,        group:'hanh-chinh' },
         ];
@@ -1722,7 +1720,6 @@ export default function ProjectDashboard({
         const groups: GroupDef[] = [
           { id:'thi-cong',  label:'Thi công',           icon:<HardHat size={12}/>,    color:'blue'   },
           { id:'nhan-su',   label:'Nhân sự & An toàn',  icon:<Users size={12}/>,      color:'violet' },
-          { id:'vat-tu',    label:'Vật tư & Kho',       icon:<Package size={12}/>,    color:'amber'  },
           { id:'tai-chinh', label:'Tài chính & Hợp đồng',icon:<Calculator size={12}/>,color:'emerald'},
           { id:'hanh-chinh',label:'Hành chính',         icon:<Files size={12}/>,      color:'slate'  },
         ];
@@ -1730,7 +1727,6 @@ export default function ProjectDashboard({
         const groupColor: Record<string, string> = {
           blue:'text-blue-600 bg-blue-50 border-blue-200',
           violet:'text-violet-600 bg-violet-50 border-violet-200',
-          amber:'text-amber-600 bg-amber-50 border-amber-200',
           emerald:'text-emerald-600 bg-emerald-50 border-emerald-200',
           slate:'text-slate-600 bg-slate-50 border-slate-200',
         };
