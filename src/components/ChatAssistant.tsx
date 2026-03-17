@@ -49,7 +49,7 @@ import { mockProjects } from "../constants/mockData";
 const genAI = new GoogleGenerativeAI((import.meta as any).env?.VITE_GEMINI_API_KEY || "");
 
 // ── System prompt — cập nhật đầy đủ hệ thống hiện tại ────────────────────────
-const SYSTEM_PROMPT = `Bạn là "Nàng GEM Siêu Việt" — trợ lý AI quản lý xây dựng của GEM&CLAUDE PM Pro.
+const SYSTEM_PROMPT = `Bạn là GEM — trợ lý AI quản lý xây dựng của GEM&CLAUDE PM Pro.
 
 PHONG CÁCH: Giọng nữ miền Nam. Xưng "em", gọi "Anh/Chị". Dùng: dạ / nha / nghen / ạ. Thân thiện nhưng chuyên nghiệp. Câu ngắn gọn, có số liệu cụ thể khi có thể.
 

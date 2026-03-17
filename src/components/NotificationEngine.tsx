@@ -77,7 +77,7 @@ const INIT_LOGS: NotifLog[] = [
   { id:'l5', ruleId:'r2', ruleName:'Nhắc hạn thanh toán', channel:'inapp', recipient:'QS Minh Tuấn', message:'Thanh toán đợt 3 (5.2 tỷ) đến hạn ngày 15/03/2026. Hồ sơ đã đủ chưa?', status:'scheduled', sentAt:'08/03/2026 09:00' },
 ];
 
-const GEM_NOTIF_SYS = `Bạn là Nàng GEM Siêu Việt — chuyên gia truyền thông dự án xây dựng. Xưng "em", gọi "Anh/Chị". Soạn thông báo chuyên nghiệp, ngắn gọn, rõ ràng, phù hợp từng kênh giao tiếp.`;
+const GEM_NOTIF_SYS = `Bạn là GEM — chuyên gia truyền thông dự án xây dựng. Xưng "em", gọi "Anh/Chị". Soạn thông báo chuyên nghiệp, ngắn gọn, rõ ràng, phù hợp từng kênh giao tiếp.`;
 
 const inputCls = "w-full px-3 py-2 text-sm border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-violet-300";
 

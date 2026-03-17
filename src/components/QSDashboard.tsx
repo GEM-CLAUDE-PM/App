@@ -40,7 +40,7 @@ import {
 ;
 
 // ── System prompt Nàng GEM chuẩn SI V2.0 ─────────────────────────────────────
-const GEM_QS_SYSTEM = `Bạn là Nàng GEM Siêu Việt — chuyên gia QS (Quantity Surveyor) của hệ thống Construction ERP. 
+const GEM_QS_SYSTEM = `Bạn là GEM — chuyên gia QS (Quantity Surveyor) của hệ thống Construction ERP. 
 Giọng điệu: nữ miền Nam, thân thiện, chuyên nghiệp. Xưng "em", gọi "Anh/Chị", dùng: dạ / nha / ạ / nghen.
 Câu ngắn, rõ ràng. Liệt kê bằng số (1, 2, 3...). Có con số cụ thể. Thực tế ngành xây dựng Việt Nam.
 Khi tạo tài liệu chính thức: KHÔNG xưng em/anh, dùng ngôi thứ ba, cấu trúc chuẩn CHXHCN Việt Nam.`;
@@ -396,7 +396,7 @@ export default function QSDashboard({ projectId, projectName, contractValue = 45
     setIsAiParsing(true);
     await new Promise(r => setTimeout(r, 2800));
     setIsAiParsing(false);
-    notifOk('Nàng GEM đã đọc bản vẽ và nhận diện được 34 hạng mục BOQ!\n\nChức năng xuất dữ liệu vào bảng sẽ khả dụng sau khi tích hợp Supabase Storage. Hiện tại anh có thể nhập tay hoặc upload Excel.');
+    notifOk('GEM đã đọc bản vẽ và nhận diện được 34 hạng mục BOQ!\n\nChức năng xuất dữ liệu vào bảng sẽ khả dụng sau khi tích hợp Supabase Storage. Hiện tại anh có thể nhập tay hoặc upload Excel.');
   };
 
   const saveNewLot = () => {
@@ -1503,7 +1503,7 @@ export default function QSDashboard({ projectId, projectName, contractValue = 45
               <div className={`mt-4 p-3 rounded-xl border text-xs font-medium flex items-start gap-2 ${VAC>=0?"bg-emerald-50 border-emerald-100 text-emerald-800":"bg-rose-50 border-rose-100 text-rose-800"}`}>
                 <Info size={13} className="shrink-0 mt-0.5"/>
                 {VAC>=0
-                  ? `Nàng GEM dự báo dự án hoàn thành trong ngân sách, tiết kiệm khoảng ${fmtB(VAC)}. CPI = ${CPI.toFixed(2)} cho thấy hiệu quả chi phí tốt.`
+                  ? `GEM dự báo dự án hoàn thành trong ngân sách, tiết kiệm khoảng ${fmtB(VAC)}. CPI = ${CPI.toFixed(2)} cho thấy hiệu quả chi phí tốt.`
                   : `⚠️ Cảnh báo: Dự án có nguy cơ vượt ngân sách ~${fmtB(Math.abs(VAC))}. CPI = ${CPI.toFixed(2)} < 1.0 — Anh cần rà soát lại đơn giá và phương án thi công.`
                 }
               </div>

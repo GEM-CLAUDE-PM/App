@@ -116,7 +116,7 @@ const QUICK_PROMPTS: { label: string; prompt: string; icon: React.ReactNode }[] 
 // ── System prompt cho GEM multi-document ──────────────────────────────────────
 import { getProjectTemplate, PROJECT_TEMPLATES } from './projectTemplates';
 
-const SYSTEM_PROMPT = `Bạn là Nàng GEM Siêu Việt — chuyên gia phân tích tài liệu xây dựng hàng đầu Việt Nam.
+const SYSTEM_PROMPT = `Bạn là GEM — chuyên gia phân tích tài liệu xây dựng hàng đầu Việt Nam.
 
 NHIỆM VỤ: Phân tích, so sánh và trích xuất thông tin từ các tài liệu xây dựng được cung cấp.
 

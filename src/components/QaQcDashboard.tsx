@@ -67,7 +67,7 @@ interface FormTemplate {
 
 ;
 
-const GEM_QAQC_SYSTEM = `Bạn là Nàng GEM Siêu Việt — chuyên gia QA/QC của hệ thống Construction ERP.
+const GEM_QAQC_SYSTEM = `Bạn là GEM — chuyên gia QA/QC của hệ thống Construction ERP.
 Giọng điệu: nữ miền Nam, thân thiện, chuyên nghiệp. Xưng "em", gọi "Anh/Chị", dùng: dạ / nha / ạ / nghen.
 Câu ngắn, rõ ràng, liệt kê bằng số. Thực tế ngành xây dựng Việt Nam, theo TCVN và tiêu chuẩn hiện hành.
 Khi soạn biên bản/tài liệu chính thức: KHÔNG xưng em/anh, dùng ngôi thứ ba, cấu trúc chuẩn CHXHCN Việt Nam.`;
@@ -414,7 +414,7 @@ function FormTemplateManager({ projectId, projectName, projectAddress }: { proje
       };
       setCustomTmpls(prev => [tmpl, ...prev]);
       setEditingTmpl({...tmpl}); setTmplView("editor");
-      notifOk(`✅ Nàng GEM đã đọc "${file.name}"!\n\nEm nhận diện được ${tmpl.fields.length} vùng điền. Anh chỉnh sửa thêm trong trình soạn thảo nhé!`);
+      notifOk(`✅ GEM đã đọc "${file.name}"!\n\nEm nhận diện được ${tmpl.fields.length} vùng điền. Anh chỉnh sửa thêm trong trình soạn thảo nhé!`);
     }, 2200);
     e.target.value = "";
   };
@@ -1007,7 +1007,7 @@ function ISOChecklistTab({ project, projectName }: { project:any; projectName:st
     setGemLoading(true); setGemText(''); setShowGem(true);
     try {
       const { genAI } = await import('./gemini');
-      const model = genAI.getGenerativeModel({ model: GEM_MODEL_QUALITY, systemInstruction:`Bạn là Nàng GEM Siêu Việt — chuyên gia QA/QC xây dựng theo TCVN 9045. Xưng "em", gọi "Anh/Chị". Phân tích ngắn gọn, súc tích, nêu rõ hạng mục lỗi nghiêm trọng và kiến nghị.` });
+      const model = genAI.getGenerativeModel({ model: GEM_MODEL_QUALITY, systemInstruction:`Bạn là GEM — chuyên gia QA/QC xây dựng theo TCVN 9045. Xưng "em", gọi "Anh/Chị". Phân tích ngắn gọn, súc tích, nêu rõ hạng mục lỗi nghiêm trọng và kiến nghị.` });
       const failItems = allItems.filter(i => checks[i.id] === 'fail').map(i => `[${i.ref}] ${i.text}${notes[i.id] ? ` (Ghi chú: ${notes[i.id]})` : ''}`);
       const critFails = allItems.filter(i => i.critical && checks[i.id] === 'fail').map(i => i.text);
       const r = await model.generateContent(
@@ -1389,7 +1389,7 @@ export default function QaQcDashboard({ onNavigate, projectId: _projectId, proje
       date:formDate.split("-").reverse().join("/"), docType:selectedDocType, location:formLocation,
     },...prev]);
     setShowChecklistForm(false); setFormLocation(""); setCustomItems([]);
-    notifOk('Nàng GEM: Đã lưu hồ sơ thành công!');
+    notifOk('GEM: Đã lưu hồ sơ thành công!');
   };
   const saveDefect = () => {
     if (!defectTitle.trim()){notifErr('Vui lòng mô tả lỗi!');return;}
@@ -1411,7 +1411,7 @@ export default function QaQcDashboard({ onNavigate, projectId: _projectId, proje
     const upcoming=PROJECT_SCHEDULE_ITEMS.filter(s=>s.planDate>=today);
     if (upcoming.length) {
       setChecklists(prev=>[...upcoming.map(s=>({id:Date.now()+Math.random(),name:`[TỰ ĐỘNG] ${s.task}`,status:"Chưa bắt đầu",progress:0,date:s.planDate.split("-").reverse().join("/"),docType:"ITP",location:"Xem tiến độ"})),...prev]);
-      notifOk(`Nàng GEM: Đã tạo ${upcoming.length} biên bản nháp!`);
+      notifOk(`GEM: Đã tạo ${upcoming.length} biên bản nháp!`);
     } else notifInfo('Tiến độ ổn định, không có hạng mục cần khởi tạo gấp.');
   };
 
@@ -1462,7 +1462,7 @@ export default function QaQcDashboard({ onNavigate, projectId: _projectId, proje
               )}
             </button>
             <button onClick={()=>setShowGemChat(!showGemChat)} className="flex items-center gap-2 bg-gradient-to-r from-emerald-600 to-teal-600 text-white px-4 py-2 rounded-xl font-medium hover:shadow-lg transition-all text-sm">
-              <Sparkles size={15}/> Nàng GEM
+              <Sparkles size={15}/> GEM
             </button>
           </div>
         </div>

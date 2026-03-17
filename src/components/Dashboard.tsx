@@ -117,7 +117,7 @@ export default function Dashboard({ onNavigate }: {
     try {
       const model = genAI.getGenerativeModel({
         model: GEM_MODEL,
-        systemInstruction: `Bạn là Nàng GEM Siêu Việt. Xưng "em", gọi "Anh/Chị". Giọng nữ miền Nam, ngắn gọn, thực chiến. 
+        systemInstruction: `Bạn là GEM. Xưng "em", gọi "Anh/Chị". Giọng nữ miền Nam, ngắn gọn, thực chiến. 
 Tóm tắt buổi sáng trong 3-4 câu ngắn: nêu điểm nóng khẩn cấp nhất, rủi ro tài chính/tiến độ đáng lo, và 1 lời khuyên cụ thể. 
 KHÔNG dùng ký tự markdown. Câu ngắn. Số liệu cụ thể.`,
         generationConfig: { maxOutputTokens: 512, temperature: 0.25 },
@@ -130,7 +130,7 @@ Rủi ro: 6 NCR mở, 3 HĐ NTP chưa TT ~12.8 Tỷ, 2 thiết bị sắp hạn 
       setBriefing(res.response.text());
       setBriefTime(now.toLocaleTimeString('vi-VN',{hour:'2-digit',minute:'2-digit'}));
     } catch {
-      setBriefing('Dạ em xin lỗi, kết nối Nàng GEM đang gián đoạn. Anh kiểm tra VITE_GEMINI_API_KEY nghen!');
+      setBriefing('Dạ em xin lỗi, kết nối GEM đang gián đoạn. Anh kiểm tra VITE_GEMINI_API_KEY nghen!');
       setBriefTime(now.toLocaleTimeString('vi-VN',{hour:'2-digit',minute:'2-digit'}));
     }
     setLoadingAI(false);
@@ -181,7 +181,7 @@ Rủi ro: 6 NCR mở, 3 HĐ NTP chưa TT ~12.8 Tỷ, 2 thiết bị sắp hạn 
               </div>
               <div>
                 <p className="text-[11px] font-black uppercase tracking-wider text-white/90">
-                  Nàng GEM · Briefing Sáng
+                  GEM · Briefing Sáng
                 </p>
                 {briefTime && (
                   <p className="text-[10px] text-white/50">Phân tích lúc {briefTime}</p>
@@ -214,7 +214,7 @@ Rủi ro: 6 NCR mở, 3 HĐ NTP chưa TT ~12.8 Tỷ, 2 thiết bị sắp hạn 
             </p>
           ) : (
             <p className="text-sm italic" style={{ color: 'rgba(255,255,255,0.55)' }}>
-              Nhấn "Làm mới" để Nàng GEM phân tích tình hình dự án nghen anh...
+              Nhấn "Làm mới" để GEM phân tích tình hình dự án nghen anh...
             </p>
           )}
         </div>

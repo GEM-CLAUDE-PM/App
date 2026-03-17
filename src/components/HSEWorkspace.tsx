@@ -367,7 +367,7 @@ export default function HSEWorkspace({ project: selectedProject, projectId: proj
     setGemReportLoading(true); setGemReport('');
     try {
       const model = genAI.getGenerativeModel({ model: GEM_MODEL,
-        systemInstruction:`Bạn là Nàng GEM Siêu Việt — chuyên gia HSE xây dựng. Xưng "em", gọi "Anh/Chị". Giọng nữ miền Nam, thân thiện nhưng nghiêm túc về an toàn. Viết báo cáo ngắn gọn, có số liệu cụ thể, có khuyến nghị ưu tiên.` });
+        systemInstruction:`Bạn là GEM — chuyên gia HSE xây dựng. Xưng "em", gọi "Anh/Chị". Giọng nữ miền Nam, thân thiện nhưng nghiêm túc về an toàn. Viết báo cáo ngắn gọn, có số liệu cụ thể, có khuyến nghị ưu tiên.` });
       const r = await model.generateContent(
         `Tạo báo cáo tóm tắt HSE tháng cho dự án ${selectedProject.name}:\n\nKPI:\n- Số ngày an toàn liên tục: ${daysSafe} ngày\n- Sự cố/tai nạn: ${incidents.length} vụ (${openIncidents} chưa đóng)\n- Vi phạm: ${violations.length} lượt (${openViolations} chưa xử lý)\n- Huấn luyện quá hạn: ${overdueTrainings} khóa\n- Kiểm tra gần nhất: ${lastInspection?.date} — ${lastInspection?.overall === 'fail' ? 'Không đạt' : lastInspection?.overall === 'pass' ? 'Đạt' : 'Đạt có điều kiện'}\n- Tổng tiền phạt: ${totalFines.toLocaleString('vi-VN')} nghìn đồng\n\nSự cố gần nhất: ${incidents[0]?.description || 'Không có'}\nVi phạm nghiêm trọng: ${violations.filter(v=>v.level==='nghiem_trong').length} vụ\n\nHãy viết:\n1. Tóm tắt tình hình an toàn tháng (3-4 câu)\n2. Điểm nổi bật tích cực\n3. Vấn đề cần cải thiện ngay (ưu tiên)\n4. Khuyến nghị hành động tuần tới\nViết bằng tiếng Việt, chuyên nghiệp, có thể dùng làm báo cáo gửi Ban Giám đốc.`
       );

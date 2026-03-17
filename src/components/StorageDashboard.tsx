@@ -276,7 +276,7 @@ export default function StorageDashboard({ project }: Props) {
     try {
       const model = genAI.getGenerativeModel({
         model: GEM_MODEL_QUALITY,
-        systemInstruction: 'Bạn là Nàng GEM Siêu Việt — chuyên gia quản lý hồ sơ xây dựng. Xưng "em", gọi "Anh/Chị". Phân tích ngắn gọn, chuyên nghiệp.',
+        systemInstruction: 'Bạn là GEM — chuyên gia quản lý hồ sơ xây dựng. Xưng "em", gọi "Anh/Chị". Phân tích ngắn gọn, chuyên nghiệp.',
       });
       const summary = catCounts.filter(c => c.count > 0)
         .map(c => `${CATEGORY_META[c.cat].label}: ${c.count} file`).join(', ');

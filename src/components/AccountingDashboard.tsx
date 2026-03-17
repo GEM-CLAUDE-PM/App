@@ -87,7 +87,7 @@ const VAT_NET = +(INIT_TAXES.filter(t=>t.period==='T2/2026').reduce((s,t)=>{
   return s;
 },0)).toFixed(2);
 
-const GEM_ACC_SYS = `Bạn là Nàng GEM Siêu Việt — chuyên gia kế toán xây dựng và tư vấn thuế. Xưng "em", gọi "Anh/Chị". Phân tích tình hình công nợ và thuế ngắn gọn, súc tích, đưa ra cảnh báo rủi ro và khuyến nghị cụ thể. Lưu ý: em không cung cấp tư vấn pháp lý chính thức.`;
+const GEM_ACC_SYS = `Bạn là GEM — chuyên gia kế toán xây dựng và tư vấn thuế. Xưng "em", gọi "Anh/Chị". Phân tích tình hình công nợ và thuế ngắn gọn, súc tích, đưa ra cảnh báo rủi ro và khuyến nghị cụ thể. Lưu ý: em không cung cấp tư vấn pháp lý chính thức.`;
 
 const inputCls = "w-full px-3 py-2 text-sm border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-teal-300";
 const CFTooltip = ({ active, payload, label }: any) => {

@@ -190,7 +190,7 @@ function AppInner() {
       // FIX: Cập nhật cú pháp gọi Gemini 1.5 Flash (nhanh và chính xác hơn)
       const model = genAI.getGenerativeModel({ model: GEM_MODEL });
       const proj = selectedProject || projects[0];
-      const prompt = `Bạn là Nàng GEM, một trợ lý quản lý dự án xây dựng siêu việt. 
+      const prompt = `Bạn là GEM, một trợ lý quản lý dự án xây dựng siêu việt. 
       Hãy tạo một "Báo cáo tổng kết dự án hàng tuần" chuyên nghiệp cho dự án "${proj.name}".
       Dữ liệu hiện tại của dự án:
       - Tiến độ: ${proj.progress}% (${proj.status})
@@ -284,7 +284,7 @@ function AppInner() {
     {
       id: "1",
       title: "Cảnh báo HSE khẩn cấp",
-      message: "Nàng GEM phát hiện vi phạm an toàn tại Zone 2: Công nhân không đội mũ bảo hiểm.",
+      message: "GEM phát hiện vi phạm an toàn tại Zone 2: Công nhân không đội mũ bảo hiểm.",
       type: "urgent",
       targetTab: "tasks",
       targetSubTab: "hse",
@@ -781,7 +781,7 @@ function AppInner() {
                   className="w-full bg-emerald-600 text-white py-4 rounded-2xl font-bold hover:bg-emerald-700 transition-all flex items-center justify-center gap-2 mb-6"
                 >
                   {isGeneratingRecord ? <Loader2 size={20} className="animate-spin" /> : <Sparkles size={20} />}
-                  Nàng GEM tự động soạn thảo
+                  GEM tự động soạn thảo
                 </button>
                 <div className="bg-slate-50 rounded-2xl p-4 border border-slate-200 text-sm prose-sm overflow-auto">
                   <Markdown>{recordData || "Chưa có dữ liệu soạn thảo."}</Markdown>
