@@ -206,6 +206,75 @@ export class Permissions {
 }
 
 
+// ─── Auth service ────────────────────────────────────────────────────────────
+export const AuthService = {
+  /** Sign in with email + password — real Supabase only */
+  async signIn(email: string, password: string): Promise<{ user: UserProfile | null; error: string | null }> {
+    const sb = getSupabase();
+    if (!sb) return { user: null, error: 'Không thể kết nối máy chủ. Vui lòng thử lại.' };
+    const { data, error } = await sb.auth.signInWithPassword({ email, password });
+    if (error) return { user: null, error: error.message };
+    const { data: profile } = await sb.from('profiles').select('*').eq('id', data.user.id).single();
+    if (profile) AuthService.persistSession(profile);
+    return { user: profile ?? null, error: null };
+  },
+
+  async signOut(): Promise<void> {
+    const sb = getSupabase();
+    if (sb) await sb.auth.signOut();
+    localStorage.removeItem('gem_auth_user');
+    localStorage.removeItem('gem_user_role');
+    localStorage.removeItem('gem_active_member');
+  },
+
+  /** Sign up — tạo account mới + tenant mới */
+  async signUp(params: {
+    email: string;
+    password: string;
+    full_name: string;
+    company_name: string;
+  }): Promise<{ error: string | null }> {
+    const sb = getSupabase();
+    if (!sb) return { error: 'Không thể kết nối máy chủ.' };
+    const { error } = await sb.auth.signUp({
+      email: params.email,
+      password: params.password,
+      options: {
+        data: {
+          full_name:    params.full_name,
+          company_name: params.company_name,
+          job_role:     'giam_doc',
+          tier:         'admin',
+        },
+      },
+    });
+    if (error) return { error: error.message };
+    return { error: null };
+  },
+
+  /** Restore session from Supabase JWT or localStorage cache */
+  async restoreSession(): Promise<UserProfile | null> {
+    const sb = getSupabase();
+    if (!sb) {
+      try {
+        const stored = localStorage.getItem('gem_auth_user');
+        return stored ? JSON.parse(stored) : null;
+      } catch { return null; }
+    }
+    const { data } = await sb.auth.getSession();
+    if (!data.session) return null;
+    const { data: profile } = await sb.from('profiles').select('*').eq('id', data.session.user.id).single();
+    if (profile) AuthService.persistSession(profile);
+    return profile ?? null;
+  },
+
+  /** Persist session to localStorage for offline fallback */
+  persistSession(user: UserProfile): void {
+    localStorage.setItem('gem_auth_user', JSON.stringify(user));
+    localStorage.setItem('gem_user_role', user.job_role);
+  },
+};
+
 // ─── Supabase SQL Migrations ─────────────────────────────────────────────────
 /**
  * Run these in Supabase SQL Editor (Settings > SQL Editor).
