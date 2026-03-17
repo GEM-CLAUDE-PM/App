@@ -158,22 +158,17 @@ export default function ProjectDashboard({
   // currentRole — lấy trực tiếp từ AuthProvider (đã resolve đúng)
   // Dev mode: có thể override qua Dev Switcher
   const _authRole = (authRoleId || user?.job_role || 'operator') as UserRole;
-  const [currentRole, setCurrentRole] = useState<UserRole>(() => {
-    const devOverride = localStorage.getItem('gem_user_role_dev_override');
-    return (devOverride || _authRole) as UserRole;
-  });
+  const [currentRole, setCurrentRole] = useState<UserRole>(() => _authRole as UserRole);
 
-  // Sync khi auth user thay đổi — reset dev override, dùng role thật
+  // Sync role khi auth user thay đổi
   useEffect(() => {
     if (_authRole && _authRole !== 'operator') {
-      localStorage.removeItem('gem_user_role_dev_override');
       setCurrentRole(_authRole);
       localStorage.setItem('gem_user_role', _authRole);
     }
-    // Xóa override khi user = null (logout)
     if (!user) {
-      localStorage.removeItem('gem_user_role_dev_override');
       localStorage.removeItem('gem_user_role');
+      localStorage.removeItem('gem_active_member');
     }
   }, [user?.id, authRoleId]);
   const [contractUnlocked, setContractUnlocked] = useState<boolean>(() => {
@@ -389,8 +384,7 @@ export default function ProjectDashboard({
   // Load permission overrides từ Supabase
   useEffect(() => {
     const sb = getSupabase();
-    const useReal = (import.meta as any).env?.VITE_USE_SUPABASE === 'true';
-    if (!sb || !useReal || !localProjectId) { setPermOverrides({}); return; }
+    if (!sb || !localProjectId) { setPermOverrides({}); return; }
     sb.auth.getUser().then(({ data }) => {
       if (!data.user) return;
       sb.from('project_member_overrides')
@@ -999,7 +993,7 @@ export default function ProjectDashboard({
     }
 
     if (activeTab === 'approval-queue') {
-      const member      = getCurrentMember(localProjectId);
+      const member      = getCurrentMember(localProjectId, authRoleId || undefined);
       const approvalCtx = buildCtxFromMember(member);
       return (
         <div className="flex flex-col h-full">
@@ -1645,7 +1639,7 @@ export default function ProjectDashboard({
                       onClick={() => {
                         // Set role chính
                         setCurrentRole(u.roleId as UserRole);
-                        localStorage.setItem('gem_user_role_dev_override', u.roleId);
+                        localStorage.setItem('gem_user_role', u.roleId);
                         localStorage.setItem('gem_user_role', u.roleId);
                         localStorage.removeItem(SESSION_KEY);
                         setContractUnlocked(false);
@@ -1808,7 +1802,7 @@ export default function ProjectDashboard({
 
         // ── Union roles: user được làm gì = union của TẤT CẢ roles trong DA ──
         // Không phải "đóng vai" — 1 user có thể kiêm nhiều roles
-        const _member = localProjectId ? getCurrentMember(localProjectId) : null;
+        const _member = localProjectId ? getCurrentMember(localProjectId, authRoleId || undefined) : null;
         const activeRoleId = (legacyToNew[currentRole] || 'operator') as RoleId;
         const permCtx = _member ? buildCtxFromMember(_member) : { userId: `user_${currentRole}`, roleId: activeRoleId };
 

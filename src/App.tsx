@@ -141,7 +141,7 @@ function AppInner() {
   useEffect(() => {
     const handler = (e: StorageEvent) => {
       if (e.key === "gem_user_role" && e.newValue) setAppCurrentRole(e.newValue);
-      if (e.key === "gem_user_role_dev_override" && e.newValue) setAppCurrentRole(e.newValue);
+
     };
     window.addEventListener("storage", handler);
     const poll = setInterval(() => {

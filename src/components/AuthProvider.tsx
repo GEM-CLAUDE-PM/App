@@ -1,24 +1,15 @@
 /**
- * AuthProvider.tsx — GEM&CLAUDE PM Pro / Nàng GEM Siêu Việt
- * React context wrapping Supabase Auth + mock dev mode.
- * Provides: useAuth() hook, <AuthGuard> component, login screen.
- *
- * Dev mode (VITE_USE_SUPABASE != 'true'):
- *   - Shows login screen with mock users
- *   - Accepts any password
- *   - Stores session in localStorage
- *
- * Prod mode (VITE_USE_SUPABASE=true):
- *   - Delegates to Supabase Auth
- *   - JWT stored by supabase-js automatically
- *   - Role read from profiles table (set via trigger on signup)
+ * AuthProvider.tsx — GEM&CLAUDE PM Pro
+ * React context wrapping Supabase Auth (real users only).
+ * Provides: useAuth() hook, <AuthGuard>, login screen, UserMenu.
+ * Role is read from profiles.job_role (set by admin via Supabase Dashboard).
  */
 
 import React, {
   createContext, useContext, useState, useEffect, useCallback, useRef,
 } from 'react';
 import {
-  AuthService, Permissions, MOCK_USERS,
+  AuthService, Permissions,
   JOB_LABELS, TIER_LABELS, TIER_COLORS, JOB_ROLE_TO_ROLE_ID,
   type UserProfile, type TierRole, type JobRole,
 } from './supabase';
@@ -27,7 +18,7 @@ import {
   LogIn, LogOut, User, Shield, ChevronDown, Loader2,
   Eye, EyeOff, AlertCircle, CheckCircle2, CheckCircle, Lock, Building2,
   Sparkles, RefreshCw, UserCircle, Settings, X, Mail, UserPlus,
-  Phone, Calendar, Badge, Key, Users, CreditCard,
+  Phone, Calendar, Badge, Users, CreditCard,
 } from 'lucide-react';
 
 // ─── Context ──────────────────────────────────────────────────────────────────
@@ -41,8 +32,7 @@ interface AuthContextValue {
   allowedProjectIds: string[] | null;
   signIn: (email: string, password: string) => Promise<string | null>;
   signOut: () => Promise<void>;
-  switchMockUser: (userId: string) => void;   // dev only
-  isDevMode: boolean;
+
 }
 
 const AuthContext = createContext<AuthContextValue>({
@@ -53,8 +43,7 @@ const AuthContext = createContext<AuthContextValue>({
   allowedProjectIds: null,
   signIn: async () => null,
   signOut: async () => {},
-  switchMockUser: () => {},
-  isDevMode: true,
+
 });
 
 export const useAuth = () => useContext(AuthContext);
@@ -63,8 +52,6 @@ export const useAuth = () => useContext(AuthContext);
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser]       = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
-  const isDevMode = (import.meta as any).env?.VITE_USE_SUPABASE !== 'true';
-
   // Restore session on mount
   useEffect(() => {
     AuthService.restoreSession().then(u => {
@@ -85,14 +72,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     await AuthService.signOut();
     setUser(null);
   }, []);
-
-  const switchMockUser = useCallback((userId: string) => {
-    if (!isDevMode) return;
-    const u = MOCK_USERS.find(x => x.id === userId);
-    if (!u) return;
-    AuthService.persistSession(u);
-    setUser(u);
-  }, [isDevMode]);
 
   const perm = new Permissions(user);
 
@@ -124,8 +103,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }
 
   return (
-    <AuthContext.Provider value={{ user, perm, loading, roleId, allowedProjectIds, signIn, signOut, switchMockUser, isDevMode }}>
-      {loading ? <SplashScreen /> : !user ? <LoginScreen onSignIn={signIn} isDevMode={isDevMode} /> : children}
+    <AuthContext.Provider value={{ user, perm, loading, roleId, allowedProjectIds, signIn, signOut }}>
+      {loading ? <SplashScreen /> : !user ? <LoginScreen onSignIn={signIn} /> : children}
     </AuthContext.Provider>
   );
 }
@@ -149,7 +128,7 @@ function SplashScreen() {
 }
 
 // ─── Login Screen ─────────────────────────────────────────────────────────────
-function LoginScreen({ onSignIn, isDevMode }: { onSignIn: (e: string, p: string) => Promise<string | null>; isDevMode: boolean }) {
+function LoginScreen({ onSignIn }: { onSignIn: (e: string, p: string) => Promise<string | null> }) {
   const [mode, setMode]         = useState<'login' | 'signup'>('login');
   const [email, setEmail]       = useState('');
   const [password, setPassword] = useState('');
@@ -157,7 +136,6 @@ function LoginScreen({ onSignIn, isDevMode }: { onSignIn: (e: string, p: string)
   const [error, setError]       = useState('');
   const [success, setSuccess]   = useState('');
   const [loading, setLoading]   = useState(false);
-  const [showQuickLogin, setShowQuickLogin] = useState(false);
   // Signup fields
   const [fullName, setFullName]       = useState('');
   const [companyName, setCompanyName] = useState('');
@@ -185,18 +163,6 @@ function LoginScreen({ onSignIn, isDevMode }: { onSignIn: (e: string, p: string)
     if (err) { setError(err); setLoading(false); }
   };
 
-  const quickLogin = async (u: UserProfile) => {
-    setLoading(true);
-    await onSignIn(u.email, 'demo');
-    setLoading(false);
-  };
-
-  const tierOrder: TierRole[] = ['admin', 'manager', 'worker'];
-  const grouped = tierOrder.map(tier => ({
-    tier,
-    users: MOCK_USERS.filter(u => u.tier === tier),
-  }));
-
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-violet-950 to-slate-900 flex items-center justify-center p-4">
       <div className="w-full max-w-md space-y-6">
@@ -212,11 +178,7 @@ function LoginScreen({ onSignIn, isDevMode }: { onSignIn: (e: string, p: string)
               <Sparkles size={13} /> Nàng GEM Siêu Việt
             </p>
           </div>
-          {isDevMode && (
-            <div className="inline-flex items-center gap-1.5 px-3 py-1 bg-amber-500/20 border border-amber-500/30 rounded-full text-amber-300 text-xs font-semibold">
-              <Key size={11} /> Chế độ Demo — không cần Supabase
-            </div>
-          )}
+
         </div>
 
         {/* Login / Signup form */}
@@ -287,7 +249,7 @@ function LoginScreen({ onSignIn, isDevMode }: { onSignIn: (e: string, p: string)
                   <input type={showPw ? 'text' : 'password'} value={password}
                     onChange={e => { setPassword(e.target.value); setError(''); }}
                     onKeyDown={e => e.key === 'Enter' && mode === 'login' && handleLogin()}
-                    placeholder={mode === 'signup' ? 'Tối thiểu 6 ký tự' : (isDevMode ? 'Nhập bất kỳ (demo mode)' : '••••••••')}
+                    placeholder={mode === 'signup' ? 'Tối thiểu 6 ký tự' : '••••••••'}
                     className="w-full pl-9 pr-10 py-3 bg-white/10 border border-white/20 rounded-xl text-white placeholder-slate-400 text-sm focus:outline-none focus:ring-2 focus:ring-violet-500" />
                   <button onClick={() => setShowPw(p => !p)} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-200">
                     {showPw ? <EyeOff size={15} /> : <Eye size={15} />}
@@ -340,52 +302,6 @@ function LoginScreen({ onSignIn, isDevMode }: { onSignIn: (e: string, p: string)
             </>
           )}
 
-          {/* Quick login (dev only) */}
-          {isDevMode && mode === 'login' && (
-            <div>
-              <button
-                onClick={() => setShowQuickLogin(p => !p)}
-                className="w-full flex items-center justify-center gap-2 py-2 text-violet-300 hover:text-violet-100 text-xs font-semibold transition-colors"
-              >
-                <Users size={13} /> Đăng nhập nhanh (Demo)
-                <ChevronDown size={12} className={`transition-transform ${showQuickLogin ? 'rotate-180' : ''}`} />
-              </button>
-
-              {showQuickLogin && (
-                <div className="mt-3 space-y-3 max-h-80 overflow-y-auto pr-1">
-                  {grouped.map(({ tier, users }) => {
-                    const tc = TIER_COLORS[tier];
-                    return (
-                      <div key={tier}>
-                        <p className={`text-[10px] font-black uppercase tracking-widest px-2 py-1 rounded-lg mb-1.5 ${tc.bg} ${tc.text} bg-opacity-20`}>
-                          {TIER_LABELS[tier]}
-                        </p>
-                        <div className="space-y-1.5">
-                          {users.map(u => (
-                            <button
-                              key={u.id}
-                              onClick={() => quickLogin(u)}
-                              disabled={loading}
-                              className="w-full flex items-center gap-3 p-2.5 bg-white/5 hover:bg-white/10 border border-white/10 rounded-xl text-left transition-all group disabled:opacity-50"
-                            >
-                              <div className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 ${tc.bg} bg-opacity-30`}>
-                                <UserCircle size={18} className={tc.text} />
-                              </div>
-                              <div className="flex-1 min-w-0">
-                                <p className="text-white text-xs font-semibold truncate">{u.full_name}</p>
-                                <p className="text-slate-400 text-[10px] truncate">{JOB_LABELS[u.job_role]}</p>
-                              </div>
-                              <LogIn size={13} className="text-slate-500 group-hover:text-violet-300 transition-colors shrink-0" />
-                            </button>
-                          ))}
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-            </div>
-          )}
         </div>
 
         <p className="text-center text-slate-500 text-xs">
@@ -413,15 +329,15 @@ export function AuthGuard({ minTier = 'worker', children }: { minTier?: TierRole
 
 // ─── UserMenu — top-right dropdown in Taskbar ─────────────────────────────────
 export function UserMenu({ onNavigate }: { onNavigate?: (tab: string) => void } = {}) {
-  const { user, perm, signOut, switchMockUser, isDevMode } = useAuth();
+  const { user, perm, signOut } = useAuth();
   const [open, setOpen] = useState(false);
-  const [showSwitch, setShowSwitch] = useState(false);
+
   const ref = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const handler = (e: MouseEvent) => {
       if (ref.current && !ref.current.contains(e.target as Node)) {
-        setOpen(false); setShowSwitch(false);
+        setOpen(false);
       }
     };
     document.addEventListener('mousedown', handler);
@@ -501,38 +417,6 @@ export function UserMenu({ onNavigate }: { onNavigate?: (tab: string) => void } 
             </div>
           </div>
 
-          {/* Dev: switch user */}
-          {isDevMode && (
-            <div className="p-3 border-b border-slate-100">
-              <button
-                onClick={() => setShowSwitch(p => !p)}
-                className="w-full flex items-center justify-between text-xs text-amber-600 font-semibold hover:text-amber-700"
-              >
-                <span className="flex items-center gap-1.5"><RefreshCw size={11} />Đổi user (Demo)</span>
-                <ChevronDown size={11} className={`transition-transform ${showSwitch ? 'rotate-180' : ''}`} />
-              </button>
-              {showSwitch && (
-                <div className="mt-2 space-y-1 max-h-48 overflow-y-auto">
-                  {MOCK_USERS.map(u => (
-                    <button
-                      key={u.id}
-                      onClick={() => { switchMockUser(u.id); setOpen(false); }}
-                      className="w-full flex items-center gap-2 p-2 hover:bg-slate-50 rounded-xl text-left"
-                    >
-                      <div className={`w-6 h-6 rounded-full flex items-center justify-center shrink-0 ${TIER_COLORS[u.tier].bg}`}>
-                        <UserCircle size={13} className={TIER_COLORS[u.tier].text} />
-                      </div>
-                      <div className="min-w-0 flex-1">
-                        <p className="text-xs font-semibold text-slate-700 truncate">{u.full_name}</p>
-                        <p className="text-[10px] text-slate-400 truncate">{JOB_LABELS[u.job_role]}</p>
-                      </div>
-                      {user.id === u.id && <CheckCircle2 size={12} className="text-emerald-500 shrink-0" />}
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
-          )}
 
           {/* Billing — chỉ admin */}
           {user.tier === 'admin' && onNavigate && (

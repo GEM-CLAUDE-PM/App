@@ -97,7 +97,7 @@ export function setActiveMemberSnap(snap: ActiveMemberSnap): void {
 // ─────────────────────────────────────────────────────────────────────────────
 
 // ─── MOCK_MEMBERS — đủ 24 roles, mỗi user 1 role chính ───────────────────────
-// Sync với MOCK_USERS trong supabase.ts
+// Seed members cho local project data (db.ts localStorage)
 export const MOCK_MEMBERS: Omit<ProjectMember, 'projectId' | 'joinedAt' | 'updatedAt'>[] = [
   // L5
   { userId:'u1',  userName:'Trần Văn Bình',       email:'gdda@villaphat.vn',       roles:['giam_doc'],       activeRoleId:'giam_doc'       },
@@ -366,7 +366,7 @@ export function suggestRoleSwitch(
  *   2. gem_user_role (backward-compat) → tìm member có activeRoleId đó
  *   3. Fallback: tạo anonymous member từ gem_user_role
  */
-export function getCurrentMember(projectId: string): ProjectMember {
+export function getCurrentMember(projectId: string, authRoleId?: string): ProjectMember {
   const members = seedMembersIfEmpty(projectId);
   const snap    = getActiveMemberSnap();
 
@@ -380,20 +380,21 @@ export function getCurrentMember(projectId: string): ProjectMember {
   }
 
   // Fallback: match by gem_user_role
-  const legacyRole = (localStorage.getItem('gem_user_role') || 'chi_huy_truong') as RoleId;
-  const byRole = members.find(m => m.activeRoleId === legacyRole || m.roles.includes(legacyRole));
+  // authRoleId (AuthProvider source of truth) takes priority over stale localStorage
+  const resolvedRole = (authRoleId || localStorage.getItem('gem_user_role') || 'chi_huy_truong') as RoleId;
+  const byRole = members.find(m => m.activeRoleId === resolvedRole || m.roles.includes(resolvedRole));
   if (byRole) {
-    if (byRole.roles.includes(legacyRole)) byRole.activeRoleId = legacyRole;
+    if (byRole.roles.includes(resolvedRole)) byRole.activeRoleId = resolvedRole;
     return byRole;
   }
 
   // Ultimate fallback: anonymous member
   return {
-    userId:       `user_${legacyRole}`,
-    userName:     ROLES[legacyRole]?.label || legacyRole,
+    userId:       `user_${resolvedRole}`,
+    userName:     ROLES[resolvedRole]?.label || resolvedRole,
     projectId,
-    roles:        [legacyRole],
-    activeRoleId: legacyRole,
+    roles:        [resolvedRole],
+    activeRoleId: resolvedRole,
     joinedAt:     new Date().toISOString(),
     updatedAt:    new Date().toISOString(),
   };
