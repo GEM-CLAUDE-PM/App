@@ -109,6 +109,7 @@ export default function MemberSwitcher({
   const [members,       setMembers]       = useState<ProjectMember[]>([]);
   const [activeMember,  setActiveMember]  = useState<ProjectMember | null>(null);
   const [showDropdown,  setShowDropdown]  = useState(false);
+  const [showUserPick,  setShowUserPick]  = useState(false);
 
   // ── Load ─────────────────────────────────────────────────────────────────
   const reload = useCallback(() => {
