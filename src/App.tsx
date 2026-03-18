@@ -99,19 +99,23 @@ function AppInner() {
 
   const [projects, setProjects] = useState<any[]>([]);
 
-  // Load projects từ Supabase
+  // Load projects từ Supabase — chờ user auth xong mới query
   useEffect(() => {
-    const sb = (window as any).__supabase_client__ || null;
+    // Không load nếu user chưa có (AuthProvider đang loading)
+    if (!user?.id) return;
     const loadProjects = async () => {
       const { getSupabase } = await import('./components/supabase');
       const client = getSupabase();
       if (!client) return;
-      const { data } = await client
+      const { data, error } = await client
         .from('projects')
         .select('id,name,type,status,progress,budget,address,start_date,end_date,template_id,spi,ncr,hse,ntp_pending')
         .order('created_at', { ascending: true });
+      if (error) {
+        console.warn('[App] loadProjects error:', error.message);
+        return;
+      }
       if (data && data.length > 0) {
-        // Map snake_case DB columns → camelCase app fields
         setProjects(data.map((p: any) => ({
           id:          p.id,
           name:        p.name,
@@ -132,7 +136,7 @@ function AppInner() {
       }
     };
     loadProjects();
-  }, [user?.id]);
+  }, [user?.id]); // re-run khi user login/logout
 
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(() => {
     // Restore last project on mount
