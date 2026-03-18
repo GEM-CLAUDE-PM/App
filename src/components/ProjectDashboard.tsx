@@ -273,6 +273,7 @@ export default function ProjectDashboard({
       setContractUnlocked(true);
       setPinInput(''); setPinError(''); setPinAttempts(0);
       setShowPinDialog(false);
+      setActiveTab('contracts');
       writeAuditLog('UNLOCK', 'Mở khoá tab Hợp đồng thành công');
     } else {
       const next = pinAttempts + 1;
@@ -966,7 +967,7 @@ export default function ProjectDashboard({
     }
 
     if (activeTab === 'approval-queue') {
-      const member      = getCurrentMember(localProjectId);
+      const member      = getCurrentMember(localProjectId, authRoleId || undefined, user?.id || undefined);
       const approvalCtx = buildCtxFromMember(member);
       return (
         <div className="flex flex-col h-full">
@@ -1424,6 +1425,7 @@ export default function ProjectDashboard({
                               setContractUnlocked(true);
                               setPinInput(''); setPinError(''); setPinAttempts(0);
                               setShowPinDialog(false);
+                              setActiveTab('contracts');
                               writeAuditLog('UNLOCK', 'Mở khoá tab Hợp đồng thành công');
                             } else {
                               const na = pinAttempts + 1;
@@ -1670,7 +1672,7 @@ export default function ProjectDashboard({
 
         // ── Union roles: user được làm gì = union của TẤT CẢ roles trong DA ──
         // Không phải "đóng vai" — 1 user có thể kiêm nhiều roles
-        const _member = localProjectId ? getCurrentMember(localProjectId) : null;
+        const _member = localProjectId ? getCurrentMember(localProjectId, authRoleId || undefined, user?.id || undefined) : null;
         const activeRoleId = (legacyToNew[currentRole] || 'operator') as RoleId;
         const permCtx = _member ? buildCtxFromMember(_member) : { userId: `user_${currentRole}`, roleId: activeRoleId };
 
