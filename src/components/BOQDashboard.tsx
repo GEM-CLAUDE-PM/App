@@ -729,7 +729,7 @@ export default function BOQDashboard({ project, maskSensitive = false }: Dashboa
       >
         <FormGrid cols={2}>
           <FormRow label="Mã hạng mục"><input className={inputCls} placeholder="VD: HM-01" value={newRow.code || ''} onChange={e => setNewRow(p => ({...p, code: e.target.value}))}/></FormRow>
-          <FormRow label="Tên hạng mục *" className="col-span-2"><input className={inputCls} placeholder="VD: Thi công móng cọc" value={newRow.name || ''} onChange={e => setNewRow(p => ({...p, name: e.target.value}))}/></FormRow>
+          <div className="col-span-2"><FormRow label="Tên hạng mục *"><input className={inputCls} placeholder="VD: Thi công móng cọc" value={newRow.name || ''} onChange={e => setNewRow(p => ({...p, name: e.target.value}))}/></FormRow></div>
           <FormRow label="Chương">
             <select className={selectCls} value={newRow.chapter} onChange={e => setNewRow(p => ({...p, chapter: e.target.value}))}>
               {CHAPTERS.map(ch => <option key={ch} value={ch}>{CHAPTER_NAMES[ch]}</option>)}

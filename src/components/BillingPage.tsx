@@ -317,10 +317,10 @@ export default function BillingPage({ onClose }: { onClose?: () => void }) {
         </>}
       >
         <FormGrid cols={2}>
-          <FormRow label="Tên công ty *" className="col-span-2">
+          <div className="col-span-2"><FormRow label="Tên công ty *">
             <input className={inputCls} placeholder="VD: Công ty TNHH XD Phúc Thành"
               value={payForm.company} onChange={e => setPayForm(p => ({...p, company: e.target.value}))}/>
-          </FormRow>
+          </FormRow></div>
           <FormRow label="Email nhận thông báo *">
             <input type="email" className={inputCls} placeholder="email@congty.vn"
               value={payForm.email} onChange={e => setPayForm(p => ({...p, email: e.target.value}))}/>

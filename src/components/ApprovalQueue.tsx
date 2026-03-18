@@ -8,7 +8,7 @@ import {
   Building2, HardHat, BarChart2, Info,
 } from 'lucide-react';
 import {
-  ApprovalDoc, DocStatus, AuditEntry, ApproveInput,
+  ApprovalDoc, DocStatus, AuditEntry, ProcessInput,
   processApproval, submitDocument, getApprovalQueue, canApproveDoc,
   getMyDocs, getAllDocs, getStatusConfig, getCurrentStepLabel,
   getWorkflowProgress, STATUS_CONFIG, verifyPin,
@@ -571,14 +571,15 @@ function DocDetailPanel({ doc, ctx, onAction, onClose, uploadMode, onUpload, act
 // ─────────────────────────────────────────────────
 
 interface DocCardProps {
-  doc:       ApprovalDoc;
-  ctx:       UserContext;
-  onClick:   () => void;
-  highlight: boolean; // đang chờ user này duyệt
+  doc:        ApprovalDoc;
+  ctx:        UserContext;
+  onClick:    () => void;
+  highlight:  boolean;
+  processing?: boolean;
   key?: React.Key;
 }
 
-function DocCard({ doc, ctx, onClick, highlight }: DocCardProps) {
+function DocCard({ doc, ctx, onClick, highlight, processing = false }: DocCardProps) {
   const statusCfg = getStatusConfig(doc.status);
   const progress  = getWorkflowProgress(doc);
   const stepLabel      = getCurrentStepLabel(doc);
@@ -844,7 +845,7 @@ export default function ApprovalQueue({ projectId, projectName, ctx, onClose }: 
     setProcessing(true);
     processedKeys.current.add(iKey);
 
-    const input: ApproveInput = {
+    const input: ProcessInput = {
       projectId, docId: doc.id, action, ctx, comment,
       ...(pin ? { pin } : {}),
     };
@@ -1059,6 +1060,7 @@ export default function ApprovalQueue({ projectId, projectName, ctx, onClose }: 
                 ctx={ctx}
                 onClick={() => setSelectedDoc(doc)}
                 highlight={viewMode !== 'mine'}
+                processing={processing}
               />
             ))}
           </>
