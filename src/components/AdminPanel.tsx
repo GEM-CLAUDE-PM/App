@@ -160,13 +160,13 @@ export default function AdminPanel({ currentUserId, onClose, projects = [] }: Ad
       // CREATE — gọi Edge Function invite-member (dùng service_role key an toàn ở server)
       const { data: { session } } = await sb.auth.getSession();
       const res = await fetch(
-        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/invite-member`,
+        `${(import.meta as any).env?.VITE_SUPABASE_URL}/functions/v1/invite-member`,
         {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
             'Authorization': `Bearer ${session?.access_token}`,
-            'apikey': import.meta.env.VITE_SUPABASE_ANON_KEY,
+            'apikey': (import.meta as any).env?.VITE_SUPABASE_ANON_KEY,
           },
           body: JSON.stringify({
             email:       form.email,
