@@ -80,33 +80,45 @@ localStorage.setItem('gem_...');
 
 **MaterialsDashboard làm ĐÚNG** — `save()` là `useCallback`, chỉ gọi trong user action handler, không tự chạy khi mount.
 
+**`dbLoaded` phải là `useRef`, KHÔNG phải `useState`.**  
+Lý do kỹ thuật (xác nhận Part 5 → S13): React 18 batches `setState(serverData)` cùng với `setDbLoaded(true)` trong cùng một microtask. Khi `useEffect[items]` chạy, `dbLoaded` vẫn là `false` trong closure cũ → guard bị bypass → data bị ghi đè. `useRef.current` luôn là giá trị mới nhất, không bị capture trong closure.
+
 **Pattern chuẩn cho dashboard có auto-save:**
 ```tsx
-// ✅ ĐÚNG — dùng dbLoaded flag
+// ✅ ĐÚNG — dbLoaded là useRef
 const [items, setItems] = useState<MyType[]>([]);
-const [dbLoaded, setDbLoaded] = useState(false); // BẮT BUỘC khi có auto-save useEffect
+const dbLoaded = useRef(false); // BẮT BUỘC useRef, không dùng useState
 
 useEffect(() => {
-  setDbLoaded(false); // reset khi projectId thay đổi
-  db.get<MyType[]>('collection', projectId, []).then(data => {
-    setItems(data);
-    setDbLoaded(true); // load xong → cho phép auto-save
-  });
+  dbLoaded.current = false; // reset khi projectId thay đổi
+  (async () => {
+    try {
+      const data = await db.get<MyType[]>('collection', projectId, []);
+      setItems(data);
+    } catch (e) {
+      console.warn('[XxxDashboard] load error:', e);
+    } finally {
+      dbLoaded.current = true; // luôn set true dù thành công hay lỗi
+    }
+  })();
 }, [projectId]);
 
-// Auto-save CHỈ chạy sau khi dbLoaded = true
-useEffect(() => { if (dbLoaded) db.set('collection', projectId, items); }, [items]);
+// Auto-save CHỈ chạy sau khi dbLoaded.current = true
+useEffect(() => { if (dbLoaded.current) db.set('collection', projectId, items); }, [items]);
 
-// ✅ CŨNG ĐÚNG — save trong handler (như MaterialsDashboard)
+// ✅ CŨNG ĐÚNG — save trong handler (như MaterialsDashboard), không cần dbLoaded
 const save = useCallback((data: MyType[]) => db.set('collection', projectId, data), [projectId]);
-// Gọi save() trong handleSave(), không dùng useEffect
 
 // ❌ SAI — auto-save không có guard → race condition khi mount
 useEffect(() => { db.set('collection', projectId, items); }, [items]);
+
+// ❌ SAI — dùng useState thay vì useRef → bị React 18 batch
+const [dbLoaded, setDbLoaded] = useState(false);
 ```
 
-**Rule:** Nếu dùng `useEffect` để auto-save → **bắt buộc có `dbLoaded` guard**.  
-Nếu save trong handler (onClick, onSubmit) → không cần guard.
+**Rule:** Nếu dùng `useEffect` để auto-save → **bắt buộc `dbLoaded = useRef(false)`**.  
+Nếu save trong handler (onClick, onSubmit) → không cần guard.  
+Load useEffect **phải có try/catch/finally** — `finally` đảm bảo `dbLoaded.current = true` dù có lỗi.
 
 ### 2.4 In ấn / PDF
 ```tsx
@@ -118,6 +130,32 @@ const { printComponent, printSupervisionLog } = usePrint();
 // ❌ SAI
 window.print();  // không dùng trực tiếp
 ```
+
+### 2.1a File Upload trong ModalForm — BẮT BUỘC dùng FormFileUpload
+```tsx
+// ✅ ĐÚNG — import FormFileUpload từ ModalForm.tsx
+import ModalForm, { FormFileUpload, FormSection, ... } from './ModalForm';
+
+const [attachments, setAttachments] = useState<File[]>([]);
+
+<FormSection title="Hồ sơ đính kèm">
+  <FormFileUpload
+    files={attachments}
+    onChange={setAttachments}
+    accept=".pdf,.docx,.xlsx,.jpg,.png"
+    maxFiles={5}
+    label="Đính kèm biên bản / Ảnh hiện trường"
+  />
+</FormSection>
+
+// ❌ SAI — không dùng input[type=file] trực tiếp
+<input type="file" className="hidden" onChange={...} />
+```
+
+**Mọi form nghiệp vụ có hồ sơ pháp lý phải có FormFileUpload:**
+- BBNT, NCR, đề nghị thanh toán, phiếu xuất kho, incident HSE, chứng chỉ HR...
+- Dev mode: lưu metadata `{name, size, type}` vào payload
+- Prod S14+: upload lên Supabase Storage `gem-docs/{projectId}/{category}/`
 
 ---
 

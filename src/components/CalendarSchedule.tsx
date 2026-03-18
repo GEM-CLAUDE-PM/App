@@ -247,7 +247,7 @@ function EventModal({ event, defaultDate, onSave, onClose }: ModalProps) {
 // ══ MAIN ══════════════════════════════════════════════════════════════════════
 import { db } from './db';
 
-export default function CalendarSchedule() {
+export default function CalendarSchedule({ projects = [] }: { projects?: any[] }) {
   const [events, setEvents]           = useState<CalEvent[]>([]);
   const [viewMode, setViewMode]       = useState<'timeline'|'month'>('timeline');
   const [anchorDate, setAnchorDate]   = useState(new Date());
