@@ -845,7 +845,7 @@ export default function HRWorkspace({ project: selectedProject, projectId: proje
               <input className={inputCls} value={empForm.join_date||''} onChange={e=>setEmpForm(v=>({...v,join_date:e.target.value}))} placeholder="DD/MM/YYYY" />
             </FormRow>
             <FormRow label="Trạng thái">
-              <select className={selectCls} value={empForm.status||'probation'} onChange={e=>setEmpForm(v=>({...v,status:e.target.value}))}>
+              <select className={selectCls} value={empForm.status||'probation'} onChange={e=>setEmpForm(v=>({...v,status:e.target.value as EmpStatus}))}>
                 <option value="active">Đang làm việc</option>
                 <option value="probation">Thử việc</option>
                 <option value="resigned">Đã nghỉ</option>
@@ -912,7 +912,7 @@ export default function HRWorkspace({ project: selectedProject, projectId: proje
               </select>
             </FormRow>
             <FormRow label="Loại nghỉ phép">
-              <select className={selectCls} value={leaveForm.type||'annual'} onChange={e=>setLeaveForm(v=>({...v,type:e.target.value}))}>
+              <select className={selectCls} value={leaveForm.type||'annual'} onChange={e=>setLeaveForm(v=>({...v,type:e.target.value as LeaveType}))}>
                 <option value="annual">Phép năm</option>
                 <option value="sick">Ốm đau</option>
                 <option value="personal">Việc riêng</option>
