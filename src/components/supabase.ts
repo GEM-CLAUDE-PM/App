@@ -82,6 +82,26 @@ export type JobRole   =
   | 'chu_dau_tu'        // CĐT ClientPortal       → worker tier (external)
   ;
 
+// ─── Multi-tenant types ───────────────────────────────────────────────────────
+/**
+ * Plan IDs — tương ứng với 3 gói trong BillingPage.tsx
+ *   trial     → 14 ngày dùng thử (auto-lock khi hết hạn bởi pg_cron / Edge Fn)
+ *   starter   → ≤10 user, 3 dự án, 5GB
+ *   pro       → Unlimited user/project, 50GB, SubconPortal + ClientPortal
+ *   enterprise→ Single-tenant riêng, SLA 99.9%
+ */
+export type PlanId = 'trial' | 'starter' | 'pro' | 'enterprise';
+
+export interface TenantRecord {
+  id: string;                   // uuid — tenant_id, FK trên mọi table
+  name: string;                 // Tên công ty
+  plan_id: PlanId;
+  trial_ends_at: string | null; // ISO timestamp — null nếu đã upgrade
+  is_active: boolean;           // false = locked (trial hết hạn / unpaid)
+  created_at: string;
+  admin_user_id: string;        // uuid — giam_doc tạo tenant
+}
+
 export interface UserProfile {
   id: string;
   email: string;
@@ -93,6 +113,12 @@ export interface UserProfile {
   project_ids: string[];        // Projects this user belongs to
   created_at: string;
   last_sign_in?: string;
+  // ── Multi-tenant fields (S17+) ──────────────────────────────────────────
+  tenant_id: string;            // FK → tenants.id — bắt buộc trên mọi profile
+  is_tenant_admin: boolean;     // true = người tạo tenant (giam_doc đầu tiên)
+  plan_id: PlanId;              // copy từ tenants.plan_id để tránh join ở client
+  trial_ends_at: string | null; // copy từ tenants.trial_ends_at
+  userName?: string;            // display name alias
 }
 
 export interface AuthSession {
@@ -214,9 +240,22 @@ export const AuthService = {
     if (!sb) return { user: null, error: 'Không thể kết nối máy chủ. Vui lòng thử lại.' };
     const { data, error } = await sb.auth.signInWithPassword({ email, password });
     if (error) return { user: null, error: error.message };
-    const { data: profile } = await sb.from('profiles').select('*').eq('id', data.user.id).single();
-    if (profile) AuthService.persistSession(profile);
-    return { user: profile ?? null, error: null };
+    const { data: profile } = await sb
+      .from('profiles')
+      .select('*, tenants!inner(plan_id, trial_ends_at, is_active)')
+      .eq('id', data.user.id)
+      .single();
+    if (profile) {
+      // Flatten tenant fields vào profile để client không cần join
+      const merged: UserProfile = {
+        ...profile,
+        plan_id:       profile.tenants?.plan_id       ?? profile.plan_id       ?? 'trial',
+        trial_ends_at: profile.tenants?.trial_ends_at ?? profile.trial_ends_at ?? null,
+      };
+      AuthService.persistSession(merged);
+      return { user: merged, error: null };
+    }
+    return { user: null, error: 'Không tìm thấy profile.' };
   },
 
   async signOut(): Promise<void> {
@@ -227,7 +266,7 @@ export const AuthService = {
     localStorage.removeItem('gem_active_member');
   },
 
-  /** Sign up — tạo account mới + tenant mới */
+  /** Sign up — tạo account mới + tenant mới (S17: multi-tenant) */
   async signUp(params: {
     email: string;
     password: string;
@@ -236,7 +275,9 @@ export const AuthService = {
   }): Promise<{ error: string | null }> {
     const sb = getSupabase();
     if (!sb) return { error: 'Không thể kết nối máy chủ.' };
-    const { error } = await sb.auth.signUp({
+
+    // Bước 1: Tạo Supabase Auth user trước để có user.id
+    const { data: authData, error: authError } = await sb.auth.signUp({
       email: params.email,
       password: params.password,
       options: {
@@ -248,7 +289,39 @@ export const AuthService = {
         },
       },
     });
-    if (error) return { error: error.message };
+    if (authError || !authData.user) return { error: authError?.message ?? 'Đăng ký thất bại.' };
+
+    const userId = authData.user.id;
+
+    // Bước 2: Tạo tenant record — 14 ngày trial
+    const trialEndsAt = new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString();
+    const { data: tenant, error: tenantError } = await sb
+      .from('tenants')
+      .insert({
+        name:          params.company_name,
+        plan_id:       'trial' as PlanId,
+        trial_ends_at: trialEndsAt,
+        is_active:     true,
+        admin_user_id: userId,
+      })
+      .select('id')
+      .single();
+    if (tenantError || !tenant) return { error: tenantError?.message ?? 'Không tạo được tenant.' };
+
+    const tenantId = tenant.id;
+
+    // Bước 3: Update profile với tenant_id (trigger handle_new_user đã tạo profile cơ bản)
+    const { error: profileError } = await sb
+      .from('profiles')
+      .update({
+        tenant_id:       tenantId,
+        is_tenant_admin: true,
+        plan_id:         'trial' as PlanId,
+        trial_ends_at:   trialEndsAt,
+      })
+      .eq('id', userId);
+    if (profileError) return { error: profileError.message };
+
     return { error: null };
   },
 
@@ -263,9 +336,21 @@ export const AuthService = {
     }
     const { data } = await sb.auth.getSession();
     if (!data.session) return null;
-    const { data: profile } = await sb.from('profiles').select('*').eq('id', data.session.user.id).single();
-    if (profile) AuthService.persistSession(profile);
-    return profile ?? null;
+    const { data: profile } = await sb
+      .from('profiles')
+      .select('*, tenants!inner(plan_id, trial_ends_at, is_active)')
+      .eq('id', data.session.user.id)
+      .single();
+    if (profile) {
+      const merged: UserProfile = {
+        ...profile,
+        plan_id:       profile.tenants?.plan_id       ?? profile.plan_id       ?? 'trial',
+        trial_ends_at: profile.tenants?.trial_ends_at ?? profile.trial_ends_at ?? null,
+      };
+      AuthService.persistSession(merged);
+      return merged;
+    }
+    return null;
   },
 
   /** Persist session to localStorage for offline fallback */

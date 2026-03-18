@@ -5,11 +5,15 @@
  */
 import React, { useState } from 'react';
 import { useNotification } from './NotificationEngine';
+import { getSupabase, type PlanId } from './supabase';
+import { useAuth } from './AuthProvider';
+import { getSupabase, type PlanId } from './supabase';
+import { useAuth } from './AuthProvider';
 import ModalForm, { FormRow, FormGrid, inputCls, selectCls, BtnCancel, BtnSubmit } from './ModalForm';
 import {
   Check, X, Zap, Shield, Crown, CreditCard,
   Calendar, Download, AlertTriangle, ChevronDown, ChevronUp,
-  Building2, Users, HardDrive, Lock, Star,
+  Building2, Users, HardDrive, Lock, Star, Clock, CheckCircle,
 } from 'lucide-react';
 
 type Plan = 'starter' | 'pro' | 'enterprise';
@@ -113,15 +117,29 @@ const FAQ = [
 ];
 
 export default function BillingPage({ onClose }: { onClose?: () => void }) {
-  const { ok: notifOk, info: notifInfo } = useNotification();
+  const { ok: notifOk, err: notifErr, info: notifInfo } = useNotification();
+  const { user } = useAuth();
   const [cycle, setCycle] = useState<BillingCycle>('yearly');
   const [showPayForm, setShowPayForm] = useState(false);
   const [selectedPlan, setSelectedPlan] = useState<Plan | null>(null);
-  const [payForm, setPayForm] = useState({ company: '', email: '', phone: '', method: 'vnpay' });
+  const [payForm, setPayForm] = useState({
+    company: '',
+    email:   user?.email ?? '',
+    phone:   user?.phone ?? '',
+    method:  'payos',
+  });
   const [openFaq, setOpenFaq] = useState<number | null>(null);
+  const [upgrading, setUpgrading] = useState(false);
 
-  const yearlyDiscount = 17; // % off vs monthly×12
+  // Tính ngày trial còn lại từ user thật
+  const trialDaysLeft = (() => {
+    if (!user?.trial_ends_at) return 0;
+    const diff = new Date(user.trial_ends_at).getTime() - Date.now();
+    return Math.max(0, Math.ceil(diff / (1000 * 60 * 60 * 24)));
+  })();
+  const currentPlan = user?.plan_id ?? 'trial';
 
+  const yearlyDiscount = 17;
   const fmt = (n: number) => n === 0 ? 'Liên hệ' : `${(n / 1_000_000).toFixed(n % 1_000_000 === 0 ? 0 : 1)}M đ`;
 
   const handleSelectPlan = (plan: Plan) => {
@@ -129,15 +147,68 @@ export default function BillingPage({ onClose }: { onClose?: () => void }) {
       notifInfo('Vui lòng liên hệ: gemclaudepm@gmail.com hoặc hotline để được tư vấn gói Enterprise.');
       return;
     }
+    if (plan === currentPlan && currentPlan !== 'trial') {
+      notifInfo(`Anh đang dùng gói ${plan.toUpperCase()} rồi.`);
+      return;
+    }
     setSelectedPlan(plan);
     setShowPayForm(true);
   };
 
-  const handleStartTrial = () => {
-    if (!payForm.email?.includes('@')) { return; }
-    notifOk(`🎉 Đã kích hoạt trial 14 ngày gói ${selectedPlan === 'starter' ? 'Starter' : 'Pro'}! Kiểm tra email ${payForm.email} để xác nhận.`);
-    setShowPayForm(false);
-    onClose?.();
+  // S26: Stripe + PayOS checkout
+  const STRIPE_PRICES: Record<string, Record<string, string>> = {
+    starter:  { monthly: 'price_starter_monthly',  yearly: 'price_starter_yearly'  },
+    pro:      { monthly: 'price_pro_monthly',       yearly: 'price_pro_yearly'      },
+    enterprise: { monthly: 'price_enterprise_monthly', yearly: 'price_enterprise_monthly' },
+  };
+
+  const handleUpgrade = async () => {
+    if (!payForm.email?.includes('@')) { notifErr('Vui lòng nhập email hợp lệ!'); return; }
+    if (!selectedPlan) return;
+    setUpgrading(true);
+    try {
+      const sb = getSupabase();
+      if (!sb || !user?.tenant_id) throw new Error('Cần đăng nhập để nâng cấp.');
+
+      if (payForm.method === 'stripe') {
+        // Stripe Checkout — gọi Edge Function tạo session
+        const priceId = STRIPE_PRICES[selectedPlan]?.[cycle];
+        const { data, error } = await sb.functions.invoke('create-checkout-session', {
+          body: {
+            price_id:    priceId,
+            tenant_id:   user.tenant_id,
+            customer_email: payForm.email,
+            success_url: `${window.location.origin}?upgraded=1`,
+            cancel_url:  window.location.href,
+          },
+        });
+        if (error) throw new Error(error.message);
+        // Redirect to Stripe Checkout
+        if (data?.url) { window.location.href = data.url; return; }
+      } else {
+        // PayOS — tạo payment link
+        const PLAN_PRICES: Record<string, Record<string, number>> = {
+          starter:  { monthly: 990000,  yearly: 9900000  },
+          pro:      { monthly: 2490000, yearly: 24900000 },
+          enterprise: { monthly: 0, yearly: 0 },
+        };
+        const amount = PLAN_PRICES[selectedPlan]?.[cycle] ?? 0;
+        const orderCode = `GEMPM_${user.tenant_id}_${Date.now()}`;
+        const { data, error } = await sb.functions.invoke('create-payos-link', {
+          body: { amount, orderCode, description: `GEM PM ${selectedPlan} ${cycle}`, buyerEmail: payForm.email },
+        });
+        if (error) throw new Error(error.message);
+        if (data?.checkoutUrl) { window.location.href = data.checkoutUrl; return; }
+      }
+
+      // Fallback nếu không có Edge Function — hiển thị thông báo chuyển khoản
+      notifOk('Vui lòng chuyển khoản theo thông tin email — tài khoản sẽ được kích hoạt trong 1 giờ.');
+      setShowPayForm(false);
+    } catch (e: any) {
+      notifErr(`Lỗi thanh toán: ${e.message}`);
+    } finally {
+      setUpgrading(false);
+    }
   };
 
   return (
@@ -155,6 +226,26 @@ export default function BillingPage({ onClose }: { onClose?: () => void }) {
         </div>
         <h1 className="text-2xl font-black text-slate-900 mb-2">Chọn gói phù hợp với dự án của anh</h1>
         <p className="text-slate-500 text-sm max-w-lg mx-auto">Tất cả gói đều có trial 14 ngày miễn phí. Không cần thẻ tín dụng.</p>
+
+        {/* Trial / current plan status */}
+        {currentPlan === 'trial' && (
+          <div className={`inline-flex items-center gap-2 mt-3 px-4 py-2 rounded-full text-xs font-bold ${
+            trialDaysLeft <= 3 ? 'bg-red-100 text-red-700' :
+            trialDaysLeft <= 7 ? 'bg-amber-100 text-amber-700' :
+                                 'bg-emerald-100 text-emerald-700'
+          }`}>
+            <Clock size={12}/>
+            {trialDaysLeft > 0
+              ? `Còn ${trialDaysLeft} ngày dùng thử — hãy chọn gói để không gián đoạn`
+              : 'Trial đã hết hạn — vui lòng nâng cấp để tiếp tục'}
+          </div>
+        )}
+        {currentPlan !== 'trial' && (
+          <div className="inline-flex items-center gap-2 mt-3 px-4 py-2 rounded-full text-xs font-bold bg-emerald-100 text-emerald-700">
+            <CheckCircle size={12}/>
+            Anh đang dùng gói {currentPlan.toUpperCase()}
+          </div>
+        )}
 
         {/* Billing toggle */}
         <div className="flex items-center justify-center gap-3 mt-4">
@@ -313,7 +404,7 @@ export default function BillingPage({ onClose }: { onClose?: () => void }) {
         width="md"
         footer={<>
           <BtnCancel onClick={() => setShowPayForm(false)}/>
-          <BtnSubmit label="🚀 Bắt đầu trial miễn phí" onClick={handleStartTrial}/>
+          <BtnSubmit label={upgrading ? "Đang xử lý..." : "🚀 Xác nhận nâng cấp"} onClick={handleUpgrade}/>
         </>}
       >
         <FormGrid cols={2}>
@@ -330,6 +421,19 @@ export default function BillingPage({ onClose }: { onClose?: () => void }) {
               value={payForm.phone} onChange={e => setPayForm(p => ({...p, phone: e.target.value}))}/>
           </FormRow>
         </FormGrid>
+        <FormRow label="Phương thức thanh toán">
+          <div className="flex gap-2">
+            {([["payos","PayOS (VNPay/ATM/QR)"],["stripe","Thẻ quốc tế (Stripe)"]] as const).map(([m,lbl]) => (
+              <label key={m} className="flex items-center gap-1.5 cursor-pointer text-xs">
+                <input type="radio" name="method" value={m}
+                  checked={payForm.method===m}
+                  onChange={() => setPayForm(p=>({...p,method:m}))}
+                  className="accent-emerald-600"/>
+                {lbl}
+              </label>
+            ))}
+          </div>
+        </FormRow>
         <div className="mt-4 p-3 bg-emerald-50 border border-emerald-200 rounded-xl text-xs text-emerald-800 leading-relaxed">
           ✅ <strong>14 ngày dùng thử đầy đủ tính năng</strong> — không giới hạn, không cần thanh toán.
           Sau 14 ngày em sẽ nhắc anh chọn gói hoặc hủy — không tự động trừ tiền.

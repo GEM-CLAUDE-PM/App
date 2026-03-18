@@ -1,5 +1,5 @@
-import ModalForm, { FormRow, FormGrid, FormSection, inputCls, selectCls, BtnCancel, BtnSubmit } from './ModalForm';
-import { db } from "./db";
+import ModalForm, { FormRow, FormGrid, FormSection, inputCls, selectCls, BtnCancel, BtnSubmit, FormSection, FormFileUpload } from './ModalForm';
+import { db, useRealtimeSync } from "./db";
 import { getProjectTemplate, PROJECT_TEMPLATES } from "./projectTemplates";
 import { useNotification } from './NotificationEngine';
 import React, { useState, useRef, useCallback, useEffect } from "react";
@@ -30,10 +30,14 @@ interface ChecklistItem { l: string; d: string; checked?: boolean }
 interface Checklist {
   id: number; name: string; status: string;
   progress: number; date: string; docType: string; location?: string;
+  linked_ncr_ids?: string[];
+  bbnt_issued?: boolean;
 }
 interface Defect {
   id: string; title: string; severity: string; status: string;
   reportedBy: string; date: string; location?: string; deadline?: string;
+  linked_itp_id?: number;
+  bbnt_ref?: string;
 }
 interface Feedback {
   id: number; sender: string; type: string; content: string;
@@ -1266,51 +1270,65 @@ export default function QaQcDashboard({ onNavigate, projectId: _projectId, proje
   const [viewingChecklist, setViewingChecklist] = useState<number|null>(null);
   const [defects, setDefects]         = useState<Defect[]>(INIT_DEFECTS);
   const [feedbacks, setFeedbacks]     = useState<Feedback[]>(INIT_FEEDBACKS);
-  const [dbLoaded, setDbLoaded]       = useState(false); // flag: chặn auto-save trước khi load xong
+  const dbLoaded = useRef(false); // BẮT BUỘC useRef — tránh React 18 batch closure bug (DESIGN_SYSTEM 2.4)
 
   // ── db.ts: load khi mount — seed từ template nếu chưa có data ─────────────
   useEffect(() => {
-    setDbLoaded(false); // reset khi projectId thay đổi
+    dbLoaded.current = false; // reset khi projectId thay đổi
     (async () => {
-      const [cl, def, fb] = await Promise.all([
-        db.get('qa_checklists', projectId, checklists),
-        db.get('qa_defects',    projectId, defects),
-        db.get('qa_feedbacks',  projectId, feedbacks),
-      ]);
-      if ((cl as any[]).length) {
-        setChecklists(cl as any);
-      } else {
-        // Chưa có checklist → thử seed từ project template
-        const tplId = getProjectTemplate(projectId);
-        const tpl   = tplId ? PROJECT_TEMPLATES[tplId] : null;
-        if (tpl?.qaChecklists?.length) {
-          const today = new Date().toLocaleDateString('vi-VN');
-          const seeded: Checklist[] = tpl.qaChecklists.flatMap((cat, ci) =>
-            cat.items.map((item, ii) => ({
-              id:       (ci + 1) * 100 + ii + 1,
-              name:     item,
-              status:   'Chưa bắt đầu',
-              progress: 0,
-              date:     today,
-              docType:  'ITP',
-              location: cat.category,
-            }))
-          );
-          setChecklists(seeded);
-          db.set('qa_checklists', projectId, seeded);
+      try {
+        const [cl, def, fb] = await Promise.all([
+          db.get('qa_checklists', projectId, checklists),
+          db.get('qa_defects',    projectId, defects),
+          db.get('qa_feedbacks',  projectId, feedbacks),
+        ]);
+        if ((cl as any[]).length) {
+          setChecklists(cl as any);
+        } else {
+          const tplId = getProjectTemplate(projectId);
+          const tpl   = tplId ? PROJECT_TEMPLATES[tplId] : null;
+          if (tpl?.qaChecklists?.length) {
+            const today = new Date().toLocaleDateString('vi-VN');
+            const seeded: Checklist[] = tpl.qaChecklists.flatMap((cat, ci) =>
+              cat.items.map((item, ii) => ({
+                id:       (ci + 1) * 100 + ii + 1,
+                name:     item,
+                status:   'Chưa bắt đầu',
+                progress: 0,
+                date:     today,
+                docType:  'ITP',
+                location: cat.category,
+              }))
+            );
+            setChecklists(seeded);
+            db.set('qa_checklists', projectId, seeded);
+          }
         }
+        if ((def as any[]).length) setDefects(def as any);
+        if ((fb  as any[]).length) setFeedbacks(fb  as any);
+      } finally {
+        dbLoaded.current = true;
       }
-      if ((def as any[]).length) setDefects(def as any);
-      if ((fb  as any[]).length) setFeedbacks(fb  as any);
-      setDbLoaded(true); // load xong → cho phép auto-save
     })();
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [projectId]);
 
   // ── db.ts: lưu khi data thay đổi — chỉ sau khi đã load xong từ server ────
-  useEffect(() => { if (dbLoaded) db.set('qa_checklists', projectId, checklists); }, [checklists]);
-  useEffect(() => { if (dbLoaded) db.set('qa_defects',    projectId, defects);    }, [defects]);
-  useEffect(() => { if (dbLoaded) db.set('qa_feedbacks',  projectId, feedbacks);  }, [feedbacks]);
+  useEffect(() => { if (dbLoaded.current) db.set('qa_checklists', projectId, checklists); }, [checklists]);
+  useEffect(() => { if (dbLoaded.current) db.set('qa_defects',    projectId, defects);    }, [defects]);
+  useEffect(() => { if (dbLoaded.current) db.set('qa_feedbacks',  projectId, feedbacks);  }, [feedbacks]);
+
+  // Realtime sync — tự refresh khi device khác cập nhật
+  useRealtimeSync(projectId, ['qa_checklists', 'qa_defects', 'qa_feedbacks'], async () => {
+    const [cl, def, fb] = await Promise.all([
+      db.get('qa_checklists', projectId, []),
+      db.get('qa_defects',    projectId, []),
+      db.get('qa_feedbacks',  projectId, []),
+    ]);
+    if ((cl  as any[]).length) setChecklists(cl  as any);
+    if ((def as any[]).length) setDefects(def as any);
+    if ((fb  as any[]).length) setFeedbacks(fb  as any);
+  });
 
   // Filters
   const [defectFilter, setDefectFilter]       = useState("Tất cả");
@@ -1653,6 +1671,54 @@ export default function QaQcDashboard({ onNavigate, projectId: _projectId, proje
                         <Send size={10}/> Gửi nghiệm thu duyệt
                       </button>
                     )}
+                    {/* S23: ITP→NCR chain */}
+                    <div className="flex gap-1.5 mt-2 flex-wrap">
+                      {(item.linked_ncr_ids ?? []).map(ncrId => (
+                        <span key={ncrId} className="text-[9px] font-bold bg-rose-100 text-rose-700 px-2 py-0.5 rounded-full flex items-center gap-1">
+                          <XCircle size={9}/>{ncrId}
+                        </span>
+                      ))}
+                      {item.status !== "Chưa bắt đầu" && (
+                        <button onClick={() => {
+                          const ncrId = `NCR-${Date.now().toString().slice(-5)}`;
+                          setDefects(prev => {
+                            const next = [{ id: ncrId, title: `NCR phát sinh từ: ${item.name}`,
+                              severity: "Trung bình", status: "Chờ duyệt",
+                              reportedBy: "QA/QC", date: new Date().toLocaleDateString("vi-VN"),
+                              location: item.location, deadline: item.date,
+                              linked_itp_id: item.id,
+                            }, ...prev];
+                            if (dbLoaded.current) db.set("qa_defects", projectId, next);
+                            return next;
+                          });
+                          setChecklists(prev => {
+                            const next = prev.map(cl => cl.id === item.id
+                              ? { ...cl, linked_ncr_ids: [...(cl.linked_ncr_ids ?? []), ncrId] }
+                              : cl);
+                            if (dbLoaded.current) db.set("qa_checklists", projectId, next);
+                            return next;
+                          });
+                        }}
+                        className="text-[9px] font-bold bg-rose-50 text-rose-600 border border-rose-200 px-2 py-0.5 rounded-full hover:bg-rose-100 transition-colors">
+                          + Tạo NCR
+                        </button>
+                      )}
+                      {item.status === "Hoàn thành" && !item.bbnt_issued && (
+                        <button onClick={() => {
+                          setChecklists(prev => {
+                            const next = prev.map(cl => cl.id === item.id ? { ...cl, bbnt_issued: true } : cl);
+                            if (dbLoaded.current) db.set("qa_checklists", projectId, next);
+                            return next;
+                          });
+                        }}
+                        className="text-[9px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200 px-2 py-0.5 rounded-full hover:bg-emerald-100 transition-colors">
+                          📋 Phát hành BBNT
+                        </button>
+                      )}
+                      {item.bbnt_issued && (
+                        <span className="text-[9px] font-bold bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded-full">✅ BBNT đã phát hành</span>
+                      )}
+                    </div>
                   </div>
                 ))}
                 {filteredCL.length===0&&<div className="col-span-2 py-16 text-center text-slate-400"><ClipboardCheck size={36} className="mx-auto mb-2 opacity-30"/><p>Không tìm thấy checklist nào</p></div>}
@@ -1951,7 +2017,11 @@ export default function QaQcDashboard({ onNavigate, projectId: _projectId, proje
         subtitle="Ghi nhận lỗi không phù hợp tại công trường"
         icon={<AlertCircle size={18}/>} color="rose" width="md"
         footer={<>
-          <BtnCancel onClick={() => setShowDefectForm(false)}/>
+
+      <FormSection title="Ho so dinh kem">
+        <FormFileUpload files={[]} onChange={()=>{}} accept=".pdf,.jpg,.png" maxFiles={3} label="Anh hien truong / Bien ban NCR"/>
+      </FormSection>
+                <BtnCancel onClick={() => setShowDefectForm(false)}/>
           <BtnSubmit label="Gửi báo cáo NCR" color="rose" onClick={saveDefect}/>
         </>}
       >

@@ -50,7 +50,9 @@ export default function ClientPortal() {
   ]);
   const unreadCount = notifications.filter(n => n.unread).length;
 
-  const projectId = localStorage.getItem('gem_last_project') || 'p1';
+  // S18: RLS — CĐT chỉ thấy project được gán trong user.project_ids
+  const projectId = user?.project_ids?.[0] ?? localStorage.getItem('gem_last_project') ?? 'p1';
+  const hasProject = !!(user?.project_ids?.length);
 
   // KPIs — loaded from db.ts (read-only for CĐT)
   const [kpis, setKpis] = useState({
@@ -115,6 +117,17 @@ export default function ClientPortal() {
     } catch { setGemReport('❌ Không tạo được báo cáo. Vui lòng thử lại.'); }
     setGemLoading(false);
   };
+
+  if (!hasProject) return (
+    <div className="min-h-screen bg-slate-50 flex items-center justify-center">
+      <div className="bg-white rounded-2xl p-8 max-w-sm text-center space-y-3 shadow-lg">
+        <AlertTriangle size={32} className="text-amber-500 mx-auto"/>
+        <p className="font-bold text-slate-800">Chưa được gán dự án</p>
+        <p className="text-sm text-slate-500">Tài khoản chưa được Ban QLDA gán vào dự án nào. Vui lòng liên hệ Project Manager.</p>
+        <button onClick={signOut} className="text-xs text-red-500 hover:underline">Đăng xuất</button>
+      </div>
+    </div>
+  );
 
   return (
     <div className="min-h-screen bg-slate-50">

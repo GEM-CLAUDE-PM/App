@@ -2,7 +2,7 @@
 // Mua sắm: RFQ → 3 báo giá → PO approval → auto-update Materials
 // Workflow: Công trình/Cung ứng → CHT → PM → (GĐ nếu vượt ngưỡng)
 
-import ModalForm, { FormRow, FormGrid, FormSection, inputCls, selectCls, BtnCancel, BtnSubmit } from './ModalForm';
+import ModalForm, { FormRow, FormGrid, FormSection, FormFileUpload, inputCls, selectCls, BtnCancel, BtnSubmit } from './ModalForm';
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   ShoppingCart, Plus, Search, FileText, CheckCircle2, X,
@@ -684,6 +684,16 @@ export default function ProcurementDashboard({ project }: DashboardProps) {
       {/* ── MODALS — end of component per DESIGN_SYSTEM ── */}
 
       {/* RFQ Create Form */}
+
+        <FormSection title="Hồ sơ đính kèm">
+          <FormFileUpload
+            files={[]}
+            onChange={() => {}}
+            accept=".pdf,.docx,.xlsx"
+            maxFiles={3}
+            label="Hồ sơ mời thầu / yêu cầu báo giá"
+          />
+        </FormSection>
       <ModalForm open={showRFQForm} onClose={() => setShowRFQForm(false)}
         title="Yêu cầu Mua sắm (RFQ)"
         subtitle="Tạo RFQ — gửi nhà cung cấp báo giá"

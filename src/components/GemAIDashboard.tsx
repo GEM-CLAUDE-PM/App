@@ -145,7 +145,10 @@ interface Props {
   projectId?:   string;
 }
 
+import GemAIPredictive from './GemAIPredictive';
+
 export default function GemAIDashboard({ projectName = 'Dự án', projectId }: Props) {
+  const [mainTab, setMainTab] = useState<'rag' | 'predictive'>('rag');
   const [files, setFiles] = useState<UploadedFile[]>([]);
   const [isDragging, setIsDragging] = useState(false);
   const [mode, setMode] = useState<AnalysisMode>('summary');
@@ -329,6 +332,24 @@ export default function GemAIDashboard({ projectName = 'Dự án', projectId }: 
   // ── Main render ────────────────────────────────────────────────────────
   return (
     <div className="space-y-5">
+      {/* S20: Main tab switcher */}
+      <div className="flex gap-1 bg-slate-100 rounded-xl p-1 w-fit">
+        {([["rag","📄 Phân tích tài liệu"],["predictive","📈 Dự báo AI"]] as const).map(([id,label]) => (
+          <button key={id} onClick={() => setMainTab(id)}
+            className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${
+              mainTab === id ? "bg-white shadow text-slate-800" : "text-slate-500 hover:text-slate-700"
+            }`}>{label}</button>
+        ))}
+      </div>
+
+      {mainTab === "predictive" && projectId && (
+        <GemAIPredictive projectId={projectId} projectName={projectName} />
+      )}
+      {mainTab === "predictive" && !projectId && (
+        <div className="text-sm text-slate-400 py-8 text-center">Cần chọn dự án để xem dự báo.</div>
+      )}
+      {mainTab === "rag" && <>{/* RAG content below */}</>}
+      {mainTab === "rag" && <div className="space-y-5" style={{display: mainTab === "rag" ? undefined : "none"}}>
       {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
@@ -591,6 +612,7 @@ export default function GemAIDashboard({ projectName = 'Dự án', projectId }: 
         </div>
       </div>
     </div>
+      </div>}
   );
 }
 

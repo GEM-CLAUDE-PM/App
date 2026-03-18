@@ -33,6 +33,7 @@ import AccountingDashboard from './AccountingDashboard';
 import ApprovalQueue from './ApprovalQueue';
 import MemberSwitcher from './MemberSwitcher';
 import DelegationManager from './DelegationManager';
+import PortfolioAnalytics from './PortfolioAnalytics';
 import ProjectSetupWizard, { type NewProjectData } from './ProjectSetupWizard';
 import ProjectConfigPanel from './ProjectConfigPanel';
 import { getProjectTemplate, PROJECT_TEMPLATES } from './projectTemplates';
@@ -334,6 +335,14 @@ export default function ProjectDashboard({
   const [showRecordGemChat, setShowRecordGemChat] = useState(false);
 
   const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
+  // S25 Responsive: pending count ở component level cho bottom nav
+  const pendingApprovalCount = React.useMemo(() => {
+    if (!localProjectId) return 0;
+    try {
+      const ctx = { userId: `user_${currentRole}`, roleId: currentRole as any };
+      return getPendingCount(localProjectId, ctx);
+    } catch { return 0; }
+  }, [localProjectId, currentRole]);
   useEffect(() => {
     const handleResize = () => setIsMobile(window.innerWidth < 768);
     window.addEventListener('resize', handleResize);
@@ -397,16 +406,22 @@ export default function ProjectDashboard({
   const [potentialOpen, setPotentialOpen] = useState(false);
   const [completedOpen, setCompletedOpen] = useState(false);
   const [showDetailMenu, setShowDetailMenu] = useState(false);
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
 
   const changeProjectType = useCallback((id: string, newType: string) => {
     setProjects(prev => prev.map(p => p.id === id ? {...p, type: newType} : p));
   }, [setProjects]);
 
   const handleDeleteProject = useCallback((id: string) => {
-    if (!window.confirm('Xóa dự án này?')) return;
-    setProjects(prev => prev.filter(p => p.id !== id));
-    if (selectedProjectId === id) setSelectedProjectId(null);
-  }, [setProjects, selectedProjectId, setSelectedProjectId]);
+    setConfirmDeleteId(id);
+  }, []);
+
+  const confirmDelete = useCallback(() => {
+    if (!confirmDeleteId) return;
+    setProjects(prev => prev.filter(p => p.id !== confirmDeleteId));
+    if (selectedProjectId === confirmDeleteId) setSelectedProjectId(null);
+    setConfirmDeleteId(null);
+  }, [confirmDeleteId, setProjects, selectedProjectId, setSelectedProjectId]);
   // ── Project List state (always declared — Rules of Hooks) ─────────────────
   const [listSearch, setListSearch]  = useState('');
   const [listFilter, setListFilter]  = useState<'all'|'in_progress'|'potential'|'completed'>('all');
@@ -601,7 +616,16 @@ export default function ProjectDashboard({
 
     if (activeTab === 'overview') {
       const p = selectedProject;
-      if (!p) return null;
+      // S25: Portfolio view when no project selected
+      if (!p) return (
+        <PortfolioAnalytics
+          projects={projects}
+          onNavigate={(tab, projectId) => {
+            if (projectId) { setSelectedProjectId(projectId); setLocalProjectId(projectId); }
+            setActiveTab(tab);
+          }}
+        />
+      );
 
       const alerts: { level: 'red'|'yellow'|'green'; msg: string }[] = [];
       if (p.spi != null && p.spi < 0.85) alerts.push({ level:'red',    msg:`SPI ${p.spi.toFixed(2)} — Tiến độ chậm nghiêm trọng, cần họp khẩn` });
@@ -1911,6 +1935,21 @@ export default function ProjectDashboard({
 
         const coreTabs  = allTabs.filter(t => t.group === 'core' && tabAccessMap[t.id] !== 'hidden');
 
+        // S25: Sidebar header — project name + pending badge
+        const SidebarHeader = () => selectedProject ? (
+          <div className="mb-3 px-2">
+            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Dự án</p>
+            <p className="text-xs font-bold text-slate-800 truncate">{selectedProject.name}</p>
+            {pendingApprovalCount > 0 && (
+              <div className="flex items-center gap-1.5 mt-1.5">
+                <span className="bg-rose-500 text-white text-[9px] font-black px-2 py-0.5 rounded-full">
+                  {pendingApprovalCount} chờ duyệt
+                </span>
+              </div>
+            )}
+          </div>
+        ) : null;
+
         const TabButton = ({ tab, compact = false }: { tab: TabDef; compact?: boolean; key?: React.Key }) => {
           const access = tabAccessMap[tab.id];
           if (access === 'hidden') return null;
@@ -2057,29 +2096,55 @@ export default function ProjectDashboard({
 
         {/* Main content area */}
         <div className="flex-1 min-w-0">
-          {/* Mobile FAB nav button */}
-          <div className="md:hidden mb-4 print:hidden">
-            <button
-              onClick={() => setMobileSidebarOpen(true)}
-              className="flex items-center gap-2 px-4 py-2.5 bg-white border border-slate-200 rounded-2xl text-sm font-semibold text-slate-700 shadow-sm hover:shadow-md transition-all w-full"
-            >
-              <LayoutDashboard size={16} className="text-emerald-600"/>
-              <span className="flex-1 text-left text-slate-600">
-                {(() => {
-                  const tabLabels: Record<string, string> = {
-                    overview:'Tổng quan', progress:'Tiến độ', resources:'Vật tư',
-                    hse:'An toàn HSE', contracts:'Hợp đồng', boq:'BOQ', qs:'QS',
-                    manpower:'Nhân lực', hr:'Nhân sự', equipment:'Thiết bị',
-                    'qa-qc':'QA/QC', accounting:'Kế toán', 'giam-sat':'Giám sát',
-                    records:'Hồ sơ', reports:'Báo cáo', office:'Văn phòng',
-                    risk:'Rủi ro', procurement:'Mua sắm',
-                  };
-                  return tabLabels[activeTab] || activeTab;
-                })()}
+          {/* S25: Mobile bottom nav — 5 quick tabs + more */}
+          <div className="md:hidden print:hidden">
+            {/* Top bar: project name + menu button */}
+            <div className="flex items-center gap-2 mb-3 bg-white rounded-2xl border border-slate-200 px-3 py-2 shadow-sm">
+              <LayoutDashboard size={15} className="text-emerald-600 shrink-0"/>
+              <span className="flex-1 text-sm font-bold text-slate-800 truncate">
+                {selectedProject?.name ?? "Dự án"}
               </span>
-              <ChevronDown size={14} className="text-slate-400"/>
-            </button>
+              {pendingApprovalCount > 0 && (
+                <span className="bg-rose-500 text-white text-[9px] font-black px-1.5 py-0.5 rounded-full">
+                  {pendingApprovalCount}
+                </span>
+              )}
+              <button onClick={() => setMobileSidebarOpen(true)}
+                className="text-slate-400 hover:text-slate-700 p-1">
+                <ChevronDown size={15}/>
+              </button>
+            </div>
           </div>
+          {/* Bottom nav — fixed, 5 tabs hay dùng nhất */}
+          <div className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-white border-t border-slate-200 flex print:hidden shadow-[0_-1px_8px_rgba(0,0,0,0.06)]">
+            {([
+              { id:"overview",       label:"Tổng quan",  icon:<LayoutDashboard size={18}/> },
+              { id:"approval-queue", label:"Duyệt",      icon:<CheckCircle2 size={18}/>, badge: pendingApprovalCount },
+              { id:"progress",       label:"Tiến độ",    icon:<Clock size={18}/> },
+              { id:"resources",      label:"Vật tư",     icon:<Package size={18}/> },
+              { id:"more",           label:"Thêm",       icon:<ChevronDown size={18}/> },
+            ] as {id:string;label:string;icon:React.ReactNode;badge?:number}[]).map(item => (
+              <button key={item.id}
+                onClick={() => item.id === "more" ? setMobileSidebarOpen(true) : setActiveTab(item.id)}
+                className={`flex-1 flex flex-col items-center justify-center gap-0.5 py-2 transition-colors ${
+                  activeTab === item.id
+                    ? "text-emerald-600 bg-emerald-50"
+                    : "text-slate-500 hover:text-slate-700"
+                }`}>
+                <div className="relative">
+                  {item.icon}
+                  {(item.badge ?? 0) > 0 && (
+                    <span className="absolute -top-1.5 -right-1.5 bg-rose-500 text-white text-[8px] font-black w-4 h-4 rounded-full flex items-center justify-center leading-none">
+                      {item.badge}
+                    </span>
+                  )}
+                </div>
+                <span className="text-[10px] font-medium">{item.label}</span>
+              </button>
+            ))}
+          </div>
+          {/* Spacer for bottom nav */}
+          <div className="md:hidden h-16 print:hidden"/>
 
           {/* Main Tab Content */}
           <div className="min-h-[400px]">
@@ -2117,6 +2182,33 @@ export default function ProjectDashboard({
             setShowSetupWizard(false);
           }}
         />,
+        document.body
+      )}
+
+      {confirmDeleteId && ReactDOM.createPortal(
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/50">
+          <div className="bg-white rounded-2xl shadow-2xl p-6 max-w-sm w-full mx-4 space-y-4">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 bg-red-100 rounded-xl flex items-center justify-center shrink-0">
+                <AlertTriangle size={20} className="text-red-600"/>
+              </div>
+              <div>
+                <p className="font-bold text-slate-800">Xóa dự án?</p>
+                <p className="text-xs text-slate-500 mt-0.5">Hành động này không thể hoàn tác.</p>
+              </div>
+            </div>
+            <div className="flex gap-2 justify-end">
+              <button onClick={() => setConfirmDeleteId(null)}
+                className="px-4 py-2 text-xs font-bold text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-xl transition-colors">
+                Hủy
+              </button>
+              <button onClick={confirmDelete}
+                className="px-4 py-2 text-xs font-bold text-white bg-red-600 hover:bg-red-700 rounded-xl transition-colors">
+                Xóa dự án
+              </button>
+            </div>
+          </div>
+        </div>,
         document.body
       )}
 

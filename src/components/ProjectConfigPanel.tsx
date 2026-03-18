@@ -339,7 +339,7 @@ export default function ProjectConfigPanel({ projectId, projectName, currentUser
   };
 
   const handleReset = () => {
-    if (confirm("Reset về lần lưu cuối?")) {
+    if (true) { // S24: removed window.confirm — toast below
       setCfg(loadProjectConfig(projectId));
       setDirty(false);
     }

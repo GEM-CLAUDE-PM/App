@@ -15,7 +15,7 @@ import { WORKFLOWS, type UserContext } from './permissions';
 import { getCurrentMember, buildCtxFromMember } from './projectMember';
 import ApprovalQueue from './ApprovalQueue';
 import { db, useRealtimeSync } from './db';
-import ModalForm, { FormRow, FormGrid, FormSection, selectCls, BtnCancel, BtnSubmit } from './ModalForm';
+import ModalForm, { FormRow, FormGrid, FormSection, selectCls, inputCls, FormSection, FormFileUpload, BtnCancel, BtnSubmit } from './ModalForm';
 import type { DashboardProps } from './types';
 
 
@@ -288,7 +288,11 @@ function TabCongVan({ cvs, setCvs, pid }: { cvs: CongVan[]; setCvs: React.Dispat
         color="violet"
         width="lg"
         footer={<>
-          <BtnCancel onClick={() => setShowForm(false)}/>
+
+      <FormSection title="Ho so dinh kem">
+        <FormFileUpload files={[]} onChange={()=>{}} accept=".pdf,.docx,.xlsx" maxFiles={3} label="Dinh kem cong van / tai lieu"/>
+      </FormSection>
+                <BtnCancel onClick={() => setShowForm(false)}/>
           <BtnSubmit label="Lưu công văn" onClick={() => {
             if (!newCV.so_cv?.trim())   { notifErr('Vui lòng nhập số hiệu CV!'); return; }
             if (!newCV.trich_yeu?.trim()) { notifErr('Vui lòng nhập trích yếu!'); return; }

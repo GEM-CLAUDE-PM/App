@@ -705,7 +705,7 @@ function TabSuCo({ readOnly = false }: { readOnly?: boolean }) {
 // ─── Main ─────────────────────────────────────────────────────────────────────
 export default function EquipmentDashboard({ project: selectedProject, readOnly = false }: Props) {
   const { ok: notifOk, err: notifErr, warn: notifWarn, info: notifInfo } = useNotification();
-  const [subTab, setSubTab] = useState<'list'|'logs'|'maintenance'|'fuel'|'incidents'>('list');
+  const [subTab, setSubTab] = useState<'list'|'logs'|'maintenance'|'fuel'|'incidents'|'oee'|'qr'>('list');
 
   const pid  = selectedProject?.id ?? 'p1';
   const currentMember = getCurrentMember(pid);
@@ -759,6 +759,8 @@ export default function EquipmentDashboard({ project: selectedProject, readOnly 
     { id:'maintenance' as const, label:'Bảo dưỡng', icon:<Wrench size={14}/> },
     { id:'fuel' as const, label:'Nhiên liệu', icon:<Fuel size={14}/> },
     { id:'incidents' as const, label:'Sự cố', icon:<AlertTriangle size={14}/> },
+    { id:'oee'        as const, label:'OEE Chi tiết', icon:<Gauge size={14}/> },
+    { id:'qr'         as const, label:'QR Code', icon:<Scan size={14}/> },
   ];
 
   const active = EQUIPMENT_LIST.filter(e=>e.status==='active').length;
@@ -805,6 +807,63 @@ export default function EquipmentDashboard({ project: selectedProject, readOnly 
       {subTab === 'maintenance' && <TabBaoDuong readOnly={readOnly} onTriggerApproval={(title) => triggerEqDoc(title)} pendingCount={eqApprovalQueue.length} maintItems={maintItems} setMaintItems={setMaintItems} pid={pid}/>}
       {subTab === 'fuel'        && <TabNhienLieu readOnly={readOnly}/>}
       {subTab === 'incidents'   && <TabSuCo readOnly={readOnly}/>}
+      {subTab === 'oee' && (
+        <div className="space-y-4">
+          <p className="text-sm font-black text-slate-700">OEE Chi tiết — Overall Equipment Effectiveness</p>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {EQUIPMENT_LIST.map(eq => {
+              const avail = eq.status === 'active' ? 90 : eq.status === 'idle' ? 60 : 30;
+              const perf  = Math.round(eq.oee / avail * 100 * 0.95);
+              const qual  = Math.round(eq.oee / (avail * perf / 100));
+              return (
+                <div key={eq.id} className="bg-white rounded-2xl border border-slate-200 p-4 space-y-3">
+                  <div className="flex items-start justify-between">
+                    <div>
+                      <p className="text-xs font-bold text-slate-800">{eq.name}</p>
+                      <p className="text-[10px] text-slate-400">{eq.id} · {eq.type}</p>
+                    </div>
+                    <span className={`text-lg font-black ${eq.oee>=85?'text-emerald-600':eq.oee>=70?'text-amber-600':'text-red-600'}`}>{eq.oee}%</span>
+                  </div>
+                  {[['Availability (Sẵn sàng)', avail, 'bg-blue-500'],['Performance (Hiệu suất)', Math.min(perf,100), 'bg-amber-500'],['Quality (Chất lượng)', Math.min(qual,100), 'bg-emerald-500']].map(([lbl,val,cls])=>(
+                    <div key={lbl as string}>
+                      <div className="flex justify-between text-[10px] text-slate-500 mb-1"><span>{lbl as string}</span><span className="font-bold">{val as number}%</span></div>
+                      <div className="h-2 bg-slate-100 rounded-full"><div className={`h-full rounded-full ${cls}`} style={{width:`${val}%`}}/></div>
+                    </div>
+                  ))}
+                  <p className="text-[10px] text-slate-400">{eq.hours.toLocaleString()} giờ hoạt động · Bảo dưỡng tiếp: {eq.nextMaint}</p>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+      {subTab === 'qr' && (
+        <div className="space-y-4">
+          <p className="text-sm font-black text-slate-700">QR Code thiết bị — quét để xem thông tin & nhật ký</p>
+          <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+            {EQUIPMENT_LIST.map(eq => {
+              const qrData = `GEMPM:EQ:${eq.id}:${encodeURIComponent(eq.name)}`;
+              const qrUrl  = `https://api.qrserver.com/v1/create-qr-code/?size=120x120&data=${encodeURIComponent(qrData)}`;
+              return (
+                <div key={eq.id} className="bg-white rounded-2xl border border-slate-200 p-4 flex flex-col items-center gap-3">
+                  <img src={qrUrl} alt={`QR ${eq.id}`} className="w-24 h-24 rounded-lg border border-slate-100"
+                       loading="lazy" onError={e => { (e.target as HTMLImageElement).src = '/icons/icon-96.png'; }}/>
+                  <div className="text-center">
+                    <p className="text-xs font-bold text-slate-800 line-clamp-1">{eq.name}</p>
+                    <p className="text-[10px] text-slate-400">{eq.id}</p>
+                    <span className={`text-[9px] font-bold px-2 py-0.5 rounded-full ${
+                      eq.status==='active'?'bg-emerald-100 text-emerald-700':'bg-amber-100 text-amber-700'
+                    }`}>{eq.status==='active'?'Hoạt động':'Bảo dưỡng'}</span>
+                  </div>
+                  <button onClick={() => { const a=document.createElement('a'); a.href=qrUrl; a.download=`QR_${eq.id}.png`; a.click(); }}
+                    className="text-[10px] text-violet-600 hover:underline">Tải QR</button>
+                </div>
+              );
+            })}
+          </div>
+          <p className="text-[10px] text-slate-400">QR dùng QRServer API — cần internet. Quét bằng điện thoại để điều hướng đến thiết bị trong app.</p>
+        </div>
+      )}
       {/* ── APPROVAL QUEUE DRAWER ── */}
       {showApprovalPanel && (
         <div className="fixed inset-0 z-50 flex justify-end">

@@ -1,10 +1,13 @@
 import { db, useRealtimeSync } from "./db";
+import BIMViewer from "./BIMViewer";
+import CameraCapture from "./CameraCapture";
+import VoiceCapture from "./VoiceCapture";
 import { useNotification } from './NotificationEngine';
-import ModalForm, { FormRow, FormGrid, FormSection, inputCls, selectCls, BtnCancel, BtnSubmit } from './ModalForm';
+import ModalForm, { FormRow, FormGrid, FormSection, inputCls, selectCls, inputCls, FormSection, FormFileUpload, BtnCancel, BtnSubmit } from './ModalForm';
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { genAI, GEM_MODEL, GEM_MODEL_QUALITY } from './gemini';
 import {
-  ClipboardList, MessageCircle, Files, LayoutDashboard,
+  Box, ClipboardList, MessageCircle, Files, LayoutDashboard,
   AlertTriangle, AlertCircle, ChevronRight, Plus, Search,
   X, Printer, Sparkles, Loader2, Eye, CheckCircle2, Calendar,
   ChevronDown, RefreshCw,
@@ -188,9 +191,9 @@ export default function GiamSatDashboard({ project }: Props) {
 
   // ── ALL useState at top — Rules of Hooks ────────────────────────────────────
   const { ok: notifOk, err: notifErr, warn: notifWarn, info: notifInfo } = useNotification();
-  const [gsTab, setGsTab] = useState<'dashboard' | 'logs' | 'rfi' | 'drawings'>(() => {
+  const [gsTab, setGsTab] = useState<'dashboard' | 'logs' | 'rfi' | 'drawings' | 'bim'>(() => {
     const saved = sessionStorage.getItem('gem_action_subtab');
-    const valid = ['logs','rfi','drawings'];
+    const valid = ['logs','rfi','drawings','bim'];
     if (saved && valid.includes(saved)) { sessionStorage.removeItem('gem_action_subtab'); return saved as any; }
     return 'dashboard';
   });
@@ -200,6 +203,8 @@ export default function GiamSatDashboard({ project }: Props) {
   const [selectedLog, setSelectedLog]     = useState<SupervisionLog | null>(null);
   const [selectedRFI, setSelectedRFI]     = useState<RFIItem | null>(null);
   const [showLogForm, setShowLogForm]     = useState(false);
+  const [showLogCamera, setShowLogCamera] = useState(false);
+  const [logPhotos, setLogPhotos]         = useState<{dataUrl:string; geoTag?:any}[]>([]);
   const [showRFIForm, setShowRFIForm]     = useState(false);
   const [rfiSearch, setRfiSearch]         = useState('');
   const [rfiStatusFilter, setRfiStatusFilter] = useState<'all' | RFIStatus>('all');
@@ -358,6 +363,7 @@ export default function GiamSatDashboard({ project }: Props) {
           { id: 'logs',      label: 'Nhật ký Giám sát', icon: <ClipboardList size={13} />,   color: 'slate' },
           { id: 'rfi',       label: 'RFI Tracker',      icon: <MessageCircle size={13} />,   color: 'amber' },
           { id: 'drawings',  label: 'Bản vẽ & Revision',icon: <Files size={13} />,           color: 'blue'  },
+          { id: 'bim',       label: 'BIM 3D Viewer',     icon: <Box size={13} />,             color: 'violet'},
         ] as { id: string; label: string; icon: React.ReactNode; color: string }[]).map(t => (
           <button key={t.id} onClick={() => setGsTab(t.id as any)}
             className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold transition-all ${
@@ -1118,7 +1124,7 @@ export default function GiamSatDashboard({ project }: Props) {
             status: 'draft', gemSuggestion: '',
           };
           const updated = [newLog, ...logs]; setLogs(updated); saveGS('gs_logs', updated);
-          setShowLogForm(false); setLogForm({ status: 'draft', weather: 'Nắng', workers_count: 0, date: new Date().toLocaleDateString('vi-VN') });
+          setShowLogForm(false); setLogForm({ status: 'draft', weather: 'Nắng', workers_count: 0, date: new Date().toLocaleDateString('vi-VN') }); setLogPhotos([]);
           notifOk('Đã lưu nhật ký (nháp)!');
         }} className="px-4 py-2 text-xs font-bold rounded-xl bg-slate-200 text-slate-700 hover:bg-slate-300">
           Lưu nháp
@@ -1134,7 +1140,7 @@ export default function GiamSatDashboard({ project }: Props) {
             status: 'signed', gemSuggestion: '',
           };
           const updated = [newLog, ...logs]; setLogs(updated); saveGS('gs_logs', updated);
-          setShowLogForm(false); setLogForm({ status: 'draft', weather: 'Nắng', workers_count: 0, date: new Date().toLocaleDateString('vi-VN') });
+          setShowLogForm(false); setLogForm({ status: 'draft', weather: 'Nắng', workers_count: 0, date: new Date().toLocaleDateString('vi-VN') }); setLogPhotos([]);
           notifOk('Đã lưu & ký nhật ký!');
         }} className="px-4 py-2 text-xs font-bold rounded-xl bg-slate-800 text-white hover:bg-slate-900">
           Lưu & Ký
@@ -1186,14 +1192,55 @@ export default function GiamSatDashboard({ project }: Props) {
       className="w-full text-xs border border-teal-200 rounded-xl px-3 py-2 bg-white focus:outline-none resize-none" />
       <textarea placeholder="Kế hoạch kiểm tra tiếp theo..." value={logForm.next_plan || ''} onChange={e => setLogForm(f => ({ ...f, next_plan: e.target.value }))} rows={1}
       className="w-full text-xs border border-teal-200 rounded-xl px-3 py-2 bg-white focus:outline-none resize-none" />
+      {/* S25: Camera + photo preview */}
+      <div className="mt-3 space-y-2">
+        <div className="flex gap-2 flex-wrap">
+          <button type="button" onClick={() => setShowLogCamera(true)}
+            className="flex items-center gap-1.5 text-xs text-teal-700 bg-teal-50 border border-teal-200 rounded-xl px-3 py-2 hover:bg-teal-100 transition-colors">
+            <Camera size={13}/> Chụp ảnh hiện trường ({logPhotos.length})
+          </button>
+        </div>
+        {logPhotos.length > 0 && (
+          <div className="flex gap-2 flex-wrap">
+            {logPhotos.map((p, i) => (
+              <div key={i} className="relative group">
+                <img src={p.dataUrl} className="w-16 h-16 object-cover rounded-lg border border-slate-200" alt={`Ảnh ${i+1}`}/>
+                {p.geoTag && <div className="absolute bottom-0 left-0 right-0 bg-black/60 text-white text-[8px] text-center rounded-b-lg py-0.5">GPS✓</div>}
+                <button onClick={() => setLogPhotos(prev => prev.filter((_,j) => j !== i))}
+                  className="absolute -top-1 -right-1 bg-red-500 text-white rounded-full w-4 h-4 text-[9px] flex items-center justify-center opacity-0 group-hover:opacity-100">
+                  ×
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
       </ModalForm>
+
+      {showLogCamera && (
+        <CameraCapture
+          projectId={pid}
+          category="drawings"
+          uploadedBy={logForm.inspector ?? "ks_giam_sat"}
+          description={`Nhật ký giám sát — ${logForm.area ?? ""}`}
+          onCapture={({dataUrl, geoTag}) => {
+            setLogPhotos(prev => [...prev, {dataUrl, geoTag}]);
+            setShowLogCamera(false);
+          }}
+          onClose={() => setShowLogCamera(false)}
+        />
+      )}
 
       <ModalForm open={showRFIForm} onClose={() => setShowRFIForm(false)}
       title="Tạo RFI mới"
       subtitle="Yêu cầu làm rõ thông tin / bản vẽ"
       icon={<MessageCircle size={18}/>} color="amber" width="md"
       footer={<>
-      <BtnCancel onClick={() => setShowRFIForm(false)}/>
+
+      <FormSection title="Ho so dinh kem">
+        <FormFileUpload files={[]} onChange={()=>{}} accept=".pdf,.docx,.dwg,.jpg" maxFiles={3} label="Ho so RFI / Ban ve lien quan"/>
+      </FormSection>
+            <BtnCancel onClick={() => setShowRFIForm(false)}/>
       <BtnSubmit label="Gửi RFI" color="blue" onClick={() => {
       if (!rfiForm.title?.trim()) { notifErr('Vui lòng nhập tiêu đề RFI!'); return; }
       const code = `RFI-2026-${String(rfis.length + 1).padStart(3, '0')}`;

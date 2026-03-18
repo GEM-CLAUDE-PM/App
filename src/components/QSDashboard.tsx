@@ -1,5 +1,5 @@
 import { useNotification } from './NotificationEngine';
-import ModalForm, { FormRow, FormGrid, FormSection, inputCls, selectCls, BtnCancel, BtnSubmit } from './ModalForm';
+import ModalForm, { FormRow, FormGrid, FormSection, FormFileUpload, inputCls, selectCls, BtnCancel, BtnSubmit } from './ModalForm';
 import React, { useState, useRef, useCallback, useMemo, useEffect } from "react";
 import { genAI, GEM_MODEL, GEM_MODEL_QUALITY } from './gemini';
 import {
@@ -377,7 +377,8 @@ export default function QSDashboard({ projectId, projectName, contractValue = 45
   };
 
   const deleteItem = (id: string) => {
-    if (window.confirm("Xóa hạng mục này?")) setBoqItems(prev => prev.filter(i => i.id !== id));
+    setBoqItems(prev => prev.filter(i => i.id !== id));
+        notifOk('Đã xóa hạng mục.');
   };
 
   const addNewRow = () => {
@@ -1664,7 +1665,17 @@ export default function QSDashboard({ projectId, projectName, contractValue = 45
         width="lg"
         footer={<>
           <BtnCancel onClick={() => { setShowNewPayment(false); setSelectedLotIds([]); }} />
-          <BtnSubmit label="Lưu đề nghị TT" color="blue" onClick={saveNewPayment} />
+          <BtnSubmit 
+        <FormSection title="Hồ sơ đính kèm">
+          <FormFileUpload
+            files={[]}
+            onChange={() => {}}
+            accept=".pdf,.docx,.xlsx,.jpg"
+            maxFiles={5}
+            label="Hồ sơ đề nghị thanh toán"
+          />
+        </FormSection>
+label="Lưu đề nghị TT" color="blue" onClick={saveNewPayment} />
         </>}
       >
         <FormSection title="Thông tin chung">

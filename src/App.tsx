@@ -22,6 +22,7 @@ import {
   ClipboardList,
   Loader2,
   Shield,
+  Activity,
 } from "lucide-react";
 import ChatAssistant from "./components/ChatAssistant";
 import ProjectDashboard from "./components/ProjectDashboard";
@@ -32,6 +33,7 @@ import QaQcDashboard from "./components/QaQcDashboard";
 import { AuthProvider, UserMenu, useAuth } from "./components/AuthProvider";
 import { NotificationProvider, useNotification } from "./components/NotificationEngine";
 import AdminPanel from "./components/AdminPanel";
+import InternalAdminDashboard from "./components/InternalAdminDashboard";
 import SubconPortal from "./components/SubconPortal";
 import ClientPortal from "./components/ClientPortal";
 import BillingPage from "./components/BillingPage";
@@ -39,6 +41,8 @@ import OnboardingFlow from "./components/OnboardingFlow";
 import { saveProjectConfig, loadProjectConfig } from "./components/ProjectConfigPanel";
 import SplashScreen from "./components/SplashScreen";
 import { PWAManager } from "./components/PWABanner";
+import TrialBanner from "./components/TrialBanner";
+import { usePushNotification } from "./components/usePushNotification";
 import { useOfflineQueue, OfflineQueuePanel } from "./components/useOfflineQueue";
 // Note: QaQcDashboard giờ được dùng bên trong ProjectDashboard — import giữ lại để tránh lỗi nếu có chỗ khác tham chiếu
 import { Taskbar, UserMenuBar } from "./components/dashboard/Taskbar";
@@ -69,6 +73,29 @@ function AppInner() {
   if (user?.job_role === 'chu_dau_tu') return <ClientPortal />;
 
   const isAdmin = user?.tier === "admin" || user?.job_role === "giam_doc";
+  // S19: Push notification subscription
+  const { subscribed: pushSubscribed, subscribe: subscribePush } = usePushNotification(user?.id);
+
+  // S24: Optimistic lock conflict toast
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const { collection } = (e as CustomEvent).detail;
+      notifWarn(`Dữ liệu "${collection}" đã được cập nhật từ thiết bị khác — đã tải lại phiên bản mới nhất.`);
+    };
+    window.addEventListener('gem:data-conflict', handler);
+    return () => window.removeEventListener('gem:data-conflict', handler);
+  }, []);
+  useEffect(() => {
+    // Auto-subscribe khi user đã login và chưa subscribe
+    if (user?.id && !pushSubscribed && Notification.permission === "default") {
+      // Delay 5s — không popup ngay khi vừa login
+      const t = setTimeout(() => subscribePush(), 5000);
+      return () => clearTimeout(t);
+    }
+  }, [user?.id, pushSubscribed]);
+  // Superadmin: GEM&CLAUDE internal team (email domain hoặc localStorage flag)
+  const isSuperAdmin = user?.email?.endsWith("@gemclaudepm.com") ||
+    localStorage.getItem("gem_superadmin") === "1";
   const isFirstLogin = user && !localStorage.getItem(`gem_onboarded_${user.id}`);
   const [showOnboarding, setShowOnboarding] = React.useState(false);
   // Trigger onboarding sau khi auth load xong — tránh user=null lúc khởi tạo
@@ -385,9 +412,12 @@ function AppInner() {
     { id: "calendar", label: "Lịch trình", icon: Calendar },
     { id: "contacts", label: "Đối tác liên hệ", icon: Users },
     ...(isAdmin ? [{ id: "admin", label: "Quản lý User", icon: Shield }] : []),
+    ...(isSuperAdmin ? [{ id: "internal_admin", label: "Internal Admin", icon: Activity }] : []),
   ];
 
   return (
+    <div className="flex flex-col min-h-screen">
+      {user && <TrialBanner user={user} onUpgrade={() => setActiveTab('billing')} />}
     <div className="min-h-screen bg-slate-50 flex flex-col md:flex-row font-sans text-slate-900 print:bg-white">
       {/* Mobile Header */}
       <div className="md:hidden bg-white border-b border-slate-200 p-2 flex justify-between items-center sticky top-0 z-20 print:hidden">
@@ -683,6 +713,8 @@ function AppInner() {
             <CalendarSchedule projects={projects} />
           ) : activeTab === "billing" ? (
             <BillingPage onClose={() => setActiveTab("dashboard")} />
+          ) : activeTab === "internal_admin" && isSuperAdmin ? (
+            <InternalAdminDashboard />
           ) : activeTab === "admin" && isAdmin ? (
             <AdminPanel currentUserId={user?.id ?? ""} projects={projects} />
           ) : (
@@ -919,6 +951,7 @@ function AppInner() {
           }}
         />
       )}
+    </div>
     </div>
   );
 }

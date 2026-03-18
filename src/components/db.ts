@@ -87,19 +87,29 @@ function lsRemove(collection: string, projectId: string): void {
  * This is the simplest migration path — one row per (project, collection).
  * For tables with many rows (e.g. audit log), a dedicated table is preferred.
  */
+// S24: Optimistic locking — cache server updated_at để detect conflict
+const _serverVersions: Map<string, string> = new Map();
+
+function _versionKey(collection: string, projectId: string) {
+  return `${projectId}::${collection}`;
+}
+
 async function sbGet<T>(collection: string, projectId: string, fallback: T): Promise<T> {
   const sb = getSupabase();
   if (!sb) return lsGet(collection, projectId, fallback);
   try {
     const { data, error } = await sb
       .from('project_data')
-      .select('payload')
+      .select('payload, updated_at')
       .eq('project_id', projectId)
       .eq('collection', collection)
       .maybeSingle();
     if (error) return lsGet(collection, projectId, fallback);
     if (!data) return lsGet(collection, projectId, fallback);
-    // Sync server data về localStorage
+    // Cache server version for optimistic locking check on next write
+    if (data.updated_at) {
+      _serverVersions.set(_versionKey(collection, projectId), data.updated_at);
+    }
     const result = (data.payload ?? fallback) as T;
     lsSet(collection, projectId, result);
     return result;
@@ -111,13 +121,68 @@ async function sbGet<T>(collection: string, projectId: string, fallback: T): Pro
 async function sbSet<T>(collection: string, projectId: string, payload: T, userId?: string): Promise<void> {
   const sb = getSupabase();
   if (!sb) return;
+  let tenantId: string | null = null;
+  try {
+    const cached = localStorage.getItem('gem_auth_user');
+    if (cached) tenantId = JSON.parse(cached)?.tenant_id ?? null;
+  } catch {}
+
+  // S24: Optimistic locking — check server version before write
+  const vKey = _versionKey(collection, projectId);
+  const knownVersion = _serverVersions.get(vKey);
+  if (knownVersion) {
+    try {
+      const { data: current } = await sb
+        .from('project_data')
+        .select('updated_at')
+        .eq('project_id', projectId)
+        .eq('collection', collection)
+        .maybeSingle();
+      if (current?.updated_at && current.updated_at !== knownVersion) {
+        // Conflict detected — server has newer data
+        console.warn(`[db] Optimistic lock conflict: ${collection}/${projectId}. Server: ${current.updated_at}, known: ${knownVersion}. Fetching fresh data.`);
+        // Dispatch event so UI can show conflict warning
+        window.dispatchEvent(new CustomEvent('gem:data-conflict', {
+          detail: { collection, projectId, serverVersion: current.updated_at }
+        }));
+        // Refetch server data — do NOT overwrite with stale client data
+        const { data: fresh } = await sb
+          .from('project_data')
+          .select('payload')
+          .eq('project_id', projectId)
+          .eq('collection', collection)
+          .maybeSingle();
+        if (fresh?.payload) {
+          lsSet(collection, projectId, fresh.payload);
+          _serverVersions.set(vKey, current.updated_at);
+        }
+        return; // Abort write — let user decide
+      }
+    } catch {
+      // Version check failed — proceed with write (best effort)
+    }
+  }
+
+  const nowIso = new Date().toISOString();
   try {
     const { error } = await sb.from('project_data').upsert(
-      { project_id: projectId, collection, payload, updated_at: new Date().toISOString(), updated_by: userId ?? null },
+      {
+        project_id: projectId,
+        collection,
+        payload,
+        tenant_id:  tenantId,
+        updated_at: nowIso,
+        updated_by: userId ?? null,
+      },
       { onConflict: 'project_id,collection' }
     );
-    if (error) console.warn('[db] Supabase write error (table may not exist yet):', error.message);
-  } catch (e) {
+    if (error) {
+      console.warn('[db] Supabase write error:', error.message);
+    } else {
+      // Update known version after successful write
+      _serverVersions.set(vKey, nowIso);
+    }
+  } catch {
     console.warn('[db] Supabase unreachable, data saved to localStorage only');
   }
 }

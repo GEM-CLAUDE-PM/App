@@ -19,6 +19,7 @@ import { useNotification } from './NotificationEngine';
 import { db } from './db';
 import { PrintHeader } from './PrintService';
 import type { DashboardProps } from './types';
+import AutoReportGenerator from './AutoReportGenerator';
 import {
   S11_TEMPLATES, STATUS_META, GROUP_META, AUDIENCE_META, GEM_SYS,
   buildGemContext, buildExcelSheets,
@@ -259,6 +260,12 @@ export default function ReportsDashboard({ project }: DashboardProps) {
   // ══════════════════════════════════════════════════════════════════════════
   return (
     <div className="space-y-4">
+
+      {/* S22: Auto Report Generator */}
+      <AutoReportGenerator
+        projectId={project?.id ?? "default"}
+        projectName={projectName}
+      />
 
       {/* ── Header + KPI ── */}
       <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5">

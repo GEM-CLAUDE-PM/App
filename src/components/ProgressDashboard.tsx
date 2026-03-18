@@ -124,75 +124,139 @@ function IndexBadge({ label, value, threshold1=0.85, threshold2=0.95, unit='' }:
   );
 }
 
-// ─── GanttChart — drag-drop bằng pointer events ───────────────────────────────
-type GanttTask = { id: number; name: string; start: number; dur: number; done: number; cat: string; wbsId?: string };
+// ─── GanttChart S22 — drag bar + resize + inline % edit ──────────────────────
+type GanttTask = {
+  id: number; name: string; start: number; dur: number;
+  done: number; cat: string; wbsId?: string;
+};
+
+type DragMode = 'row' | 'bar' | 'resize' | null;
 
 function GanttChart({
-  tasks, totalDays, today, onReorder,
+  tasks, totalDays, today, onReorder, onUpdateTask,
 }: {
   tasks: GanttTask[];
   totalDays: number;
   today: number;
   onReorder: (tasks: GanttTask[]) => void;
+  onUpdateTask?: (task: GanttTask) => void;
 }) {
   const [items, setItems] = React.useState<GanttTask[]>(tasks);
-  const [dragging, setDragging] = React.useState<number|null>(null);
-  const [dragOver, setDragOver] = React.useState<number|null>(null);
-  const dragIdx = useRef<number>(-1);
+  const [dragMode, setDragMode]     = React.useState<DragMode>(null);
+  const [draggingRow, setDraggingRow]   = React.useState<number | null>(null);
+  const [dragOverRow, setDragOverRow]   = React.useState<number | null>(null);
+  const [editingDone, setEditingDone]   = React.useState<number | null>(null); // task id
 
-  // Sync khi tasks prop thay đổi (realtime / db reload)
+  // Bar/resize drag state
+  const barDragRef = useRef<{
+    taskId: number; mode: 'bar' | 'resize';
+    startX: number; origStart: number; origDur: number;
+  } | null>(null);
+  const timelineRef = useRef<HTMLDivElement>(null);
+
   React.useEffect(() => { setItems(tasks); }, [tasks]);
 
-  const onPointerDown = (e: React.PointerEvent, idx: number) => {
+  // ── Row reorder (drag handle) ─────────────────────────────────────────────
+  const onRowPointerDown = (e: React.PointerEvent, idx: number) => {
     e.currentTarget.setPointerCapture(e.pointerId);
-    dragIdx.current = idx;
-    setDragging(idx);
+    setDragMode('row');
+    setDraggingRow(idx);
   };
-
-  const onPointerEnter = (_e: React.PointerEvent, idx: number) => {
-    if (dragging === null) return;
-    setDragOver(idx);
+  const onRowPointerEnter = (_e: React.PointerEvent, idx: number) => {
+    if (dragMode === 'row') setDragOverRow(idx);
   };
-
-  const commitDrop = () => {
-    if (dragging !== null && dragOver !== null && dragging !== dragOver) {
+  const commitRowDrop = () => {
+    if (dragMode === 'row' && draggingRow !== null && dragOverRow !== null && draggingRow !== dragOverRow) {
       const next = [...items];
-      const [moved] = next.splice(dragging, 1);
-      next.splice(dragOver, 0, moved);
+      const [moved] = next.splice(draggingRow, 1);
+      next.splice(dragOverRow, 0, moved);
       setItems(next);
       onReorder(next);
     }
-    setDragging(null);
-    setDragOver(null);
+    setDragMode(null); setDraggingRow(null); setDragOverRow(null);
+  };
+
+  // ── Bar drag — dời start ──────────────────────────────────────────────────
+  const onBarPointerDown = (e: React.PointerEvent, taskId: number) => {
+    e.stopPropagation();
+    e.currentTarget.setPointerCapture(e.pointerId);
+    const task = items.find(t => t.id === taskId)!;
+    barDragRef.current = { taskId, mode: 'bar', startX: e.clientX, origStart: task.start, origDur: task.dur };
+    setDragMode('bar');
+  };
+
+  // ── Resize handle — kéo cuối bar để thay đổi duration ────────────────────
+  const onResizePointerDown = (e: React.PointerEvent, taskId: number) => {
+    e.stopPropagation();
+    e.currentTarget.setPointerCapture(e.pointerId);
+    const task = items.find(t => t.id === taskId)!;
+    barDragRef.current = { taskId, mode: 'resize', startX: e.clientX, origStart: task.start, origDur: task.dur };
+    setDragMode('resize');
+  };
+
+  const onTimelinePointerMove = (e: React.PointerEvent) => {
+    if (!barDragRef.current || !timelineRef.current) return;
+    const { taskId, mode, startX, origStart, origDur } = barDragRef.current;
+    const rect     = timelineRef.current.getBoundingClientRect();
+    const pxPerDay = rect.width / totalDays;
+    const deltaDays = Math.round((e.clientX - startX) / pxPerDay);
+    setItems(prev => prev.map(t => {
+      if (t.id !== taskId) return t;
+      if (mode === 'bar') {
+        const newStart = Math.max(0, Math.min(origStart + deltaDays, totalDays - t.dur));
+        return { ...t, start: newStart };
+      } else {
+        const newDur = Math.max(1, Math.min(origDur + deltaDays, totalDays - t.start));
+        return { ...t, dur: newDur };
+      }
+    }));
+  };
+
+  const onTimelinePointerUp = () => {
+    if (barDragRef.current) {
+      const updated = items.find(t => t.id === barDragRef.current!.taskId);
+      if (updated) onUpdateTask?.(updated);
+    }
+    barDragRef.current = null;
+    setDragMode(null);
+  };
+
+  // ── Inline % edit ─────────────────────────────────────────────────────────
+  const handleDoneChange = (taskId: number, val: number) => {
+    const clamped = Math.max(0, Math.min(100, val));
+    setItems(prev => prev.map(t => t.id === taskId ? { ...t, done: clamped } : t));
+    const updated = items.find(t => t.id === taskId);
+    if (updated) onUpdateTask?.({ ...updated, done: clamped });
+    setEditingDone(null);
   };
 
   return (
-    <div
-      className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden"
-      onPointerUp={commitDrop}
-      onPointerLeave={() => { if (dragging !== null) { setDragging(null); setDragOver(null); } }}
-    >
+    <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden"
+         onPointerUp={commitRowDrop}>
       <div className="p-4 border-b border-slate-100 flex items-center justify-between">
         <h3 className="text-base font-bold text-slate-800 flex items-center gap-2">
           <FileSpreadsheet size={16} className="text-blue-600"/>
           Sơ đồ Gantt — {items.length} hạng mục
-          <span className="text-[10px] font-normal text-slate-400 ml-1">kéo ☰ để sắp xếp lại</span>
+          <span className="text-[10px] font-normal text-slate-400 ml-1">
+            ☰ reorder · kéo bar để dời · kéo cạnh để resize · click % để sửa
+          </span>
         </h3>
         <div className="flex gap-3 text-[10px] font-semibold text-slate-500">
-          {[['bg-emerald-400','Hoàn thành'],['bg-amber-400','Đang thi công'],['bg-slate-300','Chưa bắt đầu']].map(([c,l])=>(
-            <span key={l} className="flex items-center gap-1">
-              <span className={`w-3 h-2.5 rounded ${c} inline-block`}/>{l}
+          {[['bg-emerald-400','Hoàn thành'],['bg-amber-400','Đang thi công'],['bg-slate-300','Chưa bắt đầu']].map(([cls,lbl])=>(
+            <span key={lbl} className="flex items-center gap-1">
+              <span className={`w-3 h-2.5 rounded ${cls} inline-block`}/>{lbl}
             </span>
           ))}
         </div>
       </div>
+
       <div className="overflow-x-auto">
-        <div style={{minWidth:640}}>
+        <div style={{ minWidth: 640 }}>
           {/* Header */}
           <div className="flex bg-slate-50 border-b border-slate-200 text-[10px] font-bold text-slate-400 uppercase tracking-wide">
             <div className="w-6 shrink-0"/>
             <div className="w-52 shrink-0 px-4 py-2.5">Hạng mục</div>
-            <div className="flex-1 px-3 py-2.5 relative">
+            <div className="flex-1 px-3 py-2.5">
               <div className="flex justify-between">
                 {[0,10,20,30,40,50,60,70,80,90].map(d=><span key={d}>T{Math.ceil((d+1)/7)}</span>)}
               </div>
@@ -202,23 +266,20 @@ function GanttChart({
 
           {/* Rows */}
           {items.map((task, idx) => {
-            const isDragging = dragging === idx;
-            const isTarget   = dragOver === idx && dragging !== idx;
+            const isDraggingRow = draggingRow === idx && dragMode === 'row';
+            const isTargetRow   = dragOverRow === idx && dragMode === 'row' && draggingRow !== idx;
             return (
-              <div
-                key={task.id}
+              <div key={task.id}
                 className={[
                   'flex border-b border-slate-100 transition-colors select-none',
-                  isDragging ? 'opacity-40 bg-blue-50' : 'hover:bg-slate-50/50',
-                  isTarget   ? 'border-t-2 border-t-blue-400' : '',
+                  isDraggingRow ? 'opacity-40 bg-blue-50' : 'hover:bg-slate-50/50',
+                  isTargetRow   ? 'border-t-2 border-t-blue-400' : '',
                 ].join(' ')}
-                onPointerEnter={e => onPointerEnter(e, idx)}
-              >
-                {/* Drag handle */}
-                <div
-                  className="w-6 shrink-0 flex items-center justify-center cursor-grab active:cursor-grabbing text-slate-300 hover:text-slate-500"
-                  onPointerDown={e => onPointerDown(e, idx)}
-                >
+                onPointerEnter={e => onRowPointerEnter(e, idx)}>
+
+                {/* Row drag handle */}
+                <div className="w-6 shrink-0 flex items-center justify-center cursor-grab active:cursor-grabbing text-slate-300 hover:text-slate-500"
+                     onPointerDown={e => onRowPointerDown(e, idx)}>
                   <GripVertical size={13}/>
                 </div>
 
@@ -228,42 +289,73 @@ function GanttChart({
                   <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full ${CAT_CLS[task.cat]||'bg-slate-100 text-slate-500'}`}>{task.cat}</span>
                 </div>
 
-                {/* Bar */}
-                <div className="flex-1 px-3 py-3 relative flex items-center">
+                {/* Timeline */}
+                <div ref={idx === 0 ? timelineRef : undefined}
+                     className="flex-1 px-3 py-3 relative flex items-center"
+                     onPointerMove={onTimelinePointerMove}
+                     onPointerUp={onTimelinePointerUp}>
+                  {/* Grid lines */}
                   {[0,10,20,30,40,50,60,70,80,90].map(d=>(
-                    <div key={d} className="absolute top-0 bottom-0 border-l border-slate-100" style={{left:`${(d/totalDays)*100}%`}}/>
+                    <div key={d} className="absolute top-0 bottom-0 border-l border-slate-100"
+                         style={{left:`${(d/totalDays)*100}%`}}/>
                   ))}
                   {/* Today line */}
-                  <div className="absolute top-0 bottom-0 border-l-2 border-rose-400 border-dashed z-10" style={{left:`${(today/totalDays)*100}%`}}/>
+                  <div className="absolute top-0 bottom-0 border-l-2 border-rose-400 border-dashed z-10"
+                       style={{left:`${(today/totalDays)*100}%`}}/>
+
                   <div className="relative w-full h-6">
-                    {/* Background bar */}
-                    <div
-                      className="absolute h-full rounded-md bg-slate-100"
-                      style={{left:`${(task.start/totalDays)*100}%`, width:`${(task.dur/totalDays)*100}%`}}
-                    />
-                    {/* Progress bar */}
-                    <div
-                      className={`absolute h-full rounded-md transition-all ${
-                        task.done===100 ? 'bg-emerald-400' : task.done>0 ? 'bg-amber-400' : 'bg-transparent'
-                      }`}
-                      style={{
-                        left:`${(task.start/totalDays)*100}%`,
-                        width:`${(task.dur/totalDays)*(task.done/100)*100}%`,
-                      }}
-                    />
-                    {/* Baseline marker (end of planned duration) */}
-                    <div
-                      className="absolute top-1 bottom-1 w-0.5 bg-slate-400 rounded opacity-60 z-10"
-                      style={{left:`${((task.start+task.dur)/totalDays)*100}%`}}
-                    />
+                    {/* Background track */}
+                    <div className="absolute h-full rounded-md bg-slate-100"
+                         style={{left:`${(task.start/totalDays)*100}%`, width:`${(task.dur/totalDays)*100}%`}}/>
+                    {/* Progress fill */}
+                    <div className={`absolute h-full rounded-md transition-all ${
+                           task.done===100 ? 'bg-emerald-400' : task.done>0 ? 'bg-amber-400' : 'bg-transparent'
+                         }`}
+                         style={{
+                           left:`${(task.start/totalDays)*100}%`,
+                           width:`${(task.dur/totalDays)*(task.done/100)*100}%`,
+                         }}/>
+                    {/* Draggable bar overlay */}
+                    <div className={`absolute h-full rounded-md cursor-move z-20 ${
+                           dragMode === 'bar' ? 'opacity-0' : 'opacity-0 hover:opacity-20 hover:bg-blue-400'
+                         }`}
+                         style={{left:`${(task.start/totalDays)*100}%`, width:`${(task.dur/totalDays)*100}%`}}
+                         onPointerDown={e => onBarPointerDown(e, task.id)}/>
+                    {/* Resize handle — right edge */}
+                    <div className="absolute top-0.5 bottom-0.5 w-2 rounded-r-md cursor-ew-resize z-30
+                                    bg-slate-400/0 hover:bg-blue-500/40 transition-colors"
+                         style={{left:`calc(${((task.start+task.dur)/totalDays)*100}% - 4px)`}}
+                         onPointerDown={e => onResizePointerDown(e, task.id)}/>
+                    {/* Baseline marker */}
+                    <div className="absolute top-1 bottom-1 w-0.5 bg-slate-400 rounded opacity-60 z-10"
+                         style={{left:`${((task.start+task.dur)/totalDays)*100}%`}}/>
                   </div>
                 </div>
 
-                {/* % done */}
+                {/* % done — click to edit */}
                 <div className="w-16 shrink-0 flex items-center justify-center">
-                  <span className={`text-xs font-bold ${task.done===100?'text-emerald-600':task.done>0?'text-amber-600':'text-slate-400'}`}>
-                    {task.done}%
-                  </span>
+                  {editingDone === task.id ? (
+                    <input
+                      type="number" min={0} max={100} defaultValue={task.done}
+                      className="w-12 text-xs text-center border border-slate-300 rounded-lg px-1 py-0.5 focus:outline-none focus:ring-1 focus:ring-emerald-400"
+                      autoFocus
+                      onBlur={e => handleDoneChange(task.id, parseInt(e.target.value) || 0)}
+                      onKeyDown={e => {
+                        if (e.key === 'Enter') handleDoneChange(task.id, parseInt((e.target as HTMLInputElement).value) || 0);
+                        if (e.key === 'Escape') setEditingDone(null);
+                      }}
+                    />
+                  ) : (
+                    <span
+                      className={`text-xs font-bold cursor-pointer hover:underline ${
+                        task.done===100?'text-emerald-600':task.done>0?'text-amber-600':'text-slate-400'
+                      }`}
+                      onClick={() => setEditingDone(task.id)}
+                      title="Click để sửa"
+                    >
+                      {task.done}%
+                    </span>
+                  )}
                 </div>
               </div>
             );
@@ -501,7 +593,6 @@ export default function ProgressDashboard({ project: selectedProject, projectId:
             totalDays={totalDays}
             today={today}
             onReorder={(reordered) => {
-              // Sync thứ tự WBS theo thứ tự Gantt mới
               const wbsById = Object.fromEntries(wbs.map(w => [w.id, w]));
               const nextWbs = reordered
                 .map(t => wbsById[(t as any).wbsId])
@@ -512,6 +603,18 @@ export default function ProgressDashboard({ project: selectedProject, projectId:
                   return nextWbs;
                 });
               }
+            }}
+            onUpdateTask={(updated) => {
+              // Sync start/dur/done về WBS item tương ứng
+              setWbs(prev => {
+                const next = prev.map(w =>
+                  w.id === updated.wbsId
+                    ? { ...w, ev_pct: updated.done, gantt_start: updated.start, gantt_dur: updated.dur }
+                    : w
+                );
+                if (dbLoaded.current) db.set('progress_wbs', pid, next);
+                return next;
+              });
             }}
           />
         </div>

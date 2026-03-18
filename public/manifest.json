@@ -1,62 +1,70 @@
 {
-  "name": "GEM&CLAUDE PM Pro",
+  "name": "GEM & CLAUDE PM Pro",
   "short_name": "GEM PM",
-  "description": "Nàng GEM Siêu Việt – Hệ thống quản lý dự án xây dựng thông minh",
+  "description": "Phần mềm quản lý dự án xây dựng thông minh — Nàng GEM Siêu Việt",
   "start_url": "/",
+  "scope": "/",
   "display": "standalone",
   "orientation": "any",
-  "background_color": "#f8fafc",
+  "background_color": "#0f172a",
   "theme_color": "#059669",
   "lang": "vi",
-  "scope": "/",
-  "categories": ["business", "productivity"],
   "icons": [
+    { "src": "/icons/icon-72.png",  "sizes": "72x72",   "type": "image/png", "purpose": "any" },
+    { "src": "/icons/icon-96.png",  "sizes": "96x96",   "type": "image/png", "purpose": "any" },
+    { "src": "/icons/icon-128.png", "sizes": "128x128", "type": "image/png", "purpose": "any" },
+    { "src": "/icons/icon-144.png", "sizes": "144x144", "type": "image/png", "purpose": "any" },
+    { "src": "/icons/icon-152.png", "sizes": "152x152", "type": "image/png", "purpose": "any" },
+    { "src": "/icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any maskable" },
+    { "src": "/icons/icon-384.png", "sizes": "384x384", "type": "image/png", "purpose": "any" },
+    { "src": "/icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
+  ],
+  "screenshots": [
     {
-      "src": "/icon/icon_144.png",
-      "sizes": "144x144",
+      "src": "/screenshots/dashboard.png",
+      "sizes": "1280x720",
       "type": "image/png",
-      "purpose": "any"
+      "form_factor": "wide",
+      "label": "Dashboard tổng quan dự án"
     },
     {
-      "src": "/icon/icon-192x192.png",
-      "sizes": "192x192",
+      "src": "/screenshots/mobile.png",
+      "sizes": "390x844",
       "type": "image/png",
-      "purpose": "any maskable"
-    },
-    {
-      "src": "/icon/icon-512x512.png",
-      "sizes": "512x512",
-      "type": "image/png",
-      "purpose": "any maskable"
-    },
-    {
-      "src": "/icon/apple-touch-icon.png",
-      "sizes": "180x180",
-      "type": "image/png",
-      "purpose": "any"
+      "form_factor": "narrow",
+      "label": "Giao diện mobile"
     }
   ],
   "shortcuts": [
     {
-      "name": "Nhật ký hôm nay",
-      "short_name": "Nhật ký",
-      "description": "Mở nhật ký thi công hôm nay",
-      "url": "/?tab=tasks&quick=diary",
-      "icons": [{ "src": "/icon/icon_144.png", "sizes": "144x144" }]
+      "name": "Tiến độ",
+      "short_name": "Tiến độ",
+      "description": "Xem và cập nhật tiến độ dự án",
+      "url": "/?tab=project&sub=progress",
+      "icons": [{ "src": "/icons/shortcut-progress.png", "sizes": "96x96" }]
     },
     {
-      "name": "Báo cáo nhanh",
-      "short_name": "Báo cáo",
-      "description": "Tạo báo cáo nhanh",
-      "url": "/?tab=projects&sub=reports",
-      "icons": [{ "src": "/icon/icon_144.png", "sizes": "144x144" }]
-    },
-    {
-      "name": "Check HSE",
+      "name": "HSE — Báo cáo sự cố",
       "short_name": "HSE",
-      "description": "Checklist an toàn lao động",
-      "url": "/?tab=projects&sub=manpower&mTab=hse",
-      "icons": [{ "src": "/icon/icon_144.png", "sizes": "144x144" }]
+      "description": "Báo cáo sự cố an toàn lao động nhanh",
+      "url": "/?tab=project&sub=hse&quick=incident",
+      "icons": [{ "src": "/icons/shortcut-hse.png", "sizes": "96x96" }]
+    },
+    {
+      "name": "Điểm danh",
+      "short_name": "Điểm danh",
+      "description": "Điểm danh nhân công hàng ngày",
+      "url": "/?tab=project&sub=manpower&mTab=attendance",
+      "icons": [{ "src": "/icons/shortcut-manpower.png", "sizes": "96x96" }]
+    },
+    {
+      "name": "Phê duyệt",
+      "short_name": "Duyệt",
+      "description": "Xem hàng chờ phê duyệt",
+      "url": "/?tab=project&sub=approvals",
+      "icons": [{ "src": "/icons/shortcut-approval.png", "sizes": "96x96" }]
     }
-  ]
+  ],
+  "categories": ["business", "productivity"],
+  "prefer_related_applications": false
 }

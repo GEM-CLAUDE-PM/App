@@ -1,12 +1,12 @@
 import { useNotification } from './NotificationEngine';
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { genAI, GEM_MODEL, GEM_MODEL_QUALITY } from './gemini';
-import { db } from './db';
+import { db, useRealtimeSync } from './db';
 import { createDocument, processApproval, submitDocument, verifyPin, seedApprovalDocs, getDocsByType } from './approvalEngine';
 import type { SeedVoucherInput, ApprovalDoc } from './approvalEngine';
 import { DEFAULT_THRESHOLDS, canActOnStep, WORKFLOWS, ROLES } from './permissions';
 import { VoucherPrint, InventoryPrint } from "./PrintService";
-import ModalForm, { FormRow, FormGrid, FormSection, inputCls, selectCls, BtnCancel, BtnSubmit } from './ModalForm';
+import ModalForm, { FormRow, FormGrid, FormSection, inputCls, selectCls, BtnCancel, BtnSubmit, FormFileUpload } from './ModalForm';
 import {
   Package, FileText, BarChart2, Plus, Search, AlertTriangle, Pencil, Trash2,
   CheckCircle2, Loader2, Sparkles, X, ChevronDown, ChevronUp,
@@ -243,6 +243,7 @@ export default function MaterialsDashboard({ project, onAlert, currentRole = 'ch
   const [scanResult, setScanResult] = useState<any>(null);
   const [gemAnalysis, setGemAnalysis] = useState('');
   const [gemLoading, setGemLoading] = useState(false);
+  const [cancelConfirmId, setCancelConfirmId] = useState<string | null>(null); // S24: replace confirm()
 
   // Kiểm soát tab
   const [selectedKK, setSelectedKK] = useState<KiemKe | null>(null);
@@ -287,6 +288,20 @@ export default function MaterialsDashboard({ project, onAlert, currentRole = 'ch
 
   const save = useCallback((col: string, data: unknown[]) => db.set(col, pid, data), [pid]);
   const saveMR = useCallback((data: MaterialRequest[]) => db.set('mat_requests', pid, data), [pid]);
+
+  // Realtime sync — tự refresh khi device khác cập nhật
+  useRealtimeSync(pid, ['mat_items', 'mat_vouchers', 'mat_kiemke', 'mat_requests'], async () => {
+    const [m, v, k, mr] = await Promise.all([
+      db.get('mat_items',    pid, []),
+      db.get('mat_vouchers', pid, []),
+      db.get('mat_kiemke',   pid, []),
+      db.get('mat_requests', pid, []),
+    ]);
+    if ((m as any[]).length) setMaterials(m as any);
+    if ((v as any[]).length) setVouchers(v as any);
+    if ((k as any[]).length) setKiemKes(k as any);
+    if ((mr as any[]).length) setMrList(mr as any);
+  });
 
   // ── MR computed ──────────────────────────────────────────────────────────
   const pendingMR  = mrList.filter(r => r.status === 'pending');
@@ -1175,8 +1190,7 @@ export default function MaterialsDashboard({ project, onAlert, currentRole = 'ch
                         </button>
                         <button
                           onClick={() => {
-                            if (confirm(`Hủy phiếu ${selectedVoucher.code}? Thao tác này không thể hoàn tác.`))
-                              cancelVoucher(selectedVoucher.id);
+                            setCancelConfirmId(selectedVoucher.id);
                           }}
                           className="flex-1 py-2.5 bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold rounded-xl flex items-center justify-center gap-1.5">
                           <Trash2 size={13} /> Hủy phiếu
@@ -1559,7 +1573,11 @@ export default function MaterialsDashboard({ project, onAlert, currentRole = 'ch
         color="emerald"
         width="lg"
         footer={<>
-          <BtnCancel onClick={() => setShowNhapNhanh(false)} />
+
+          <FormSection title="Ho so dinh kem">
+            <FormFileUpload files={[]} onChange={()=>{}} accept=".pdf,.jpg,.png,.xlsx" maxFiles={3} label="Phieu nhap kho / Chung tu"/>
+          </FormSection>
+                    <BtnCancel onClick={() => setShowNhapNhanh(false)} />
           <BtnSubmit label="Tạo Phiếu Nhập" onClick={() => {
             if (!nhanhMat || !nhanhSL) return;
             const mat = materials.find(m => m.id === nhanhMat); if (!mat) return;
@@ -1723,7 +1741,11 @@ export default function MaterialsDashboard({ project, onAlert, currentRole = 'ch
         color="emerald"
         width="lg"
         footer={<>
-          <BtnCancel onClick={() => setShowMRForm(false)} />
+
+          <FormSection title="Ho so dinh kem">
+            <FormFileUpload files={[]} onChange={()=>{}} accept=".pdf,.docx,.jpg" maxFiles={3} label="De nghi vat tu / Ho so lien quan"/>
+          </FormSection>
+                    <BtnCancel onClick={() => setShowMRForm(false)} />
           <BtnSubmit label="Nộp đề xuất" onClick={() => {
             if (!mrHangMuc.trim()) { notifErr('Vui lòng nhập hạng mục!'); return; }
             if (mrItems.some(i => !i.matHangId)) { notifErr('Vui lòng chọn đủ vật tư!'); return; }

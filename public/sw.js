@@ -1,151 +1,166 @@
 /**
  * sw.js — GEM&CLAUDE PM Pro Service Worker
- * Strategy: Cache-first for assets, Network-first for API calls.
- * Offline fallback page for navigation requests.
+ * Đặt tại: /public/sw.js
  *
- * SETUP: Place this file in /public/sw.js
- * It is registered automatically by usePWA.ts hook.
+ * Features:
+ *   - Cache-first cho static assets (shell caching)
+ *   - Network-first cho API calls
+ *   - Offline fallback page
+ *   - Background Sync cho offline queue
+ *   - Push notification (FCM via Zalo/Firebase)
+ *   - SKIP_WAITING message handler
  */
 
-const CACHE_VERSION = 'gem-pm-v1';
-const STATIC_CACHE  = `${CACHE_VERSION}-static`;
-const API_CACHE     = `${CACHE_VERSION}-api`;
-
-// Assets to pre-cache on install
-const PRECACHE_URLS = [
+const CACHE_NAME    = 'gem-pm-v1';
+const STATIC_ASSETS = [
   '/',
-  '/index.html',
   '/offline.html',
+  '/manifest.json',
+  '/icons/icon-192.png',
+  '/icons/icon-512.png',
 ];
 
-// ─── Install ──────────────────────────────────────────────────────────────────
+// ── Install — pre-cache shell ─────────────────────────────────────────────────
 self.addEventListener('install', (event) => {
   event.waitUntil(
-    caches.open(STATIC_CACHE).then(cache => {
-      return cache.addAll(PRECACHE_URLS).catch(err => {
-        console.warn('[SW] Pre-cache partial failure:', err);
-      });
-    }).then(() => self.skipWaiting())
+    caches.open(CACHE_NAME).then(cache => cache.addAll(STATIC_ASSETS))
   );
+  // Take control immediately khi có SKIP_WAITING message
+  self.skipWaiting();
 });
 
-// ─── Activate ─────────────────────────────────────────────────────────────────
+// ── Activate — clean old caches ───────────────────────────────────────────────
 self.addEventListener('activate', (event) => {
   event.waitUntil(
     caches.keys().then(keys =>
       Promise.all(
-        keys
-          .filter(key => key.startsWith('gem-pm-') && key !== STATIC_CACHE && key !== API_CACHE)
-          .map(key => {
-            console.log('[SW] Deleting old cache:', key);
-            return caches.delete(key);
-          })
+        keys.filter(k => k !== CACHE_NAME).map(k => caches.delete(k))
       )
     ).then(() => self.clients.claim())
   );
 });
 
-// ─── Fetch ────────────────────────────────────────────────────────────────────
+// ── Fetch — strategy by request type ─────────────────────────────────────────
 self.addEventListener('fetch', (event) => {
   const { request } = event;
   const url = new URL(request.url);
 
-  // Skip non-GET and cross-origin (Supabase API, Gemini API)
+  // Skip non-GET and cross-origin (Supabase, Gemini API)
   if (request.method !== 'GET') return;
   if (url.origin !== self.location.origin) return;
 
-  // Navigation requests → Network first, fallback to /index.html (SPA routing)
+  // API calls — network-first, fallback offline.html nếu navigate
+  if (url.pathname.startsWith('/api/')) {
+    event.respondWith(
+      fetch(request).catch(() =>
+        request.mode === 'navigate'
+          ? caches.match('/offline.html')
+          : new Response(JSON.stringify({ error: 'offline' }), {
+              headers: { 'Content-Type': 'application/json' },
+            })
+      )
+    );
+    return;
+  }
+
+  // SPA navigation — network-first, fallback index.html (SPA routing)
   if (request.mode === 'navigate') {
     event.respondWith(
-      fetch(request)
-        .then(response => {
-          if (response.ok) {
-            const clone = response.clone();
-            caches.open(STATIC_CACHE).then(c => c.put(request, clone));
-          }
-          return response;
-        })
-        .catch(() =>
-          caches.match('/index.html').then(cached => cached || caches.match('/offline.html'))
-        )
+      fetch(request).catch(() =>
+        caches.match('/index.html').then(r => r ?? caches.match('/offline.html'))
+      )
     );
     return;
   }
 
-  // JS/CSS/fonts/images → Cache first, network fallback
-  if (
-    url.pathname.match(/\.(js|css|woff2?|ttf|otf|png|jpg|jpeg|svg|ico|webp)$/)
-  ) {
-    event.respondWith(
-      caches.match(request).then(cached => {
-        if (cached) return cached;
-        return fetch(request).then(response => {
-          if (response.ok) {
-            const clone = response.clone();
-            caches.open(STATIC_CACHE).then(c => c.put(request, clone));
-          }
-          return response;
-        }).catch(() => new Response('', { status: 408, statusText: 'Offline' }));
-      })
-    );
-    return;
-  }
-
-  // Default: network only (API calls handled by app-level offline queue)
+  // Static assets — cache-first
+  event.respondWith(
+    caches.match(request).then(cached => {
+      if (cached) return cached;
+      return fetch(request).then(response => {
+        // Cache JS/CSS/image assets
+        if (
+          response.ok &&
+          (url.pathname.endsWith('.js') ||
+           url.pathname.endsWith('.css') ||
+           url.pathname.match(/\.(png|jpg|jpeg|svg|ico|woff2?)$/))
+        ) {
+          const clone = response.clone();
+          caches.open(CACHE_NAME).then(c => c.put(request, clone));
+        }
+        return response;
+      }).catch(() => caches.match('/offline.html'));
+    })
+  );
 });
 
-// ─── Background Sync ──────────────────────────────────────────────────────────
-// Triggered when connectivity returns — processes offline queue from IndexedDB
+// ── Background Sync — flush offline queue khi có mạng ────────────────────────
 self.addEventListener('sync', (event) => {
   if (event.tag === 'gem-offline-sync') {
-    event.waitUntil(processOfflineQueue());
+    event.waitUntil(
+      // Notify all clients để trigger OfflineQueue.processQueue()
+      self.clients.matchAll({ type: 'window' }).then(clients => {
+        clients.forEach(client =>
+          client.postMessage({ type: 'SYNC_QUEUE' })
+        );
+      })
+    );
   }
 });
 
-async function processOfflineQueue() {
-  console.log('[SW] Processing offline queue...');
-  // The actual queue processing is done in offlineQueue.ts (IndexedDB)
-  // SW just signals to the app via postMessage
-  const clients = await self.clients.matchAll({ type: 'window' });
-  clients.forEach(client => {
-    client.postMessage({ type: 'SYNC_QUEUE', ts: Date.now() });
-  });
-}
-
-// ─── Push Notifications (Phase 6 — Zalo OA) ──────────────────────────────────
+// ── Push Notification (FCM) ───────────────────────────────────────────────────
 self.addEventListener('push', (event) => {
   if (!event.data) return;
-  let data;
-  try { data = event.data.json(); } catch { return; }
+  let payload;
+  try {
+    payload = event.data.json();
+  } catch {
+    payload = { title: 'GEM PM Pro', body: event.data.text() };
+  }
 
   const options = {
-    body:    data.body    || 'Có thông báo mới từ GEM PM Pro',
-    icon:    data.icon    || '/icons/icon-192.png',
-    badge:   data.badge   || '/icons/icon-72.png',
-    tag:     data.tag     || 'gem-notif',
-    renotify: true,
-    data:    { url: data.url || '/' },
-    actions: data.actions || [
-      { action: 'open',    title: 'Mở ứng dụng' },
-      { action: 'dismiss', title: 'Bỏ qua' },
-    ],
+    body:    payload.body   ?? '',
+    icon:    payload.icon   ?? '/icons/icon-192.png',
+    badge:   '/icons/icon-72.png',
+    tag:     payload.tag    ?? 'gem-notif',
+    data:    payload.data   ?? {},
+    actions: payload.actions ?? [],
+    vibrate: [100, 50, 100],
   };
 
   event.waitUntil(
-    self.registration.showNotification(data.title || 'GEM PM Pro', options)
+    self.registration.showNotification(payload.title ?? 'GEM PM Pro', options)
   );
 });
 
+// ── Notification click — navigate to relevant tab ────────────────────────────
 self.addEventListener('notificationclick', (event) => {
   event.notification.close();
-  if (event.action === 'dismiss') return;
+  const { tab, sub } = event.notification.data ?? {};
+  const targetUrl = tab
+    ? `${self.location.origin}?tab=${tab}${sub ? `&sub=${sub}` : ''}`
+    : self.location.origin;
 
-  const url = event.notification.data?.url || '/';
   event.waitUntil(
-    self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then(clients => {
-      const existing = clients.find(c => c.url.includes(self.location.origin));
-      if (existing) { existing.focus(); existing.navigate(url); }
-      else self.clients.openWindow(url);
-    })
+    self.clients.matchAll({ type: 'window', includeUncontrolled: true })
+      .then(clients => {
+        const existing = clients.find(c => c.url.startsWith(self.location.origin));
+        if (existing) {
+          existing.focus();
+          existing.postMessage({ type: 'NAVIGATE', tab, sub });
+        } else {
+          self.clients.openWindow(targetUrl);
+        }
+      })
   );
+});
+
+// ── Message handler (từ app) ─────────────────────────────────────────────────
+self.addEventListener('message', (event) => {
+  if (event.data?.type === 'SKIP_WAITING') {
+    self.skipWaiting();
+  }
+  if (event.data?.type === 'REGISTER_SYNC') {
+    self.registration.sync?.register('gem-offline-sync').catch(() => {});
+  }
 });

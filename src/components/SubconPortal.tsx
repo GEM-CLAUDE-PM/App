@@ -7,7 +7,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNotification } from './NotificationEngine';
 import { useAuth } from './AuthProvider';
-import { db } from './db';
+import { db, useRealtimeSync } from './db';
 import ModalForm, { FormRow, FormGrid, FormSection, inputCls, selectCls, BtnCancel, BtnSubmit } from './ModalForm';
 import {
   Building2, FileText, Package, DollarSign, CheckCircle2,
@@ -72,9 +72,12 @@ export default function SubconPortal() {
   const [tab, setTab] = useState<SubconTab>('overview');
   const dbLoaded = React.useRef(false);
 
-  // Use first allowed project for the subcon
-  const projectId = localStorage.getItem('gem_last_project') || 'p1';
+  // S18: RLS — NTP chỉ thấy project được gán trong user.project_ids
+  const projectId = user?.project_ids?.[0] ?? localStorage.getItem('gem_last_project') ?? 'p1';
   const subconId  = user?.id || 'subcon_default';
+
+  // Guard: NTP chưa được gán project
+  const hasProject = !!(user?.project_ids?.length);
   // Standard collection keys — isolation via projectId (one row per project_id+collection in db)
   const collKey = 'subcon_docs';
   const poKey   = 'subcon_pos';
@@ -101,6 +104,16 @@ export default function SubconPortal() {
     }).catch(e => console.warn('[SubconPortal] load:', e))
       .finally(() => { dbLoaded.current = true; });
   }, [projectId]);
+
+  // Realtime sync — NTP thấy PO mới ngay khi PM phát hành
+  useRealtimeSync(projectId, ['subcon_docs', 'subcon_pos'], async () => {
+    const [d, p] = await Promise.all([
+      db.get<SubconDocument[]>(collKey, projectId, []),
+      db.get<SubconPO[]>(poKey, projectId, []),
+    ]);
+    if (d.length) setDocs(d);
+    if (p.length) setPOs(p);
+  });
 
   const totalPOValue    = pos.reduce((s, p) => s + p.value, 0);
   const completedPOValue= pos.filter(p => p.status === 'completed').reduce((s, p) => s + p.value, 0);

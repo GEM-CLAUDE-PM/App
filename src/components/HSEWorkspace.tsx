@@ -1,5 +1,8 @@
 import { useNotification } from './NotificationEngine';
 import ModalForm, { FormRow, FormGrid, FormSection, inputCls, selectCls, BtnCancel, BtnSubmit } from './ModalForm';
+import CameraCapture, { type CaptureResult } from './CameraCapture';
+import VoiceCapture from './VoiceCapture';
+import HSEImageAnalyzer, { type HSEAnalysisResult } from './HSEImageAnalyzer';
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { LayoutDashboard, Folder, TrendingUp, Clock, HardDrive, CheckCircle2, Lock, FileText, Image as ImageIcon, Files, ClipboardList, ExternalLink, BookOpen, UploadCloud, Loader2, Plus, Printer, Users, HardHat, Camera, ShieldAlert, Sun, MessageCircle, Network, HeartPulse, AlertTriangle, Mic, Edit3, Unlock, X, Award, Target, GraduationCap, Briefcase, ChevronRight, ArrowRight, Building2, CheckCircle, CircleDashed, ArrowLeft, ChevronDown, Cloud, Download, Eye, MoreVertical, ChevronLeft, Calendar, ShieldCheck, Trash2, Sparkles, User, Info, ChevronUp, Wrench, Truck, Fuel, Activity, Zap, Settings, AlertCircle, Search, Scan, FileSpreadsheet, Save, Calculator, Copy, Send } from 'lucide-react';
 import { createDocument, submitDocument, getApprovalQueue, type ApprovalDoc } from './approvalEngine';
@@ -205,6 +208,20 @@ export default function HSEWorkspace({ project: selectedProject, projectId: proj
     rejected: { label:'Từ chối',    cls:'bg-rose-100 text-rose-700' },
   };
 
+  // Safety checklist per PTW type — phải tick hết trước khi approve
+  const PTW_CHECKLIST: Record<string, string[]> = {
+    hot_work:           ["Đã kiểm tra nguồn cháy xung quanh","Có bình chữa cháy tại chỗ","Cách ly vật liệu dễ cháy","Người giám sát hỏa công có mặt","Đã thông báo ca trực PCCC"],
+    working_at_height:  ["Đã lắp dây an toàn và điểm neo","Kiểm tra giàn giáo / thang leo","Lưới bảo vệ phía dưới","Không làm việc cao khi gió >10 m/s","Mũ bảo hộ + dây kéo dụng cụ"],
+    confined_space:     ["Đo khí O2/CO/H2S trước khi vào","Có người giám sát bên ngoài","Dây thoát hiểm và mặt nạ dưỡng khí sẵn sàng","Thông gió cưỡng bức bật","Hệ thống liên lạc hoạt động"],
+    electrical:         ["Cắt điện và khóa cầu dao (LOTO)","Kiểm tra không còn điện áp","Cách ly vùng làm việc","Kỹ thuật viên điện có chứng chỉ","Dụng cụ cách điện đúng cấp"],
+    excavation:         ["Khảo sát ngầm công trình trước","Chống vách hố đào","Rào chắn và biển cảnh báo","Bơm nước nếu có nguy cơ ngập","Kiểm tra đất nền mỗi ca"],
+    chemical:           ["Có MSDS cho tất cả hóa chất","PPE đầy đủ (găng, kính, mặt nạ)","Khu vực thông thoáng","Hộp sơ cứu và vòi rửa mắt","Xử lý chất thải đúng quy định"],
+    other:              ["Đánh giá rủi ro JSA đã hoàn thành","PPE phù hợp theo công việc","Người giám sát được chỉ định","Phương án ứng phó khẩn cấp"],
+  };
+
+  // PTW checklist state
+  const [ptwChecklist, setPtwChecklist] = React.useState<Record<string, boolean>>({});
+
   const SEED_PTWS: PTW[] = [
     { id:'ptw1', type:'hot_work', title:'Hàn kết cấu thép tầng 3', requester:'Trần Văn B',
       contractor:'Phúc Thành', area:'Zone 2 — Tầng 3', work_description:'Hàn nối cột thép trục A-C',
@@ -298,6 +315,9 @@ export default function HSEWorkspace({ project: selectedProject, projectId: proj
 
   // Forms
   const [showIncidentForm, setShowIncidentForm] = React.useState(false);
+  const [showCamera, setShowCamera] = React.useState(false);
+  const [incidentPhotos, setIncidentPhotos] = React.useState<CaptureResult[]>([]);
+  const [hseAnalysis, setHseAnalysis] = React.useState<HSEAnalysisResult | null>(null);
 
   // gem:open-action — WorkspaceActionBar trigger
   React.useEffect(() => {
@@ -612,6 +632,12 @@ export default function HSEWorkspace({ project: selectedProject, projectId: proj
                     <p className="text-xs text-slate-400 mt-0.5">{p.start_date} → {p.end_date}</p>
                     {p.hazards && <p className="text-xs text-amber-700 bg-amber-50 rounded-lg px-2 py-1 mt-2">⚠ {p.hazards}</p>}
                     {p.approved_by && <p className="text-[10px] text-emerald-600 mt-1">✅ Duyệt bởi {p.approved_by} lúc {p.approved_at}</p>}
+                    {p.status === "active" && p.end_date && (
+                      <div className="mt-2 flex items-center gap-1.5 text-[10px] font-bold text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-2 py-1">
+                        <Clock size={10}/>
+                        Hiệu lực đến: {p.end_date} — đang hoạt động
+                      </div>
+                    )}
                   </div>
                   <div className="flex flex-col gap-1.5 shrink-0">
                     {p.status === 'pending' && (
@@ -1299,10 +1325,63 @@ export default function HSEWorkspace({ project: selectedProject, projectId: proj
           <FormRow label="Người báo cáo" required><input className={inputCls} placeholder="Họ tên người báo cáo" value={incForm.reporter||''} onChange={e=>setIncForm(f=>({...f,reporter:e.target.value}))}/></FormRow>
           <FormRow label="Người bị nạn (nếu có)"><input className={inputCls} placeholder="Họ tên" value={incForm.injured||''} onChange={e=>setIncForm(f=>({...f,injured:e.target.value}))}/></FormRow>
         </FormGrid>
-        <FormRow label="Mô tả chi tiết sự cố" required><textarea rows={3} className={inputCls + " resize-none"} placeholder="Mô tả đầy đủ sự cố..." value={incForm.description||''} onChange={e=>setIncForm(f=>({...f,description:e.target.value}))}/></FormRow>
+        <FormRow label="Mô tả chi tiết sự cố" required>
+          <textarea rows={3} className={inputCls + " resize-none"} placeholder="Mô tả đầy đủ sự cố..." value={incForm.description||''} onChange={e=>setIncForm(f=>({...f,description:e.target.value}))}/>
+          <VoiceCapture context="hse_incident" onResult={text => setIncForm(f=>({...f, description: text}))} className="mt-1.5"/>
+        </FormRow>
         <FormRow label="Nguyên nhân gốc rễ"><input className={inputCls} placeholder="Nguyên nhân sơ bộ" value={incForm.root_cause||''} onChange={e=>setIncForm(f=>({...f,root_cause:e.target.value}))}/></FormRow>
         <FormRow label="Biện pháp xử lý / khắc phục"><input className={inputCls} placeholder="Biện pháp đã thực hiện hoặc đề xuất" value={incForm.action||''} onChange={e=>setIncForm(f=>({...f,action:e.target.value}))}/></FormRow>
+        {/* S21: Image AI analysis */}
+        <HSEImageAnalyzer
+          projectId={_hse_pid}
+          uploadedBy={ctx?.userId ?? "hse_officer"}
+          compact
+          onAnalysis={(result, imgUrl) => {
+            setHseAnalysis(result);
+            // Auto-fill form từ AI analysis
+            if (!incForm.description && result.summary) setIncForm(f=>({...f, description: result.summary}));
+            const photos = [{ file: new File([], "hse_ai.jpg"), dataUrl: imgUrl, geoTag: undefined }] as any;
+            setIncidentPhotos(prev => [...prev, ...photos]);
+          }}
+        />
+        {hseAnalysis && (
+          <div className="text-xs bg-amber-50 border border-amber-200 rounded-xl px-3 py-2">
+            GEM AI: Rủi ro <strong>{hseAnalysis.risk_level}</strong> — {hseAnalysis.violations.length} vi phạm phát hiện
+          </div>
+        )}
+        {/* S19: Camera capture */}
+        <div className="mt-2">
+          <button type="button" onClick={() => setShowCamera(true)}
+            className="flex items-center gap-2 text-xs text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-xl px-3 py-2 hover:bg-emerald-100 transition-colors">
+            <Camera size={13}/> Chụp ảnh hiện trường ({incidentPhotos.length})
+          </button>
+          {incidentPhotos.length > 0 && (
+            <div className="flex gap-2 mt-2 flex-wrap">
+              {incidentPhotos.map((p, i) => (
+                <div key={i} className="relative">
+                  <img src={p.dataUrl} className="w-16 h-16 object-cover rounded-lg border border-slate-200" alt={`Ảnh ${i+1}`}/>
+                  {p.geoTag && <div className="absolute bottom-0 left-0 right-0 bg-black/60 text-white text-[8px] text-center rounded-b-lg py-0.5">GPS ✓</div>}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
       </ModalForm>
+
+      {/* S19: Camera */}
+      {showCamera && (
+        <CameraCapture
+          projectId={_hse_pid}
+          category="hse"
+          uploadedBy={ctx?.userId ?? "hse_user"}
+          description={`HSE Incident — ${incForm.description?.slice(0,60) ?? ""}`}
+          onCapture={(result) => {
+            setIncidentPhotos(prev => [...prev, result]);
+            setShowCamera(false);
+          }}
+          onClose={() => setShowCamera(false)}
+        />
+      )}
 
       {/* ── APPROVAL QUEUE DRAWER ── */}
       {showApprovalPanel && (
@@ -1334,6 +1413,9 @@ export default function HSEWorkspace({ project: selectedProject, projectId: proj
             if (!ptwForm.title?.trim())     { notifErr('Vui lòng nhập tiêu đề công việc!'); return; }
             if (!ptwForm.requester?.trim()) { notifErr('Vui lòng nhập người yêu cầu!'); return; }
             if (!ptwForm.area?.trim())      { notifErr('Vui lòng nhập khu vực thi công!'); return; }
+            const checkItems = PTW_CHECKLIST[ptwForm.type ?? 'other'] ?? [];
+            const unchecked  = checkItems.filter((_,i) => !ptwChecklist[`${ptwForm.type}_${i}`]);
+            if (unchecked.length > 0) { notifErr(`Còn ${unchecked.length} mục checklist chưa xác nhận!`); return; }
             const newPTW: PTW = {
               id: 'ptw_' + Date.now(), type: ptwForm.type ?? 'other',
               title: ptwForm.title!, requester: ptwForm.requester!,
@@ -1346,6 +1428,7 @@ export default function HSEWorkspace({ project: selectedProject, projectId: proj
             setPtws(prev => { const next = [newPTW, ...prev]; db.set('hse_ptws', _hse_pid, next); return next; });
             setShowPTWForm(false);
             setPtwForm({ type:'hot_work', status:'draft', start_date: new Date().toLocaleDateString('vi-VN'), end_date: new Date().toLocaleDateString('vi-VN'), created_at: new Date().toLocaleDateString('vi-VN') });
+            setPtwChecklist({});
             notifOk('Đã tạo giấy phép — đang chờ duyệt');
           }} label="Nộp duyệt"/>
         </>}
@@ -1370,6 +1453,29 @@ export default function HSEWorkspace({ project: selectedProject, projectId: proj
             <FormRow label="Nguy cơ / Rủi ro nhận diện"><textarea className={inputCls} rows={2} value={ptwForm.hazards ?? ''} onChange={e => setPtwForm(p => ({...p, hazards: e.target.value}))}/></FormRow>
             <FormRow label="Biện pháp kiểm soát"><textarea className={inputCls} rows={2} value={ptwForm.controls ?? ''} onChange={e => setPtwForm(p => ({...p, controls: e.target.value}))}/></FormRow>
           </FormGrid>
+        </FormSection>
+        <FormSection title="Checklist an toàn bắt buộc">
+          <div className="space-y-2">
+            {(PTW_CHECKLIST[ptwForm.type ?? "other"] ?? []).map((item, i) => (
+              <label key={i} className="flex items-start gap-2.5 cursor-pointer group">
+                <input type="checkbox"
+                  checked={!!ptwChecklist[`${ptwForm.type}_${i}`]}
+                  onChange={e => setPtwChecklist(p => ({...p, [`${ptwForm.type}_${i}`]: e.target.checked}))}
+                  className="mt-0.5 w-4 h-4 rounded accent-violet-600 shrink-0"/>
+                <span className="text-xs text-slate-700 group-hover:text-slate-900">{item}</span>
+              </label>
+            ))}
+          </div>
+          <p className="text-[10px] text-amber-600 mt-2">⚠ Phải tick đủ tất cả trước khi nộp duyệt</p>
+        </FormSection>
+        <FormSection title="Hồ sơ JSA đính kèm">
+          <FormFileUpload
+            files={[]}
+            onChange={() => {}}
+            accept=".pdf,.docx,.xlsx,.jpg,.png"
+            maxFiles={3}
+            label="Đính kèm JSA / Biện pháp an toàn"
+          />
         </FormSection>
       </ModalForm>
 

@@ -14,7 +14,7 @@ import {
   ChevronRight, Plus, X, MapPin, Calendar, DollarSign,
   Mail, Phone, Briefcase, Sparkles,
 } from 'lucide-react';
-import { JOB_LABELS, type JobRole } from './supabase';
+import { JOB_LABELS, type JobRole, getSupabase } from './supabase';
 
 type Step = 1 | 2 | 3 | 4;
 
@@ -63,6 +63,7 @@ interface OnboardingFlowProps {
 }
 
 export default function OnboardingFlow({ onComplete, onSkip }: OnboardingFlowProps) {
+  const [saving, setSaving] = React.useState(false);
   const { err: notifErr, ok: notifOk } = useNotification();
   const [step, setStep] = useState<Step>(1);
   const [gemLoading, setGemLoading] = useState(false);
@@ -98,7 +99,38 @@ export default function OnboardingFlow({ onComplete, onSkip }: OnboardingFlowPro
     setStep(s => Math.min(s + 1, 4) as Step);
   };
 
-  const handleFinish = () => {
+  const handleFinish = async () => {
+    setSaving(true);
+    try {
+      const sb = getSupabase();
+      if (sb) {
+        // S24: Save first project to Supabase projects table
+        const { data: proj, error: projErr } = await sb
+          .from('projects')
+          .insert({
+            name:       project.name,
+            type:       project.type,
+            address:    project.location,
+            start_date: project.start_date,
+            status:     'in_progress',
+            budget:     parseFloat(project.budget) || 0,
+          })
+          .select('id')
+          .single();
+        if (projErr) console.warn('[Onboarding] project insert:', projErr.message);
+
+        // Invite members — insert to profiles with project_id
+        const validMembers = members.filter(m => m.email.trim() && m.name.trim());
+        if (validMembers.length && proj?.id) {
+          // Just log — actual invite via email flow TBD
+          console.log('[Onboarding] Members to invite:', validMembers.map(m => m.email));
+        }
+      }
+    } catch (e) {
+      console.warn('[Onboarding] Supabase save error:', e);
+    } finally {
+      setSaving(false);
+    }
     notifOk(`🎉 Chào mừng ${company.name || 'Công ty'} đến với GEM & CLAUDE PM Pro!`);
     onComplete({ company, project, members: members.filter(m => m.email.trim()) });
   };

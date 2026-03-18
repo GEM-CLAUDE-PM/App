@@ -1,7 +1,7 @@
 import { useNotification } from './NotificationEngine';
 import React, { useState, useCallback, useEffect } from 'react';
 import { db, useRealtimeSync } from './db';
-import ModalForm, { FormRow, FormGrid, selectCls, BtnCancel, BtnSubmit } from './ModalForm';
+import ModalForm, { FormRow, FormGrid, selectCls, BtnCancel, BtnSubmit, FormFileUpload } from './ModalForm';
 import { getAllDocs, seedApprovalDocs, createDocument, submitDocument as engineSubmitDoc, getApprovalQueue, type ApprovalDoc } from './approvalEngine';
 import type { SeedVoucherInput } from './approvalEngine';
 import { createLegacyContext, WORKFLOWS, type UserContext } from './permissions';
@@ -765,6 +765,16 @@ export default function AccountingDashboard({ project, projectId }: Props) {
         color="teal"
         width="md"
         footer={<>
+
+        <FormSection title="Hồ sơ đính kèm">
+          <FormFileUpload
+            files={[]}
+            onChange={() => {}}
+            accept=".pdf,.jpg,.png,.xlsx"
+            maxFiles={5}
+            label="Hóa đơn / chứng từ tài chính"
+          />
+        </FormSection>
           <BtnCancel onClick={() => setShowForm(false)}/>
           <BtnSubmit label="Lưu công nợ" onClick={() => {
             if (!debtForm.name?.trim())  { notifErr('Vui lòng nhập tên đối tác!'); return; }

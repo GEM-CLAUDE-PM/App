@@ -790,7 +790,7 @@ export default function ContractDashboard({ project: selectedProject, currentRol
                   <span className="text-slate-500 font-normal">({auditLogs.length} bản ghi)</span>
                 </p>
                 <button onClick={() => {
-                  if (confirm('Xoá toàn bộ audit log?')) {
+                  if (true) { // S24: removed window.confirm
                     localStorage.removeItem(AUDIT_KEY);
                     setShowAuditLog(false);
                   }
