@@ -32,20 +32,20 @@ interface MaterialItem {
 interface MRItem { matHangId: string; tenMatHang: string; donVi: string; soLuong: number; ghiChu: string; }
 interface MaterialRequest {
   id: string; code: string; ngay: string;
-  nguoiLap: string; nguoiNhan: string; chucVuNguoiLap: string;
+  nguoiLap: string; nguoiNhan?: string; chucVuNguoiLap?: string;
   hangMuc: string; lyDo: string; canNgay: string;
-  uuTien: 'normal' | 'urgent' | 'critical';
-  nccGoiY: string;
+  uuTien?: 'normal' | 'urgent' | 'critical';
+  nccGoiY?: string;
   status: 'draft' | 'pending' | 'approved' | 'rejected';
   items: MRItem[]; totalEstimate: number; docId?: string;
 }
 interface VoucherItem { matHang: string; donVi: string; soLuong: number; donGia: number; thanhTien: number; }
 interface Voucher {
   id: string; type: VoucherType; code: string; ngay: string;
-  nguoiLap: string; chucVuNguoiLap: string;
-  nguoiNhan: string; nguoiGiao?: string;
+  nguoiLap: string; chucVuNguoiLap?: string;
+  nguoiNhan?: string; nguoiGiao?: string;
   nguoiDuyet: string; status: VoucherStatus;
-  kho: string; soHoaDon?: string;
+  kho?: string; soHoaDon?: string;
   mucDich?: string; phuongTien?: string;
   ghiChu: string; items: VoucherItem[];
   hoaDonVAT?: string; nhaCungCap?: string;
@@ -357,7 +357,7 @@ export default function MaterialsDashboard({ project, onAlert, currentRole = 'ch
         const base64 = (ev.target?.result as string)?.split(',')[1];
         const mimeType = file.type || 'image/jpeg';
         const model = genAI.getGenerativeModel({ model: GEM_MODEL, generationConfig: { temperature: 0.1 } });
-        const r = await model.generateContent({
+        const r = await (model as any).generateContent({
           contents: [{ role: 'user', parts: [
             { inlineData: { mimeType, data: base64 } },
             { text: `Bóc tách chứng từ vật tư xây dựng. Xác định loại (PN=phiếu nhập kho, PX=phiếu xuất kho, VAT=hóa đơn VAT, KK=kiểm kê). Trả về JSON thuần: { type:"PN"|"PX"|"VAT"|"KK", code:string, ngay:string, nhaCungCap:string, items:[{matHang:string,donVi:string,soLuong:number,donGia:number,thanhTien:number}], totalAmount:number, ghiChu:string }. Chỉ JSON, không markdown.` }
@@ -375,7 +375,7 @@ export default function MaterialsDashboard({ project, onAlert, currentRole = 'ch
   const confirmScanResult = () => {
     if (!scanResult || scanResult.error) return;
     const newV: Voucher = {
-      id: `v${Date.now()}`, type: scanResult.type || 'PN',
+      id: `v${Date.now()}`, type: scanResult.type || 'PN', kho: '', nguoiNhan: '', chucVuNguoiLap: '',
       code: scanResult.code || `${scanResult.type || 'PN'}-${Date.now()}`,
       ngay: scanResult.ngay || new Date().toLocaleDateString('vi-VN'),
       nguoiLap: 'GEM AI', nguoiDuyet: '', status: 'pending',
@@ -1265,7 +1265,7 @@ export default function MaterialsDashboard({ project, onAlert, currentRole = 'ch
           <div className="bg-white border border-slate-200 rounded-2xl overflow-hidden">
             <div className="px-4 py-3 bg-slate-50 border-b border-slate-100 flex justify-between items-center">
               <p className="text-xs font-bold text-slate-700 flex items-center gap-1.5"><Eye size={12} className="text-slate-500" /> Audit Trail — Lịch sử giao dịch kho</p>
-              <button onClick={() => setPrintInventory({ id: `S10-${new Date().toLocaleDateString("vi-VN").replace(/\//g,"")}`, date: new Date().toLocaleDateString("vi-VN"), status: "approved" })} className="text-[10px] text-slate-500 hover:text-emerald-600 flex items-center gap-1"><Printer size={10} /> Xuất S10-DN</button>
+              <button onClick={() => setPrintInventory({ id: `S10-${new Date().toLocaleDateString("vi-VN").replace(/\//g,"")}`, ngay: new Date().toLocaleDateString("vi-VN"), status: "approved", nguoiKiemKe: "", nguoiDuyet: "", ghiChu: "", items: [] })} className="text-[10px] text-slate-500 hover:text-emerald-600 flex items-center gap-1"><Printer size={10} /> Xuất S10-DN</button>
             </div>
             <div className="divide-y divide-slate-100">
               {[...vouchers].sort((a, b) => b.id.localeCompare(a.id)).slice(0, 10).map(v => (
@@ -1828,7 +1828,7 @@ export default function MaterialsDashboard({ project, onAlert, currentRole = 'ch
               unit: i.donVi,
               soSach: i.soSach,
               thucTe: i.thucTe,
-              chenhLech: i.chenhLech,
+              chenh: i.chenhLech,
             })),
             notes: printInventory.ghiChu,
             status: printInventory.status,
