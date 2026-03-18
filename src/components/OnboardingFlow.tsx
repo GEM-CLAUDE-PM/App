@@ -41,8 +41,8 @@ interface InviteMember {
 }
 
 const INVITE_ROLES: JobRole[] = [
-  'chi_huy_truong', 'chi_huy_pho', 'ks_giam_sat', 'qa_qc',
-  'qs', 'ke_toan', 'hse', 'hr', 'thu_ky',
+  'chi_huy_truong', 'chi_huy_pho', 'ks_giam_sat', 'qaqc_site',
+  'qs_site', 'ke_toan_site', 'hse_site', 'hr_site', 'thu_ky_site',
 ];
 
 const PROJECT_TYPES = [
