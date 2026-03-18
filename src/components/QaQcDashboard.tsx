@@ -985,7 +985,7 @@ const STATUS_CLS2: Record<CheckStatus,string> = {
 };
 const STATUS_LABEL2: Record<CheckStatus,string> = { pass:'✓ Đạt', fail:'✗ Không đạt', na:'N/A', pending:'Chưa KT' };
 
-function ISOChecklistTab({ project, projectName }: { project:any; projectName:string }) {
+function ISOChecklistTab({ project, projectName, showApprovalPanel, setShowApprovalPanel, ctx, projectId, refreshQaQueue }: { project:any; projectName:string; showApprovalPanel?: boolean; setShowApprovalPanel?: (v:boolean)=>void; ctx?: any; projectId?: string; refreshQaQueue?: ()=>void }) {
   const [checks, setChecks] = useState<Record<string,CheckStatus>>({});
   const [notes, setNotes] = useState<Record<string,string>>({});
   const [activeCat, setActiveCat] = useState(TCVN_CATEGORIES[0].id);
@@ -1263,7 +1263,7 @@ export default function QaQcDashboard({ onNavigate, projectId: _projectId, proje
 
   // Data
   const [checklists, setChecklists]   = useState<Checklist[]>(INIT_CHECKLISTS);
-  const [viewingChecklist, setViewingChecklist] = useState<string|null>(null);
+  const [viewingChecklist, setViewingChecklist] = useState<number|null>(null);
   const [defects, setDefects]         = useState<Defect[]>(INIT_DEFECTS);
   const [feedbacks, setFeedbacks]     = useState<Feedback[]>(INIT_FEEDBACKS);
   const [dbLoaded, setDbLoaded]       = useState(false); // flag: chặn auto-save trước khi load xong
@@ -1822,7 +1822,7 @@ export default function QaQcDashboard({ onNavigate, projectId: _projectId, proje
           )}
 
           {activeTab==="iso" && (
-            <ISOChecklistTab project={project} projectName={projectName} />
+            <ISOChecklistTab project={project} projectName={projectName} showApprovalPanel={showApprovalPanel} setShowApprovalPanel={setShowApprovalPanel} ctx={ctx} projectId={projectId} refreshQaQueue={refreshQaQueue} />
           )}
         </div>
 
