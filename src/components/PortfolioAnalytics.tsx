@@ -212,7 +212,7 @@ export default function PortfolioAnalytics({ projects, onNavigate }: Props) {
 
   const radarData = useMemo(() =>
     active.map(p => {
-      const e = ENRICHED[p.id] || {};
+      const e = ENRICHED[p.id] || { cpi:1, budgetUsed:0, budgetTotal:0, manpower:0, equipment:0, openRfi:0, safetyScore:0, qualityScore:0, cashflowHealth:'good' as const, contractValue:0, billedPct:0, collectedPct:0, delayDays:0, criticalIssues:0 };
       return {
         name: p.name.length > 10 ? p.name.slice(0,10)+'…' : p.name,
         'Tiến độ': p.progress,
@@ -225,7 +225,7 @@ export default function PortfolioAnalytics({ projects, onNavigate }: Props) {
 
   const cashflowScatter = useMemo(() =>
     active.map(p => {
-      const e = ENRICHED[p.id] || {};
+      const e = ENRICHED[p.id] || { cpi:1, budgetUsed:0, budgetTotal:0, manpower:0, equipment:0, openRfi:0, safetyScore:0, qualityScore:0, cashflowHealth:'good' as const, contractValue:0, billedPct:0, collectedPct:0, delayDays:0, criticalIssues:0 };
       return {
         name: p.name,
         x: e.billedPct || 0,
@@ -425,7 +425,7 @@ export default function PortfolioAnalytics({ projects, onNavigate }: Props) {
                 ].map(item => {
                   const result: any = { subject: item.subject };
                   active.forEach(p => {
-                    const e = ENRICHED[p.id] || {};
+                    const e = ENRICHED[p.id] || { cpi:1, budgetUsed:0, budgetTotal:0, manpower:0, equipment:0, openRfi:0, safetyScore:0, qualityScore:0, cashflowHealth:'good' as const, contractValue:0, billedPct:0, collectedPct:0, delayDays:0, criticalIssues:0 };
                     const shortName = p.name.length > 10 ? p.name.slice(0,10)+'…' : p.name;
                     if (item.subject === 'Tiến độ')   result[shortName] = p.progress;
                     if (item.subject === 'Chất lượng') result[shortName] = e.qualityScore || 0;
