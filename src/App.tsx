@@ -94,6 +94,7 @@ function AppInner() {
     projectId?: string | null;
     tab?: string;
     manpowerTab?: string;
+    subTab?: string;
     navKey?: number;
   }>({});
 
@@ -434,7 +435,7 @@ function AppInner() {
                       onClick={() => { handleNotificationClick(n); setShowNotifications(false); }}
                       className={`w-full p-3 text-left hover:bg-slate-50 transition-colors flex gap-3 items-start ${!n.read ? "bg-emerald-50/30" : ""}`}
                     >
-                      <span className={`mt-0.5 w-2 h-2 rounded-full shrink-0 ${n.type === "warning" ? "bg-amber-400" : n.type === "error" ? "bg-rose-500" : "bg-emerald-400"}`} />
+                      <span className={`mt-0.5 w-2 h-2 rounded-full shrink-0 ${n.type === "warning" ? "bg-amber-400" : n.type === "urgent" ? "bg-rose-500" : "bg-emerald-400"}`} />
                       <div className="min-w-0">
                         <p className="text-xs font-semibold text-slate-800 line-clamp-2">{n.message}</p>
                         <p className="text-[10px] text-slate-400 mt-0.5">{new Date(n.timestamp).toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit" })}</p>
@@ -902,7 +903,7 @@ function AppInner() {
               saveProjectConfig({
                 ...cfg,
                 projectId: newProjectId,
-                projectName: project.name || cfg.projectName,
+                projectFullName: project.name || cfg.projectFullName,
                 projectAddress: project.location || cfg.projectAddress,
                 contractorName: company.name || cfg.contractorName,
                 contractorAddress: company.address || cfg.contractorAddress,
