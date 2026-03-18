@@ -189,20 +189,20 @@ export class Permissions {
 
   // Tab-level access
   get canViewContracts()    { return this.atLeast('manager'); }
-  get canViewFullFinancials(){ return this.hasJob('giam_doc','ke_toan'); }
-  get canEditContracts()    { return this.hasJob('giam_doc','ke_toan'); }
+  get canViewFullFinancials(){ return this.hasJob('giam_doc','ke_toan_truong'); }
+  get canEditContracts()    { return this.hasJob('giam_doc','ke_toan_truong'); }
   get canViewQS()           { return this.atLeast('manager'); }
-  get canEditQS()           { return this.hasJob('giam_doc','ke_toan','qs'); }
+  get canEditQS()           { return this.hasJob('giam_doc','ke_toan_truong','truong_qs'); }
   get canViewHR()           { return this.atLeast('manager'); }
-  get canEditHR()           { return this.hasJob('giam_doc','hr'); }
+  get canEditHR()           { return this.hasJob('giam_doc','hr_truong'); }
   get canViewHSE()          { return this.atLeast('worker'); }
-  get canEditHSE()          { return this.hasJob('giam_doc','hse','chi_huy_truong'); }
-  get canViewAccounting()   { return this.hasJob('giam_doc','ke_toan'); }
+  get canEditHSE()          { return this.hasJob('giam_doc','truong_hse','chi_huy_truong'); }
+  get canViewAccounting()   { return this.hasJob('giam_doc','ke_toan_truong'); }
   get canManageUsers()      { return this.hasJob('giam_doc'); }
-  get canApproveVO()        { return this.hasJob('giam_doc','ke_toan'); }
-  get canApprovePayment()   { return this.hasJob('giam_doc','ke_toan'); }
-  get canViewSalary()       { return this.hasJob('giam_doc','ke_toan','hr'); }
-  get canViewContractValues(){ return this.hasJob('giam_doc','ke_toan','qs'); }
+  get canApproveVO()        { return this.hasJob('giam_doc','ke_toan_truong'); }
+  get canApprovePayment()   { return this.hasJob('giam_doc','ke_toan_truong'); }
+  get canViewSalary()       { return this.hasJob('giam_doc','ke_toan_truong','hr_truong'); }
+  get canViewContractValues(){ return this.hasJob('giam_doc','ke_toan_truong','truong_qs'); }
 }
 
 
