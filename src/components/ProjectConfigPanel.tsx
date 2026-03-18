@@ -232,6 +232,7 @@ function Field({
 
 // ── Logo uploader ─────────────────────────────────────────────────────────────
 function LogoUploader({ projectId }: { projectId: string }) {
+  const { err: notifErr } = useNotification();
   const [logo, setLogo] = useState(() => loadProjectLogo(projectId));
   const fileRef = useRef<HTMLInputElement>(null);
 
