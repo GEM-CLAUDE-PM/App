@@ -333,7 +333,8 @@ function RenderField({ field, value, onChange }: { field: TemplateField; value: 
 // ══════════════════════════════════════════════════════════════════════════════
 // SECTION 4 — FORM TEMPLATE MANAGER (embedded)
 // ══════════════════════════════════════════════════════════════════════════════
-function FormTemplateManager({ projectId, projectName, projectAddress }: { projectId: string; projectName: string; projectAddress?: string }) {
+function FormTemplateManager({ projectId, projectName, projectAddress, setPrintITP }: { projectId: string; projectName: string; projectAddress?: string; setPrintITP?: (v: any) => void }) {
+  const { ok: notifOk, info: notifInfo } = useNotification();
   const [tmplView, setTmplView]   = useState<"library"|"editor"|"fill"|"preview">("library");
   const [catFilter, setCatFilter] = useState("Tất cả");
   const [search, setSearch]       = useState("");
@@ -512,8 +513,8 @@ function FormTemplateManager({ projectId, projectName, projectAddress }: { proje
             <div className="flex items-start justify-between mb-3">
               <div className="flex items-center gap-2 flex-wrap">
                 <span className={`px-2 py-0.5 rounded-md text-[10px] font-black uppercase ${catColor(tmpl.category)}`}>{tmpl.category}</span>
-                {tmpl.isSystem && <Star size={11} className="text-amber-400 fill-amber-300" title="Mẫu hệ thống"/>}
-                {tmpl.uploadedFile && <Upload size={11} className="text-indigo-500" title={`Upload ${tmpl.uploadedFile.type.toUpperCase()}`}/>}
+                {tmpl.isSystem && <Star size={11} className="text-amber-400 fill-amber-300" aria-label="Mẫu hệ thống"/>}
+                {tmpl.uploadedFile && <Upload size={11} className="text-indigo-500" aria-label={`Upload ${tmpl.uploadedFile.type.toUpperCase()}`}/>}
               </div>
               <span className="text-[10px] font-mono text-slate-400">{tmpl.code}</span>
             </div>
@@ -1262,6 +1263,7 @@ export default function QaQcDashboard({ onNavigate, projectId: _projectId, proje
 
   // Data
   const [checklists, setChecklists]   = useState<Checklist[]>(INIT_CHECKLISTS);
+  const [viewingChecklist, setViewingChecklist] = useState<string|null>(null);
   const [defects, setDefects]         = useState<Defect[]>(INIT_DEFECTS);
   const [feedbacks, setFeedbacks]     = useState<Feedback[]>(INIT_FEEDBACKS);
   const [dbLoaded, setDbLoaded]       = useState(false); // flag: chặn auto-save trước khi load xong
@@ -1814,6 +1816,7 @@ export default function QaQcDashboard({ onNavigate, projectId: _projectId, proje
                 projectId={projectId}
                 projectName={projectName}
                 projectAddress={projectAddress}
+                setPrintITP={setPrintITP}
               />
             </div>
           )}
@@ -1917,7 +1920,7 @@ export default function QaQcDashboard({ onNavigate, projectId: _projectId, proje
             <input type="date" value={formDate} onChange={e=>setFormDate(e.target.value)} className={inputCls}/>
           </FormRow>
         </FormGrid>
-        <FormSection label={`Danh mục kiểm tra (${customItems.length} mục)`}>
+        <FormSection title={`Danh mục kiểm tra (${customItems.length} mục)`}>
           <div className="space-y-2 max-h-52 overflow-y-auto">
             {customItems.map((item,i)=>(
               <div key={i} className="flex items-start gap-2 p-3 bg-slate-50 border border-slate-200 rounded-xl group">
@@ -1946,10 +1949,10 @@ export default function QaQcDashboard({ onNavigate, projectId: _projectId, proje
         onClose={() => setShowDefectForm(false)}
         title="Báo cáo NCR / Lỗi"
         subtitle="Ghi nhận lỗi không phù hợp tại công trường"
-        icon={<AlertCircle size={18}/>} color="red" width="md"
+        icon={<AlertCircle size={18}/>} color="rose" width="md"
         footer={<>
           <BtnCancel onClick={() => setShowDefectForm(false)}/>
-          <BtnSubmit label="Gửi báo cáo NCR" color="red" onClick={saveDefect}/>
+          <BtnSubmit label="Gửi báo cáo NCR" color="rose" onClick={saveDefect}/>
         </>}
       >
         <FormRow label="Mô tả lỗi *">
