@@ -45,6 +45,7 @@ export const ROLE_PROJECT_SCOPE: Record<string, ProjectScope> = {
 
 export interface UserContext {
   userId:   string;
+  userName?: string;
   roleId:   RoleId;
   /** projectId của context hiện tại (project đang xem) */
   projectId?: string;
