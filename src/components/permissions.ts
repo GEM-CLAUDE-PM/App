@@ -10,7 +10,7 @@ import {
   AUTHORITY_LEVEL, ROLE_DOMAIN, ROLES, TAB_PERMISSIONS,
   DEFAULT_THRESHOLDS, DENIED_BEHAVIOR,
   type AuthorityLevel, type RoleId, type Domain,
-  type ActionType, type DocType, type ApprovalStep,
+  type DeniedBehavior, type ActionType, type DocType, type ApprovalStep,
   type ApprovalThresholds, type WorkflowDefinition,
 } from './roles';
 import { WORKFLOWS } from './workflows';
