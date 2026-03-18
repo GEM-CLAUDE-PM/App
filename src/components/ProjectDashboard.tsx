@@ -45,8 +45,7 @@ import {
 import { getPendingCount } from './approvalEngine';
 import {
   getCurrentMember, buildCtxFromMember, switchActiveRole, setActiveMemberSnap,
-  seedMembersIfEmpty, loadMembers, saveMembers, type ProjectMember,
-  getCurrentScopeCtx, autoAssignMemberOnSeed,
+  loadMembers, saveMembers, type ProjectMember,
 } from './projectMember';
 
 
@@ -158,20 +157,17 @@ export default function ProjectDashboard({
   // Dev mode: có thể override qua Dev Switcher
   const _authRole = (authRoleId || user?.job_role || 'operator') as UserRole;
   const [currentRole, setCurrentRole] = useState<UserRole>(() => {
-    const devOverride = localStorage.getItem('gem_user_role_dev_override');
-    return (devOverride || _authRole) as UserRole;
+    return _authRole as UserRole;
   });
 
   // Sync khi auth user thay đổi — reset dev override, dùng role thật
   useEffect(() => {
     if (_authRole && _authRole !== 'operator') {
-      localStorage.removeItem('gem_user_role_dev_override');
       setCurrentRole(_authRole);
       localStorage.setItem('gem_user_role', _authRole);
     }
     // Xóa override khi user = null (logout)
     if (!user) {
-      localStorage.removeItem('gem_user_role_dev_override');
       localStorage.removeItem('gem_user_role');
     }
   }, [user?.id, authRoleId]);
@@ -350,13 +346,11 @@ export default function ProjectDashboard({
 
   // Seed members cho project hiện tại khi chọn
   useEffect(() => {
-    if (localProjectId) seedMembersIfEmpty(localProjectId);
   }, [localProjectId]);
 
   // Seed members cho TẤT CẢ projects khi portfolio view mount lần đầu
   // → đảm bảo gem_member_projects_* có data trước khi scope filter chạy
   useEffect(() => {
-    projects.forEach((p: any) => seedMembersIfEmpty(p.id));
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []); // chỉ chạy 1 lần khi mount
 
@@ -374,8 +368,7 @@ export default function ProjectDashboard({
   // Load permission overrides từ Supabase
   useEffect(() => {
     const sb = getSupabase();
-    const useReal = (import.meta as any).env?.VITE_USE_SUPABASE === 'true';
-    if (!sb || !useReal || !localProjectId) { setPermOverrides({}); return; }
+    if (!sb || !localProjectId) { setPermOverrides({}); return; }
     sb.auth.getUser().then(({ data }) => {
       if (!data.user) return;
       sb.from('project_member_overrides')
@@ -1081,7 +1074,12 @@ export default function ProjectDashboard({
     const allProjects: any[] = allowedProjectIds === null
       ? (projects as any[])
       : (projects as any[]).filter((p: any) => allowedProjectIds!.includes(p.id));
-    const scopeCtx = getCurrentScopeCtx(); // vẫn dùng cho filterProjectsByScope ở chỗ khác
+    const _scopeRoleId = (authRoleId || 'chi_huy_truong') as RoleId;
+    const scopeCtx: UserContext = {
+      userId: user?.id || `user_${_scopeRoleId}`,
+      roleId: _scopeRoleId,
+      allowedProjectIds: allowedProjectIds ?? undefined,
+    };
 
     const inProgressProjects = allProjects.filter(p => p.type === 'in_progress');
     const potentialProjects   = allProjects.filter(p => p.type === 'potential');
@@ -1364,7 +1362,6 @@ export default function ProjectDashboard({
             setLocalProjectId(newProject.id);
             setActiveTab('overview');
             setShowSetupWizard(false);
-            setTimeout(() => autoAssignMemberOnSeed(newProject.id), 100);
           }}
         />,
         document.body
@@ -1551,105 +1548,6 @@ export default function ProjectDashboard({
         )}
         <p className="text-[10px] md:text-sm text-slate-500">Quản lý tiến độ, vật tư, nhân lực và dòng tiền dự án.</p>
       </div>
-
-      {/* ── Dev Login Switcher — chỉ hiện khi VITE_USE_SUPABASE=false ── */}
-      {(import.meta as any).env?.VITE_USE_SUPABASE !== 'true' && (() => {
-        const DEV_USERS = [
-          { roleId:'giam_doc',       name:'Trần Văn Bình',      email:'gdda@villaphat.vn',       lvl:5, color:'#7c3aed' },
-          { roleId:'pm',             name:'Nguyễn Thành Nam',   email:'pm@villaphat.vn',         lvl:4, color:'#1a8a7a' },
-          { roleId:'ke_toan_truong', name:'Nguyễn Thu Hà',      email:'ketoan@villaphat.vn',     lvl:4, color:'#0891b2' },
-          { roleId:'truong_qs',      name:'Lê Minh Tuấn',       email:'truongqs@villaphat.vn',   lvl:3, color:'#0284c7' },
-          { roleId:'truong_qaqc',    name:'Phạm Thị Thảo',      email:'truongqaqc@villaphat.vn', lvl:3, color:'#059669' },
-          { roleId:'truong_hse',     name:'Lê Văn Hải',         email:'trunghse@villaphat.vn',   lvl:3, color:'#dc2626' },
-          { roleId:'chi_huy_truong', name:'Nguyễn Văn Anh',     email:'cht@villaphat.vn',        lvl:3, color:'#b45309' },
-          { roleId:'chi_huy_pho',    name:'Trần Hữu Lộc',       email:'chp@villaphat.vn',        lvl:3, color:'#b45309' },
-          { roleId:'ks_giam_sat',    name:'Hoàng Việt Hùng',    email:'gsat@villaphat.vn',       lvl:2, color:'#7c3aed' },
-          { roleId:'qs_site',        name:'Phạm Quang Minh',    email:'qs01@villaphat.vn',       lvl:2, color:'#0284c7' },
-          { roleId:'qaqc_site',      name:'Trần Thị Bích',      email:'qaqc01@villaphat.vn',     lvl:2, color:'#059669' },
-          { roleId:'hse_site',       name:'Ngô Thanh Sơn',      email:'hse01@villaphat.vn',      lvl:2, color:'#dc2626' },
-          { roleId:'ke_toan_site',   name:'Lê Thị Mai',         email:'ktsite@villaphat.vn',     lvl:2, color:'#0891b2' },
-          { roleId:'ke_toan_kho',    name:'Đinh Văn Khoa',      email:'ktkho@villaphat.vn',      lvl:2, color:'#0891b2' },
-          { roleId:'thu_kho',        name:'Trần Quốc Tuấn',     email:'thukho@villaphat.vn',     lvl:1, color:'#c47a5a' },
-          { roleId:'thu_ky_site',    name:'Nguyễn Phương Linh', email:'thuky@villaphat.vn',      lvl:1, color:'#64748b' },
-          { roleId:'operator',       name:'Lê Văn Toàn',        email:'op01@villaphat.vn',       lvl:1, color:'#64748b' },
-          { roleId:'to_doi',         name:'Phạm Văn Đức',       email:'todoi@villaphat.vn',      lvl:1, color:'#ea580c' },
-        ];
-        const activeUser = DEV_USERS.find(u => u.roleId === currentRole) || DEV_USERS[0];
-        const [showDevPicker, setShowDevPicker] = React.useState(false);
-        const lvlColor: Record<number,string> = { 5:'bg-violet-600', 4:'bg-teal-600', 3:'bg-amber-600', 2:'bg-blue-500', 1:'bg-slate-500' };
-        return (
-          <div className="mb-3 print:hidden">
-            <div className="flex items-center gap-2">
-              {/* Current user badge */}
-              <button
-                onClick={() => setShowDevPicker(v => !v)}
-                className="flex items-center gap-2 px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-white rounded-xl text-xs font-medium transition-colors"
-              >
-                <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded ${lvlColor[activeUser.lvl]} text-white`}>L{activeUser.lvl}</span>
-                <span>{activeUser.name}</span>
-                <span className="text-slate-400 text-[10px]">— {(ROLES as any)[activeUser.roleId]?.label || activeUser.roleId}</span>
-                <ChevronDown size={12} className={`text-slate-400 transition-transform ${showDevPicker ? 'rotate-180' : ''}`}/>
-              </button>
-              <span className="text-[10px] text-slate-400 bg-amber-50 border border-amber-200 text-amber-700 px-2 py-1 rounded-lg font-medium">DEV MODE</span>
-              {(['giam_doc','pm'].includes(currentRole)) && (
-                <button onClick={() => setShowThresholdPanel(v => !v)}
-                  className="text-[10px] font-bold text-emerald-600 bg-emerald-50 border border-emerald-200 px-2 py-1.5 rounded-lg hover:bg-emerald-100 transition-colors">
-                  ⚙ Ngưỡng
-                </button>
-              )}
-              {contractUnlocked && (
-                <span className="flex items-center gap-1 text-[10px] font-bold text-emerald-600 bg-emerald-50 border border-emerald-200 px-2 py-1.5 rounded-lg">
-                  <Unlock size={9}/> HĐ mở
-                </span>
-              )}
-            </div>
-            {/* User picker dropdown */}
-            {showDevPicker && (
-              <div className="mt-2 bg-slate-900 rounded-2xl p-3 shadow-2xl border border-slate-700">
-                <p className="text-[10px] text-slate-400 font-medium mb-2 uppercase tracking-wide">Đăng nhập thử với role</p>
-                <div className="grid grid-cols-2 gap-1.5">
-                  {DEV_USERS.map(u => (
-                    <button key={u.roleId}
-                      onClick={() => {
-                        // Set role chính
-                        setCurrentRole(u.roleId as UserRole);
-                        localStorage.setItem('gem_user_role_dev_override', u.roleId);
-                        localStorage.setItem('gem_user_role', u.roleId);
-                        localStorage.removeItem(SESSION_KEY);
-                        setContractUnlocked(false);
-                        setShowDevPicker(false);
-                        setActiveTab('overview');
-                        // Cập nhật member.roles trong DA để union logic đúng
-                        if (localProjectId) {
-                          const members = loadMembers(localProjectId);
-                          const matchIdx = members.findIndex(m => m.activeRoleId === u.roleId || m.roles.includes(u.roleId));
-                          if (matchIdx >= 0) {
-                            members[matchIdx] = { ...members[matchIdx], activeRoleId: u.roleId };
-                            saveMembers(localProjectId, members);
-                            localStorage.setItem(`gem_current_member_${localProjectId}`, JSON.stringify(members[matchIdx]));
-                          }
-                        }
-                      }}
-                      className={`flex items-center gap-2 px-2.5 py-2 rounded-xl text-left transition-colors ${
-                        u.roleId === currentRole
-                          ? 'bg-white/15 ring-1 ring-white/30'
-                          : 'hover:bg-white/10'
-                      }`}
-                    >
-                      <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded shrink-0 ${lvlColor[u.lvl]} text-white`}>L{u.lvl}</span>
-                      <div className="min-w-0">
-                        <p className="text-[11px] font-medium text-white truncate">{u.name}</p>
-                        <p className="text-[9px] text-slate-400 truncate">{(ROLES as any)[u.roleId]?.label || u.roleId}</p>
-                      </div>
-                      {u.roleId === currentRole && <span className="ml-auto text-emerald-400 text-[10px] shrink-0">✓</span>}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            )}
-          </div>
-        );
-      })()}
 
       {/* ── Threshold Config Panel (L4+) ── */}
       {showThresholdPanel && ['giam_doc','pm'].includes(currentRole) && (
@@ -2212,7 +2110,6 @@ export default function ProjectDashboard({
             setLocalProjectId(newProject.id);
             setActiveTab('overview');
             setShowSetupWizard(false);
-            setTimeout(() => autoAssignMemberOnSeed(newProject.id), 100);
           }}
         />,
         document.body
