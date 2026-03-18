@@ -1,7 +1,7 @@
 import { useNotification } from './NotificationEngine';
 import React, { useState, useCallback, useEffect } from 'react';
 import { db, useRealtimeSync } from './db';
-import ModalForm, { FormRow, FormGrid, inputCls, selectCls, BtnCancel, BtnSubmit } from './ModalForm';
+import ModalForm, { FormRow, FormGrid, selectCls, BtnCancel, BtnSubmit } from './ModalForm';
 import { getAllDocs, seedApprovalDocs, createDocument, submitDocument as engineSubmitDoc, getApprovalQueue, type ApprovalDoc } from './approvalEngine';
 import type { SeedVoucherInput } from './approvalEngine';
 import { createLegacyContext, WORKFLOWS, type UserContext } from './permissions';
@@ -794,11 +794,11 @@ export default function AccountingDashboard({ project, projectId }: Props) {
         </>}
       >
         <FormGrid cols={2}>
-          <FormRow label="Tên đối tác *" className="col-span-2">
+          <div className="col-span-2"><FormRow label="Tên đối tác *">
             <input className={inputCls} placeholder="VD: NTP Phúc Thành" value={debtForm.name ?? ''} onChange={e => setDebtForm(p => ({...p, name: e.target.value}))}/>
-          </FormRow>
+          </FormRow></div>
           <FormRow label="Loại">
-            <select className={selectCls} value={debtForm.type ?? 'payable'} onChange={e => setDebtForm(p => ({...p, type: e.target.value}))}>
+            <select className={selectCls} value={debtForm.type ?? 'payable'} onChange={e => setDebtForm(p => ({...p, type: e.target.value as 'receivable' | 'payable'}))}>
               <option value="payable">Phải trả (NTP/NCC)</option>
               <option value="receivable">Phải thu (Chủ đầu tư)</option>
             </select>
@@ -820,9 +820,9 @@ export default function AccountingDashboard({ project, projectId }: Props) {
           <FormRow label="Liên hệ">
             <input className={inputCls} placeholder="Tên / SĐT người phụ trách" value={debtForm.contact ?? ''} onChange={e => setDebtForm(p => ({...p, contact: e.target.value}))}/>
           </FormRow>
-          <FormRow label="Ghi chú" className="col-span-2">
+          <div className="col-span-2"><FormRow label="Ghi chú">
             <input className={inputCls} value={debtForm.description ?? ''} onChange={e => setDebtForm(p => ({...p, description: e.target.value}))}/>
-          </FormRow>
+          </FormRow></div>
         </FormGrid>
       </ModalForm>
       {/* ── APPROVAL QUEUE DRAWER ── */}
