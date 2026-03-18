@@ -58,6 +58,7 @@ interface RFIItem {
   assigned_to: string;
   description: string;
   drawing_ref?: string;
+  note?: string;
   response?: string;
   attachments: number;
   linked_ncr?: string;
@@ -344,7 +345,7 @@ function TabHoSo({ project, isConnectedOneDrive, isConnectedGoogleDrive }: Props
 }
 
 // ─── Tab: Revision History ────────────────────────────────────────────────────
-function TabRevision() {
+function TabRevision({ onTriggerApproval }: { onTriggerApproval?: (title: string) => void }) {
   const { ok: notifOk, info: notifInfo } = useNotification();
   const [drawings, setDrawings] = useState<DrawingRevision[]>(MOCK_DRAWINGS);
   const [filterDisc, setFilterDisc] = useState('Tất cả');
@@ -566,7 +567,7 @@ function TabRevision() {
 }
 
 // ─── Tab: RFI Tracker ─────────────────────────────────────────────────────────
-function TabRFI() {
+function TabRFI({ onTriggerApproval }: { onTriggerApproval?: (title: string) => void }) {
   const { ok: notifOk, info: notifInfo } = useNotification();
   const [rfis, setRfis] = useState<RFIItem[]>(MOCK_RFIS);
   const [filterStatus, setFilterStatus] = useState('all');
@@ -896,7 +897,7 @@ export default function RecordsDashboard({ project: selectedProject, isConnected
         </button>
       </div>
 
-      {mainTab==='docs'     && <TabHoSo project={selectedProject} isConnectedOneDrive={isConnectedOneDrive} isConnectedGoogleDrive={isConnectedGoogleDrive}/>}
+      {mainTab==='docs'     && <TabHoSo project={selectedProject} projectId={pid} isConnectedOneDrive={isConnectedOneDrive} isConnectedGoogleDrive={isConnectedGoogleDrive}/>}
       {mainTab==='revision' && <TabRevision onTriggerApproval={(title: string) => triggerRdDoc(title, 'DRAWING_REVISION')} />}
       {mainTab==='rfi'      && <TabRFI onTriggerApproval={(title: string) => triggerRdDoc(title, 'RFI')} />}
 
