@@ -150,7 +150,7 @@ function TypeBadge({ type }: { type: ContactType }) {
 }
 
 // ── Form modal ────────────────────────────────────────────────────────────────
-interface FormProps { contact?: Contact | null; onSave: (c: Contact) => void; onClose: () => void; }
+interface FormProps { contact?: Contact | null; onSave: (c: Contact) => void; onClose: () => void; projects?: any[]; }
 
 const EMPTY_FORM = (): Omit<Contact, 'id' | 'createdAt' | 'interactions'> => ({
   company: '', type: 'contractor', role: '', contactPerson: '', position: '',
@@ -159,7 +159,7 @@ const EMPTY_FORM = (): Omit<Contact, 'id' | 'createdAt' | 'interactions'> => ({
   note: '', avatar: '',
 });
 
-function ContactModal({ contact, onSave, onClose }: FormProps) {
+function ContactModal({ contact, onSave, onClose, projects = [] }: FormProps) {
   const isEdit = !!contact;
   const [form, setForm] = useState(contact
     ? { company: contact.company, type: contact.type, role: contact.role,
@@ -418,11 +418,12 @@ function InteractionLog({ contact, onUpdate }: { contact: Contact; onUpdate: (c:
 }
 
 // ── Contact Card (grid view) ──────────────────────────────────────────────────
-function ContactCard({ contact, onEdit, onDelete, onUpdate }: {
+function ContactCard({ contact, onEdit, onDelete, onUpdate, projects = [] }: {
   contact: Contact;
   onEdit: () => void;
   onDelete: () => void;
   onUpdate: (c: Contact) => void;
+  projects?: any[];
 }) {
   const [expanded, setExpanded] = useState(false);
   const linkedProjects = (projects || []).filter((p:any) => contact.projectIds?.includes(p.id));
@@ -529,8 +530,8 @@ function ContactCard({ contact, onEdit, onDelete, onUpdate }: {
 }
 
 // ── Table Row (list view) ─────────────────────────────────────────────────────
-function ContactRow({ contact, onEdit, onDelete }: {
-  contact: Contact; onEdit: () => void; onDelete: () => void;
+function ContactRow({ contact, onEdit, onDelete, projects = [] }: {
+  contact: Contact; onEdit: () => void; onDelete: () => void; projects?: any[];
 }) {
   const linkedProjects = (projects || []).filter((p:any) => contact.projectIds?.includes(p.id));
   return (
@@ -753,6 +754,7 @@ export default function Contacts({ projects = [] }: { projects?: any[] }) {
                   onEdit={() => openEdit(c)}
                   onDelete={() => deleteContact(c.id)}
                   onUpdate={updated => setContacts(prev => prev.map(x => x.id === updated.id ? updated : x))}
+                  projects={projects}
                 />
               ))}
             </div>
@@ -785,6 +787,7 @@ export default function Contacts({ projects = [] }: { projects?: any[] }) {
                   <ContactRow key={c.id} contact={c}
                     onEdit={() => openEdit(c)}
                     onDelete={() => deleteContact(c.id)}
+                    projects={projects}
                   />
                 ))}
               </tbody>
@@ -799,6 +802,7 @@ export default function Contacts({ projects = [] }: { projects?: any[] }) {
           contact={editContact}
           onSave={saveContact}
           onClose={() => { setShowModal(false); setEditContact(null); }}
+          projects={projects}
         />
       )}
     </div>
