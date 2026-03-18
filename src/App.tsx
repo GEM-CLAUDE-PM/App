@@ -44,7 +44,6 @@ import { useOfflineQueue, OfflineQueuePanel } from "./components/useOfflineQueue
 import { Taskbar, UserMenuBar } from "./components/dashboard/Taskbar";
 import { useTaskbar } from "./hooks/useTaskbar";
 import WorkspaceActionBar from "./components/WorkspaceActionBar";
-import DevChecklist from "./components/DevChecklist";
 // FIX: Sửa lại import thư viện chuẩn
 import Markdown from "react-markdown";
 
@@ -887,7 +886,6 @@ function AppInner() {
       {/* Hidden File Input */}
       <input type="file" ref={fileInputRef} className="hidden" onChange={() => notifInfo("Đã nhận file!")} />
       {/* Dev Testing Checklist — tự ẩn khi PROD */}
-      <DevChecklist />
 
       {/* Onboarding — trigger lần đầu login */}
       {showOnboarding && user && (
