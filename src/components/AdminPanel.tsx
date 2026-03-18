@@ -4,7 +4,7 @@
  * Chỉ hiển thị với tier = 'admin' (Giám đốc DA).
  *
  * Khi VITE_USE_SUPABASE=true: gọi Supabase Auth Admin API qua service role
- * Quản lý users — tạo, sửa, xóa, gán role và dự án qua Supabase
+ * Khi dev mode: hiển thị danh sách MOCK_USERS để tham khảo
  */
 
 import React, { useState, useEffect, useCallback } from 'react';
@@ -17,7 +17,6 @@ import {
 } from 'lucide-react';
 import { getSupabase, JOB_LABELS, TIER_LABELS, TIER_COLORS, JOB_TO_TIER, JOB_ROLE_TO_ROLE_ID,
   type UserProfile, type JobRole, type TierRole } from './supabase';
-import { mockProjects } from '../constants/mockData';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 // project_roles: { [projectId]: string[] } — roles của user trong từng DA
@@ -56,7 +55,8 @@ interface AdminPanelProps {
   onClose?: () => void;
 }
 
-export default function AdminPanel({ currentUserId, onClose }: AdminPanelProps) {
+export default function AdminPanel({ currentUserId, onClose, projects = [] }: AdminPanelProps) {
+  const isDevMode = (import.meta as any).env?.VITE_USE_SUPABASE !== 'true';
   const sb = getSupabase();
 
   const [users, setUsers]           = useState<UserProfile[]>([]);
@@ -88,12 +88,18 @@ export default function AdminPanel({ currentUserId, onClose }: AdminPanelProps) 
   // ── Load users ──────────────────────────────────────────────────────────────
   const loadUsers = useCallback(async () => {
     setLoading(true);
-    if (!sb) { showToast('err', 'Không thể kết nối máy chủ.'); setLoading(false); return; }
+    if (isDevMode || !sb) {
+      // Dev mode: hiển thị mock users
+      const { MOCK_USERS } = await import('./supabase');
+      setUsers(MOCK_USERS as UserProfile[]);
+      setLoading(false);
+      return;
+    }
     const { data, error } = await sb.from('profiles').select('*').order('created_at', { ascending: false });
     if (error) showToast('err', 'Không tải được danh sách user: ' + error.message);
     else setUsers(data ?? []);
     setLoading(false);
-  }, [sb]);
+  }, [isDevMode, sb]);
 
   useEffect(() => { loadUsers(); }, [loadUsers]);
 
@@ -142,7 +148,15 @@ export default function AdminPanel({ currentUserId, onClose }: AdminPanelProps) 
     setSaving(true);
     const tier = JOB_TO_TIER[form.job_role];
 
-    if (!sb) { showToast('err', 'Không thể kết nối máy chủ.'); setSaving(false); return; }
+    if (isDevMode || !sb) {
+      // Dev mode: chỉ hiển thị thông báo
+      showToast('ok', isDevMode
+        ? `[Dev mode] User "${form.full_name}" sẽ được tạo khi kết nối Supabase thật.`
+        : 'Đã lưu (mock).');
+      setSaving(false);
+      setShowForm(false);
+      return;
+    }
 
     if (editUser) {
       // UPDATE profile
@@ -197,8 +211,8 @@ export default function AdminPanel({ currentUserId, onClose }: AdminPanelProps) 
     if (uid === currentUserId) {
       showToast('err', 'Không thể xóa chính mình.'); return;
     }
-    if (!sb) { showToast('err', 'Không thể kết nối máy chủ.'); return; }
-    if (false) {
+    if (isDevMode || !sb) {
+      showToast('ok', `[Dev mode] User "${name}" sẽ bị xóa khi kết nối Supabase thật.`);
       setDeleteConfirm(null); return;
     }
     // Xóa profile (auth user cần xóa từ Supabase Dashboard hoặc Edge Function)
@@ -271,6 +285,11 @@ export default function AdminPanel({ currentUserId, onClose }: AdminPanelProps) 
           </div>
         </div>
         <div className="flex items-center gap-2">
+          {isDevMode && (
+            <span className="text-xs bg-amber-100 text-amber-700 border border-amber-200 px-2 py-1 rounded-full font-medium">
+              Dev Mode — chưa kết nối Supabase thật
+            </span>
+          )}
           <button onClick={loadUsers} className="p-2 hover:bg-slate-100 rounded-lg transition-colors" title="Tải lại">
             <RefreshCw size={16} className="text-slate-500"/>
           </button>
@@ -283,6 +302,19 @@ export default function AdminPanel({ currentUserId, onClose }: AdminPanelProps) 
       </div>
 
       <div className="max-w-5xl mx-auto px-6 py-6 space-y-5">
+
+        {/* ── Dev mode notice ── */}
+        {isDevMode && (
+          <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 flex gap-3">
+            <AlertCircle size={18} className="text-amber-600 flex-shrink-0 mt-0.5"/>
+            <div className="text-sm text-amber-800">
+              <p className="font-semibold mb-1">App đang chạy ở chế độ Local (Dev Mode)</p>
+              <p>Để tạo user thật, cần bật Supabase trong <code className="bg-amber-100 px-1 rounded">.env</code>:</p>
+              <code className="block mt-1 bg-amber-100 px-2 py-1 rounded text-xs">VITE_USE_SUPABASE=true</code>
+              <p className="mt-1">Danh sách bên dưới là user mẫu để tham khảo giao diện.</p>
+            </div>
+          </div>
+        )}
 
         {/* ── Action bar ── */}
         <div className="flex items-center justify-between">
@@ -349,7 +381,7 @@ export default function AdminPanel({ currentUserId, onClose }: AdminPanelProps) 
                           {(u.project_ids ?? []).length === 0
                             ? <span className="text-xs text-slate-400">Chưa gán</span>
                             : (u.project_ids ?? []).slice(0, 3).map(pid => {
-                                const proj = mockProjects.find(p => p.id === pid);
+                                const proj = (projects || []).find((p:any) => p.id === pid);
                                 return (
                                   <span key={pid} className="text-[10px] bg-blue-50 text-blue-600 border border-blue-100 px-1.5 py-0.5 rounded-full">
                                     {proj?.name?.split(' ').slice(-2).join(' ') ?? pid}
@@ -561,7 +593,7 @@ export default function AdminPanel({ currentUserId, onClose }: AdminPanelProps) 
                   1 user có thể kiêm nhiều roles trong cùng 1 dự án — quyền = union của tất cả roles.
                 </p>
                 <div className="space-y-3 max-h-80 overflow-y-auto pr-1">
-                  {mockProjects.map(p => {
+                  {(projects || []).map((p:any) => {
                     const assignedRoles = getProjectRoles(p.id);
                     const isAssigned = assignedRoles.length > 0;
                     // Roles phù hợp với scope DA (site roles + cross roles)

@@ -43,7 +43,6 @@ import { useOfflineQueue, OfflineQueuePanel } from "./components/useOfflineQueue
 // Note: QaQcDashboard giờ được dùng bên trong ProjectDashboard — import giữ lại để tránh lỗi nếu có chỗ khác tham chiếu
 import { Taskbar, UserMenuBar } from "./components/dashboard/Taskbar";
 import { useTaskbar } from "./hooks/useTaskbar";
-import { mockProjects, mockCashFlowData, mockLaborData } from "./constants/mockData";
 import WorkspaceActionBar from "./components/WorkspaceActionBar";
 import DevChecklist from "./components/DevChecklist";
 // FIX: Sửa lại import thư viện chuẩn
@@ -98,7 +97,42 @@ function AppInner() {
     navKey?: number;
   }>({});
 
-  const [projects, setProjects] = useState(mockProjects);
+  const [projects, setProjects] = useState<any[]>([]);
+
+  // Load projects từ Supabase
+  useEffect(() => {
+    const sb = (window as any).__supabase_client__ || null;
+    const loadProjects = async () => {
+      const { getSupabase } = await import('./components/supabase');
+      const client = getSupabase();
+      if (!client) return;
+      const { data } = await client
+        .from('projects')
+        .select('id,name,type,status,progress,budget,address,start_date,end_date,template_id,spi,ncr,hse,ntp_pending')
+        .order('created_at', { ascending: true });
+      if (data && data.length > 0) {
+        // Map snake_case DB columns → camelCase app fields
+        setProjects(data.map((p: any) => ({
+          id:          p.id,
+          name:        p.name,
+          type:        p.type,
+          status:      p.status,
+          progress:    p.progress,
+          budget:      p.budget,
+          address:     p.address,
+          startDate:   p.start_date,
+          endDate:     p.end_date,
+          templateId:  p.template_id,
+          spi:         p.spi,
+          ncr:         p.ncr,
+          hse:         p.hse,
+          ntp_pending: p.ntp_pending,
+          update:      'Cập nhật từ DB',
+        })));
+      }
+    };
+    loadProjects();
+  }, [user?.id]);
 
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(() => {
     // Restore last project on mount
@@ -141,6 +175,7 @@ function AppInner() {
   useEffect(() => {
     const handler = (e: StorageEvent) => {
       if (e.key === "gem_user_role" && e.newValue) setAppCurrentRole(e.newValue);
+      if (e.key === "gem_user_role_dev_override" && e.newValue) setAppCurrentRole(e.newValue);
     };
     window.addEventListener("storage", handler);
     const poll = setInterval(() => {
@@ -203,9 +238,9 @@ function AppInner() {
       Hãy tạo một "Báo cáo tổng kết dự án hàng tuần" chuyên nghiệp cho dự án "${proj.name}".
       Dữ liệu hiện tại của dự án:
       - Tiến độ: ${proj.progress}% (${proj.status})
-      - Tài chính (Dòng tiền): ${JSON.stringify(mockCashFlowData)}
+      - Tài chính (Dòng tiền): (load từ db.ts collection cash_flow)
       - Tài nguyên (Vật tư): Quản lý nội bộ qua MaterialsDashboard (kho, chứng từ, kiểm soát).
-      - Nhân lực (Lao động): ${JSON.stringify(mockLaborData)}
+      - Nhân lực (Lao động): (load từ db.ts collection manpower)
       - Thiết bị: Tổng số 24, đang hoạt động 18 (75% công suất), 4 đang bảo dưỡng, 2 rảnh rỗi.
       Yêu cầu báo cáo bao gồm các phần: Tổng quan, Tiến độ, Tài nguyên, Nhân lực, Thiết bị, Rủi rỏ & Đề xuất.`;
 
@@ -605,7 +640,7 @@ function AppInner() {
           {/* Content Area — flex-1 để header sticky ở trên */}
           <div className="flex-1 min-h-0">
           {activeTab === "dashboard" ? (
-            <Dashboard onNavigate={handleNavigate} />
+            <Dashboard onNavigate={handleNavigate} projects={projects} />
           ) : activeTab === "tasks" ? (
             <ProjectDashboard
               key={projectDashboardState.navKey}
@@ -640,13 +675,13 @@ function AppInner() {
               }
             />
           ) : activeTab === "contacts" ? (
-            <Contacts />
+            <Contacts projects={projects} />
           ) : activeTab === "calendar" ? (
-            <CalendarSchedule />
+            <CalendarSchedule projects={projects} />
           ) : activeTab === "billing" ? (
             <BillingPage onClose={() => setActiveTab("dashboard")} />
           ) : activeTab === "admin" && isAdmin ? (
-            <AdminPanel currentUserId={user?.id ?? ""} />
+            <AdminPanel currentUserId={user?.id ?? ""} projects={projects} />
           ) : (
             <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6 md:p-10 min-h-[400px] flex flex-col items-center justify-center text-center">
               <div className="w-16 h-16 bg-emerald-50 rounded-full flex items-center justify-center mb-4">
@@ -702,7 +737,7 @@ function AppInner() {
                 </button>
               </div>
               <div className="flex-1 overflow-hidden">
-                <ChatAssistant />
+                <ChatAssistant projects={projects} />
               </div>
             </div>
           </>

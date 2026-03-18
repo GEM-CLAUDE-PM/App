@@ -43,7 +43,6 @@ import {
 } from "lucide-react";
 import { GEM_MODEL } from './gemini';
 import { GoogleGenerativeAI } from "@google/generative-ai";
-import { mockProjects } from "../constants/mockData";
 import { useNotification } from './NotificationEngine';
 
 // ── Gemini init — đúng theo SI v2: @google/generative-ai ─────────────────────
@@ -543,7 +542,7 @@ function EmptyState({ onSend, projectName }: { onSend: (t: string) => void; proj
 }
 
 // ══ MAIN COMPONENT ════════════════════════════════════════════════════════════
-export default function ChatAssistant() {
+export default function ChatAssistant({ projects = [] }: { projects?: any[] }) {
   const { ok: notifOk, err: notifErr, warn: notifWarn, info: notifInfo } = useNotification();
   const [mode, setMode] = useState<AppMode>("chat");
   const [messages, setMessages] = useState<Message[]>([]);
@@ -563,7 +562,7 @@ export default function ChatAssistant() {
   const recognitionRef = useRef<any>(null);
   const synthRef = useRef<SpeechSynthesisUtterance | null>(null);
   const [isLoading, setIsLoading] = useState(false);
-  const [selectedProjectId, setSelectedProjectId] = useState(mockProjects[0]?.id || "");
+  const [selectedProjectId, setSelectedProjectId] = useState((projects?.[0] as any)?.id || "");
   const [expandedLesson, setExpandedLesson] = useState<string | null>(null);
   const [expandedFaq, setExpandedFaq] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<"features" | "lessons" | "faq" | "tips">("features");
@@ -573,7 +572,7 @@ export default function ChatAssistant() {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const selectedProject = mockProjects.find((p) => p.id === selectedProjectId) || mockProjects[0];
+  const selectedProject = (projects || []).find((p:any) => p.id === selectedProjectId) || (projects?.[0] as any);
 
   // ── Init Gemini session — đúng SI v2: getGenerativeModel + startChat ───────
   useEffect(() => {
@@ -897,7 +896,7 @@ export default function ChatAssistant() {
                 className="text-xs font-semibold text-slate-700 bg-transparent focus:outline-none cursor-pointer max-w-[160px]"
               >
                 <option value="">— Chọn công trình —</option>
-                {mockProjects
+                {(projects || [])
                   .filter((p) => p.type === "in_progress")
                   .map((p) => (
                     <option key={p.id} value={p.id}>

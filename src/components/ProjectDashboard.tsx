@@ -9,7 +9,6 @@ import QaQcDashboard from './QaQcDashboard';
 import QSDashboard from './QSDashboard';
 import Markdown from 'react-markdown';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
-import { mockCashFlowData, seedProjectTemplates } from '../constants/mockData';
 
 // ── Sub-dashboard components ──────────────────────────────────────────────────
 import ManpowerDashboard  from './ManpowerDashboard';
@@ -32,6 +31,7 @@ import GemAIDashboard    from './GemAIDashboard';
 import RiskDashboard     from './RiskDashboard';
 import AccountingDashboard from './AccountingDashboard';
 import ApprovalQueue from './ApprovalQueue';
+import MemberSwitcher from './MemberSwitcher';
 import DelegationManager from './DelegationManager';
 import ProjectSetupWizard, { type NewProjectData } from './ProjectSetupWizard';
 import ProjectConfigPanel from './ProjectConfigPanel';
@@ -40,12 +40,13 @@ import {
   usePermissions, createLegacyContext, LEGACY_ROLE_MAP,
   filterProjectsByScope, getRoleProjectScope,
   AUTHORITY_LEVEL, ROLES,
-  type RoleId, type Domain, type UserContext,
+  type RoleId, type Domain,
 } from './permissions';
 import { getPendingCount } from './approvalEngine';
 import {
   getCurrentMember, buildCtxFromMember, switchActiveRole, setActiveMemberSnap,
-  loadMembers, saveMembers, type ProjectMember,
+  seedMembersIfEmpty, loadMembers, saveMembers, type ProjectMember,
+  getCurrentScopeCtx, autoAssignMemberOnSeed,
 } from './projectMember';
 
 
@@ -156,17 +157,22 @@ export default function ProjectDashboard({
   // currentRole — lấy trực tiếp từ AuthProvider (đã resolve đúng)
   // Dev mode: có thể override qua Dev Switcher
   const _authRole = (authRoleId || user?.job_role || 'operator') as UserRole;
-  const [currentRole, setCurrentRole] = useState<UserRole>(() => _authRole as UserRole);
+  const [currentRole, setCurrentRole] = useState<UserRole>(() => {
+    const devOverride = localStorage.getItem('gem_user_role_dev_override');
+    return (devOverride || _authRole) as UserRole;
+  });
 
-  // Sync role khi auth user thay đổi
+  // Sync khi auth user thay đổi — reset dev override, dùng role thật
   useEffect(() => {
     if (_authRole && _authRole !== 'operator') {
+      localStorage.removeItem('gem_user_role_dev_override');
       setCurrentRole(_authRole);
       localStorage.setItem('gem_user_role', _authRole);
     }
+    // Xóa override khi user = null (logout)
     if (!user) {
+      localStorage.removeItem('gem_user_role_dev_override');
       localStorage.removeItem('gem_user_role');
-      localStorage.removeItem('gem_active_member');
     }
   }, [user?.id, authRoleId]);
   const [contractUnlocked, setContractUnlocked] = useState<boolean>(() => {
@@ -204,31 +210,18 @@ export default function ProjectDashboard({
     const legacyToNew2: Record<string, string> = {
       giam_doc:'giam_doc', ke_toan:'ke_toan_site',
       chi_huy_truong:'chi_huy_truong', giam_sat:'ks_giam_sat',
-      admin:'giam_doc', thu_ky_ho:'thu_ky_site',
     };
     const domMap: Record<string, string[]> = {
-      giam_doc:['cross','admin'], pm:['cross','finance','qs','site'],
-      ke_toan_truong:['finance','cross'], ke_toan_site:['finance'],
-      ke_toan_kho:['finance','warehouse'],
-      truong_qs:['qs','cross'], truong_qaqc:['qaqc','cross'],
-      truong_hse:['hse','cross'], hr_truong:['hr','cross'],
-      chi_huy_truong:['site','cross'], chi_huy_pho:['site','cross'],
-      ks_giam_sat:['site','qaqc'], qaqc_site:['qaqc'], qs_site:['qs'],
-      hse_site:['hse'], hr_site:['hr','site'],
-      thu_kho:['warehouse'], thu_ky_site:['admin'],
-      operator:['site'], ntp_site:['site'], to_doi:['site'],
-      ky_thuat_vien:['site','qaqc'],
+      giam_doc:['cross'], ke_toan_site:['finance'],
+      chi_huy_truong:['site','cross'], ks_giam_sat:['site','qaqc'],
+      pm:['cross'], chi_huy_pho:['site','cross'],
+      thu_kho:['warehouse'], qs_site:['qs'],
     };
     const lvlMap: Record<string, number> = {
-      giam_doc:5, pm:4, ke_toan_truong:4,
-      truong_qs:3, truong_qaqc:3, truong_hse:3, hr_truong:3,
-      chi_huy_truong:3, chi_huy_pho:3,
-      qs_site:2, qaqc_site:2, ks_giam_sat:2, hse_site:2,
-      ke_toan_site:2, ke_toan_kho:2, hr_site:2,
-      thu_kho:1, thu_ky_site:1, operator:1,
-      ntp_site:1, to_doi:1, ky_thuat_vien:1,
+      giam_doc:5, ke_toan_site:2, chi_huy_truong:3, ks_giam_sat:2,
+      pm:4, chi_huy_pho:3, thu_kho:1, qs_site:2,
     };
-    const rid = legacyToNew2[currentRole] || currentRole;
+    const rid = legacyToNew2[currentRole] || 'ks_giam_sat';
     const d = domMap[rid] || [];
     const l = lvlMap[rid] || 1;
     setOpenGroups({
@@ -357,12 +350,13 @@ export default function ProjectDashboard({
 
   // Seed members cho project hiện tại khi chọn
   useEffect(() => {
+    if (localProjectId) seedMembersIfEmpty(localProjectId);
   }, [localProjectId]);
 
   // Seed members cho TẤT CẢ projects khi portfolio view mount lần đầu
   // → đảm bảo gem_member_projects_* có data trước khi scope filter chạy
   useEffect(() => {
-    seedProjectTemplates(); // G2 fix: seed templateId vào localStorage cho mỗi mock project
+    projects.forEach((p: any) => seedMembersIfEmpty(p.id));
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []); // chỉ chạy 1 lần khi mount
 
@@ -380,7 +374,8 @@ export default function ProjectDashboard({
   // Load permission overrides từ Supabase
   useEffect(() => {
     const sb = getSupabase();
-    if (!sb || !localProjectId) { setPermOverrides({}); return; }
+    const useReal = (import.meta as any).env?.VITE_USE_SUPABASE === 'true';
+    if (!sb || !useReal || !localProjectId) { setPermOverrides({}); return; }
     sb.auth.getUser().then(({ data }) => {
       if (!data.user) return;
       sb.from('project_member_overrides')
@@ -593,26 +588,15 @@ export default function ProjectDashboard({
       giam_doc:['cross','admin'], pm:['cross','finance','qs','site'],
       ke_toan_truong:['finance','cross'], truong_qs:['qs','cross'],
       truong_qaqc:['qaqc','cross'], truong_hse:['hse','cross'],
-      hr_truong:['hr','cross'],
       chi_huy_truong:['site','cross'], chi_huy_pho:['site','cross'],
       qs_site:['qs'], qaqc_site:['qaqc'], ks_giam_sat:['site','qaqc'],
       hse_site:['hse'], ke_toan_site:['finance'], ke_toan_kho:['finance','warehouse'],
-      hr_site:['hr','site'],
-      thu_kho:['warehouse'], thu_ky_site:['admin'], operator:['site'],
-      ntp_site:['site'], to_doi:['site'], ky_thuat_vien:['site','qaqc'],
+      thu_kho:['warehouse'], thu_ky_site:['admin'],
     };
     const _legacyToNew: Record<string, string> = {
       giam_doc:'giam_doc', ke_toan:'ke_toan_site', ke_toan_truong:'ke_toan_truong',
       chi_huy_truong:'chi_huy_truong', giam_sat:'ks_giam_sat',
       pm:'pm', chi_huy_pho:'chi_huy_pho', thu_kho:'thu_kho', qs_site:'qs_site',
-      // Legacy fallbacks
-      admin:'giam_doc', thu_ky_ho:'thu_ky_site',
-      // New roles pass-through
-      truong_qs:'truong_qs', truong_qaqc:'truong_qaqc', truong_hse:'truong_hse',
-      hr_truong:'hr_truong', qaqc_site:'qaqc_site', ks_giam_sat:'ks_giam_sat',
-      hse_site:'hse_site', ke_toan_kho:'ke_toan_kho', hr_site:'hr_site',
-      thu_ky_site:'thu_ky_site', operator:'operator',
-      ntp_site:'ntp_site', to_doi:'to_doi', ky_thuat_vien:'ky_thuat_vien',
     };
     const _roleKey = _legacyToNew[currentRole] || currentRole;
     const uLevel   = _lvlMap[_roleKey] ?? 1;
@@ -747,7 +731,7 @@ export default function ProjectDashboard({
                   className="text-[10px] text-emerald-600 hover:underline font-semibold">Xem chi tiết →</button>
               </div>
               <ResponsiveContainer width="100%" height={100}>
-                <BarChart data={mockCashFlowData} barSize={10} margin={{ top:2,right:2,bottom:0,left:-30 }}>
+                <BarChart data={[]} barSize={10} margin={{ top:2,right:2,bottom:0,left:-30 }}>
                   <XAxis dataKey="month" tick={{ fontSize:9, fill:'#94a3b8' }} axisLine={false} tickLine={false}/>
                   <YAxis tick={{ fontSize:9, fill:'#94a3b8' }} axisLine={false} tickLine={false}/>
                   <Bar dataKey="thu" fill="#10b981" radius={[3,3,0,0]} name="Thu"/>
@@ -989,7 +973,7 @@ export default function ProjectDashboard({
     }
 
     if (activeTab === 'approval-queue') {
-      const member      = getCurrentMember(localProjectId, authRoleId || undefined, user?.id || undefined);
+      const member      = getCurrentMember(localProjectId);
       const approvalCtx = buildCtxFromMember(member);
       return (
         <div className="flex flex-col h-full">
@@ -1097,13 +1081,7 @@ export default function ProjectDashboard({
     const allProjects: any[] = allowedProjectIds === null
       ? (projects as any[])
       : (projects as any[]).filter((p: any) => allowedProjectIds!.includes(p.id));
-    // scopeCtx — dùng authRoleId từ useAuth() (source of truth), KHÔNG đọc localStorage
-    const _scopeRoleId = (authRoleId || 'chi_huy_truong') as RoleId;
-    const scopeCtx: UserContext = {
-      userId: user?.id || `user_${_scopeRoleId}`,
-      roleId: _scopeRoleId,
-      allowedProjectIds: allowedProjectIds ?? undefined,
-    };
+    const scopeCtx = getCurrentScopeCtx(); // vẫn dùng cho filterProjectsByScope ở chỗ khác
 
     const inProgressProjects = allProjects.filter(p => p.type === 'in_progress');
     const potentialProjects   = allProjects.filter(p => p.type === 'potential');
@@ -1386,6 +1364,7 @@ export default function ProjectDashboard({
             setLocalProjectId(newProject.id);
             setActiveTab('overview');
             setShowSetupWizard(false);
+            setTimeout(() => autoAssignMemberOnSeed(newProject.id), 100);
           }}
         />,
         document.body
@@ -1573,6 +1552,105 @@ export default function ProjectDashboard({
         <p className="text-[10px] md:text-sm text-slate-500">Quản lý tiến độ, vật tư, nhân lực và dòng tiền dự án.</p>
       </div>
 
+      {/* ── Dev Login Switcher — chỉ hiện khi VITE_USE_SUPABASE=false ── */}
+      {(import.meta as any).env?.VITE_USE_SUPABASE !== 'true' && (() => {
+        const DEV_USERS = [
+          { roleId:'giam_doc',       name:'Trần Văn Bình',      email:'gdda@villaphat.vn',       lvl:5, color:'#7c3aed' },
+          { roleId:'pm',             name:'Nguyễn Thành Nam',   email:'pm@villaphat.vn',         lvl:4, color:'#1a8a7a' },
+          { roleId:'ke_toan_truong', name:'Nguyễn Thu Hà',      email:'ketoan@villaphat.vn',     lvl:4, color:'#0891b2' },
+          { roleId:'truong_qs',      name:'Lê Minh Tuấn',       email:'truongqs@villaphat.vn',   lvl:3, color:'#0284c7' },
+          { roleId:'truong_qaqc',    name:'Phạm Thị Thảo',      email:'truongqaqc@villaphat.vn', lvl:3, color:'#059669' },
+          { roleId:'truong_hse',     name:'Lê Văn Hải',         email:'trunghse@villaphat.vn',   lvl:3, color:'#dc2626' },
+          { roleId:'chi_huy_truong', name:'Nguyễn Văn Anh',     email:'cht@villaphat.vn',        lvl:3, color:'#b45309' },
+          { roleId:'chi_huy_pho',    name:'Trần Hữu Lộc',       email:'chp@villaphat.vn',        lvl:3, color:'#b45309' },
+          { roleId:'ks_giam_sat',    name:'Hoàng Việt Hùng',    email:'gsat@villaphat.vn',       lvl:2, color:'#7c3aed' },
+          { roleId:'qs_site',        name:'Phạm Quang Minh',    email:'qs01@villaphat.vn',       lvl:2, color:'#0284c7' },
+          { roleId:'qaqc_site',      name:'Trần Thị Bích',      email:'qaqc01@villaphat.vn',     lvl:2, color:'#059669' },
+          { roleId:'hse_site',       name:'Ngô Thanh Sơn',      email:'hse01@villaphat.vn',      lvl:2, color:'#dc2626' },
+          { roleId:'ke_toan_site',   name:'Lê Thị Mai',         email:'ktsite@villaphat.vn',     lvl:2, color:'#0891b2' },
+          { roleId:'ke_toan_kho',    name:'Đinh Văn Khoa',      email:'ktkho@villaphat.vn',      lvl:2, color:'#0891b2' },
+          { roleId:'thu_kho',        name:'Trần Quốc Tuấn',     email:'thukho@villaphat.vn',     lvl:1, color:'#c47a5a' },
+          { roleId:'thu_ky_site',    name:'Nguyễn Phương Linh', email:'thuky@villaphat.vn',      lvl:1, color:'#64748b' },
+          { roleId:'operator',       name:'Lê Văn Toàn',        email:'op01@villaphat.vn',       lvl:1, color:'#64748b' },
+          { roleId:'to_doi',         name:'Phạm Văn Đức',       email:'todoi@villaphat.vn',      lvl:1, color:'#ea580c' },
+        ];
+        const activeUser = DEV_USERS.find(u => u.roleId === currentRole) || DEV_USERS[0];
+        const [showDevPicker, setShowDevPicker] = React.useState(false);
+        const lvlColor: Record<number,string> = { 5:'bg-violet-600', 4:'bg-teal-600', 3:'bg-amber-600', 2:'bg-blue-500', 1:'bg-slate-500' };
+        return (
+          <div className="mb-3 print:hidden">
+            <div className="flex items-center gap-2">
+              {/* Current user badge */}
+              <button
+                onClick={() => setShowDevPicker(v => !v)}
+                className="flex items-center gap-2 px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-white rounded-xl text-xs font-medium transition-colors"
+              >
+                <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded ${lvlColor[activeUser.lvl]} text-white`}>L{activeUser.lvl}</span>
+                <span>{activeUser.name}</span>
+                <span className="text-slate-400 text-[10px]">— {(ROLES as any)[activeUser.roleId]?.label || activeUser.roleId}</span>
+                <ChevronDown size={12} className={`text-slate-400 transition-transform ${showDevPicker ? 'rotate-180' : ''}`}/>
+              </button>
+              <span className="text-[10px] text-slate-400 bg-amber-50 border border-amber-200 text-amber-700 px-2 py-1 rounded-lg font-medium">DEV MODE</span>
+              {(['giam_doc','pm'].includes(currentRole)) && (
+                <button onClick={() => setShowThresholdPanel(v => !v)}
+                  className="text-[10px] font-bold text-emerald-600 bg-emerald-50 border border-emerald-200 px-2 py-1.5 rounded-lg hover:bg-emerald-100 transition-colors">
+                  ⚙ Ngưỡng
+                </button>
+              )}
+              {contractUnlocked && (
+                <span className="flex items-center gap-1 text-[10px] font-bold text-emerald-600 bg-emerald-50 border border-emerald-200 px-2 py-1.5 rounded-lg">
+                  <Unlock size={9}/> HĐ mở
+                </span>
+              )}
+            </div>
+            {/* User picker dropdown */}
+            {showDevPicker && (
+              <div className="mt-2 bg-slate-900 rounded-2xl p-3 shadow-2xl border border-slate-700">
+                <p className="text-[10px] text-slate-400 font-medium mb-2 uppercase tracking-wide">Đăng nhập thử với role</p>
+                <div className="grid grid-cols-2 gap-1.5">
+                  {DEV_USERS.map(u => (
+                    <button key={u.roleId}
+                      onClick={() => {
+                        // Set role chính
+                        setCurrentRole(u.roleId as UserRole);
+                        localStorage.setItem('gem_user_role_dev_override', u.roleId);
+                        localStorage.setItem('gem_user_role', u.roleId);
+                        localStorage.removeItem(SESSION_KEY);
+                        setContractUnlocked(false);
+                        setShowDevPicker(false);
+                        setActiveTab('overview');
+                        // Cập nhật member.roles trong DA để union logic đúng
+                        if (localProjectId) {
+                          const members = loadMembers(localProjectId);
+                          const matchIdx = members.findIndex(m => m.activeRoleId === u.roleId || m.roles.includes(u.roleId));
+                          if (matchIdx >= 0) {
+                            members[matchIdx] = { ...members[matchIdx], activeRoleId: u.roleId };
+                            saveMembers(localProjectId, members);
+                            localStorage.setItem(`gem_current_member_${localProjectId}`, JSON.stringify(members[matchIdx]));
+                          }
+                        }
+                      }}
+                      className={`flex items-center gap-2 px-2.5 py-2 rounded-xl text-left transition-colors ${
+                        u.roleId === currentRole
+                          ? 'bg-white/15 ring-1 ring-white/30'
+                          : 'hover:bg-white/10'
+                      }`}
+                    >
+                      <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded shrink-0 ${lvlColor[u.lvl]} text-white`}>L{u.lvl}</span>
+                      <div className="min-w-0">
+                        <p className="text-[11px] font-medium text-white truncate">{u.name}</p>
+                        <p className="text-[9px] text-slate-400 truncate">{(ROLES as any)[u.roleId]?.label || u.roleId}</p>
+                      </div>
+                      {u.roleId === currentRole && <span className="ml-auto text-emerald-400 text-[10px] shrink-0">✓</span>}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        );
+      })()}
+
       {/* ── Threshold Config Panel (L4+) ── */}
       {showThresholdPanel && ['giam_doc','pm'].includes(currentRole) && (
         <div className="mb-4 bg-white border border-emerald-200 rounded-2xl p-4 shadow-sm print:hidden">
@@ -1645,10 +1723,6 @@ export default function ProjectDashboard({
           ke_toan: 'ke_toan_site', ke_toan_truong: 'ke_toan_truong',
           giam_sat: 'ks_giam_sat', chi_huy_truong: 'chi_huy_truong',
           chi_huy_pho: 'chi_huy_pho',
-          // Legacy admin → giam_doc (superuser)
-          admin: 'giam_doc',
-          // Legacy thu_ky_ho → thu_ky_site
-          thu_ky_ho: 'thu_ky_site',
           // New role IDs — pass-through
           truong_qs: 'truong_qs', truong_qaqc: 'truong_qaqc',
           truong_hse: 'truong_hse', hr_truong: 'hr_truong',
@@ -1698,7 +1772,7 @@ export default function ProjectDashboard({
 
         // ── Union roles: user được làm gì = union của TẤT CẢ roles trong DA ──
         // Không phải "đóng vai" — 1 user có thể kiêm nhiều roles
-        const _member = localProjectId ? getCurrentMember(localProjectId, authRoleId || undefined, user?.id || undefined) : null;
+        const _member = localProjectId ? getCurrentMember(localProjectId) : null;
         const activeRoleId = (legacyToNew[currentRole] || 'operator') as RoleId;
         const permCtx = _member ? buildCtxFromMember(_member) : { userId: `user_${currentRole}`, roleId: activeRoleId };
 
@@ -2138,6 +2212,7 @@ export default function ProjectDashboard({
             setLocalProjectId(newProject.id);
             setActiveTab('overview');
             setShowSetupWizard(false);
+            setTimeout(() => autoAssignMemberOnSeed(newProject.id), 100);
           }}
         />,
         document.body

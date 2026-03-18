@@ -5,7 +5,6 @@ import {
   LayoutGrid, List, CloudRain, Sun, Cloud, CloudSun,
   Filter, Tag, Save, Loader2, Wind, Droplets,
 } from 'lucide-react';
-import { mockProjects } from '../constants/mockData';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 type EventType = 'meeting' | 'inspection' | 'construction' | 'payment' | 'other';
@@ -106,7 +105,7 @@ function EventModal({ event, defaultDate, onSave, onClose }: ModalProps) {
     type:      event?.type      || 'meeting',
     status:    event?.status    || 'upcoming',
     location:  event?.location  || '',
-    projectId: event?.projectId || mockProjects[0]?.id || '',
+    projectId: event?.projectId || (projects?.[0] as any)?.id || '',
     note:      event?.note      || '',
     alert:     event?.alert     || '',
   });
@@ -160,7 +159,7 @@ function EventModal({ event, defaultDate, onSave, onClose }: ModalProps) {
                 className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm text-slate-800
                   focus:outline-none focus:ring-2 focus:ring-emerald-400 bg-white">
                 <option value="">— Chung —</option>
-                {mockProjects.filter(p => p.type === 'in_progress').map(p =>
+                {(projects || []).filter((p:any) => p.type === 'in_progress').map((p:any) =>
                   <option key={p.id} value={p.id}>{p.name}</option>
                 )}
               </select>
@@ -248,7 +247,7 @@ function EventModal({ event, defaultDate, onSave, onClose }: ModalProps) {
 // ══ MAIN ══════════════════════════════════════════════════════════════════════
 import { db } from './db';
 
-export default function CalendarSchedule() {
+export default function CalendarSchedule({ projects = [] }: { projects?: any[] }) {
   const [events, setEvents]           = useState<CalEvent[]>([]);
   const [viewMode, setViewMode]       = useState<'timeline'|'month'>('timeline');
   const [anchorDate, setAnchorDate]   = useState(new Date());
@@ -354,7 +353,7 @@ export default function CalendarSchedule() {
 
   // project name helper
   function projName(id: string) {
-    return mockProjects.find(p => p.id === id)?.name || 'Chung';
+    return (projects || []).find((p:any) => p.id === id)?.name || 'Chung';
   }
 
   return (
@@ -385,7 +384,7 @@ export default function CalendarSchedule() {
             <select value={filterProject} onChange={e => setFilterProject(e.target.value)}
               className="text-xs font-medium text-slate-700 bg-transparent focus:outline-none cursor-pointer">
               <option value="all">Tất cả dự án</option>
-              {mockProjects.filter(p => p.type === 'in_progress').map(p =>
+              {(projects || []).filter((p:any) => p.type === 'in_progress').map((p:any) =>
                 <option key={p.id} value={p.id}>{p.name}</option>
               )}
             </select>
@@ -536,7 +535,7 @@ export default function CalendarSchedule() {
                   {dayEvents.map((ev, idx) => {
                     const ts = getTypeStyle(ev.type);
                     const isDone = ev.status === 'completed';
-                    const proj = mockProjects.find(p => p.id === ev.projectId);
+                    const proj = (projects || []).find((p:any) => p.id === ev.projectId);
                     return (
                       <div key={ev.id} className="flex gap-3 group">
                         {/* Time */}

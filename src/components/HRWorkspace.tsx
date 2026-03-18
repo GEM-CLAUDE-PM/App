@@ -3,7 +3,7 @@ import ModalForm, { FormRow, FormGrid, FormSection, inputCls, selectCls, BtnCanc
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { LayoutDashboard, Folder, TrendingUp, Clock, HardDrive, CheckCircle2, Lock, FileText, Image as ImageIcon, Files, ClipboardList, ExternalLink, BookOpen, UploadCloud, Loader2, Plus, Printer, Users, HardHat, Camera, ShieldAlert, Sun, MessageCircle, Network, HeartPulse, AlertTriangle, Mic, Edit3, Unlock, X, Award, Target, GraduationCap, Briefcase, ChevronRight, ArrowRight, Building2, CheckCircle, CircleDashed, ArrowLeft, ChevronDown, Cloud, Download, Eye, MoreVertical, ChevronLeft, Calendar, ShieldCheck, Trash2, Sparkles, User, Info, ChevronUp, Wrench, Truck, Fuel, Activity, Zap, Settings, AlertCircle, Search, Scan, FileSpreadsheet, Save, Calculator, Copy, CalendarOff } from 'lucide-react';
 import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
-import { mockProjects, mockCashFlowData, mockMaterialData, mockLaborData, mockOrgData, COLORS, mockAttendancePayrollData } from '../constants/mockData';
+const COLORS = ['#3b82f6','#f59e0b','#10b981','#8b5cf6'];
 import { OrgNode } from './dashboard/OrgChart';
 
 import { createDocument, submitDocument, getApprovalQueue, type ApprovalDoc } from './approvalEngine';

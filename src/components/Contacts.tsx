@@ -6,7 +6,6 @@ import {
   FileText, ChevronDown, ChevronUp, Tag, Sparkles,
   CheckCircle2, Clock, Image as ImageIcon,
 } from 'lucide-react';
-import { mockProjects } from '../constants/mockData';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 type ContactType = 'client' | 'contractor' | 'supplier' | 'consultant' | 'other';
@@ -201,7 +200,7 @@ function ContactModal({ contact, onSave, onClose }: FormProps) {
   }
 
   const valid = form.company.trim().length > 0;
-  const activePjs = mockProjects.filter(p => p.type === 'in_progress');
+  const activePjs = (projects || []).filter((p:any) => p.type === 'in_progress');
 
   return (
     <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-50 flex items-center justify-center p-4"
@@ -426,7 +425,7 @@ function ContactCard({ contact, onEdit, onDelete, onUpdate }: {
   onUpdate: (c: Contact) => void;
 }) {
   const [expanded, setExpanded] = useState(false);
-  const linkedProjects = mockProjects.filter(p => contact.projectIds.includes(p.id));
+  const linkedProjects = (projects || []).filter((p:any) => contact.projectIds?.includes(p.id));
 
   return (
     <div className="bg-white rounded-2xl border border-slate-200 shadow-sm hover:shadow-md transition-shadow flex flex-col group">
@@ -533,7 +532,7 @@ function ContactCard({ contact, onEdit, onDelete, onUpdate }: {
 function ContactRow({ contact, onEdit, onDelete }: {
   contact: Contact; onEdit: () => void; onDelete: () => void;
 }) {
-  const linkedProjects = mockProjects.filter(p => contact.projectIds.includes(p.id));
+  const linkedProjects = (projects || []).filter((p:any) => contact.projectIds?.includes(p.id));
   return (
     <tr className="hover:bg-slate-50 transition-colors group border-b border-slate-100 last:border-0">
       <td className="px-4 py-3">
@@ -592,7 +591,7 @@ function ContactRow({ contact, onEdit, onDelete }: {
 // ══ MAIN ══════════════════════════════════════════════════════════════════════
 import { db } from './db';
 
-export default function Contacts() {
+export default function Contacts({ projects = [] }: { projects?: any[] }) {
   const [contacts, setContacts]       = useState<Contact[]>([]);
   const [search, setSearch]           = useState('');
   const [filterType, setFilterType]   = useState<ContactType | 'all'>('all');
@@ -651,7 +650,7 @@ export default function Contacts() {
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h2 className="text-lg md:text-2xl font-bold text-slate-800 leading-tight">Danh bạ đối tác</h2>
-          <p className="text-xs text-slate-500 mt-0.5">{contacts.length} liên hệ · {mockProjects.filter(p=>p.type==='in_progress').length} dự án đang chạy</p>
+          <p className="text-xs text-slate-500 mt-0.5">{contacts.length} liên hệ · {(projects||[]).filter((p:any)=>p.type==='in_progress').length} dự án đang chạy</p>
         </div>
         <div className="flex items-center gap-2 flex-wrap">
           {/* GEM Scan */}

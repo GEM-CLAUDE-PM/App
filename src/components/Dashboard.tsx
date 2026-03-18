@@ -11,13 +11,11 @@ import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip,
   ResponsiveContainer,
 } from 'recharts';
-import { mockProjects, mockPortfolioCashFlow } from '../constants/mockData';
 import PortfolioAnalytics from './PortfolioAnalytics';
 
 // ── Gemini init ───────────────────────────────────────────────────────────────
 
 // ── Mock data ─────────────────────────────────────────────────────────────────
-// PORTFOLIO_CASHFLOW — dùng từ mockData.ts (mockPortfolioCashFlow)
 
 const RISK_ITEMS = [
   { id:'r1', icon: XCircle,     color:'rose',   label:'NCR đang mở',            value:4, unit:'phiếu', urgent:true,  projectId:'p1', subTab:'qa-qc'    },
@@ -38,7 +36,6 @@ const ACTION_TASKS = [
   { id:7, title:'Gia hạn bảo hiểm máy lu Sakai',    project:'TN Delta',  projectId:'p3', subTab:'equipment', deadline:'T6',    type:'week' as const,    source:'ai'       },
 ];
 
-// PROJECT_PULSE — dùng thẳng mockProjects (đã có spi, ncr, hse, ntp_pending)
 
 const KPI_DATA = [
   { label:'Dự án đang chạy',     value:'3',       sub:'+1 tiềm năng',      icon:HardHat,    color:'emerald', trend:'up'   },
@@ -99,7 +96,8 @@ function Divider({ label }: { label: string }) {
 }
 
 // ══ MAIN ══════════════════════════════════════════════════════════════════════
-export default function Dashboard({ onNavigate }: {
+export default function Dashboard({ onNavigate, projects = [] }: {
+  projects?: any[];
   onNavigate: (tab: string, projectId?: string, subTab?: string) => void
 }) {
   const [isMounted, setIsMounted]       = useState(false);
@@ -250,7 +248,7 @@ Rủi ro: 6 NCR mở, 3 HĐ NTP chưa TT ~12.8 Tỷ, 2 thiết bị sắp hạn 
       <div>
         <Divider label="Pulse từng dự án — click để vào"/>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-4">
-          {mockProjects.filter(p => p.type === 'in_progress').map(proj => {
+          {(projects || []).filter((p:any) => p.type === 'in_progress').map((proj:any) => {
             const spi = proj.spi ?? 1;
             const sc = spi >= 0.95 ? 'emerald' : spi >= 0.85 ? 'amber' : 'rose';
             const pct = proj.progress || 0;
@@ -442,7 +440,7 @@ Rủi ro: 6 NCR mở, 3 HĐ NTP chưa TT ~12.8 Tỷ, 2 thiết bị sắp hạn 
             <div className="h-48 md:h-52 min-w-0">
               {isMounted && (
                 <ResponsiveContainer width="100%" height="100%">
-                  <AreaChart data={mockPortfolioCashFlow} margin={{top:5,right:5,left:-22,bottom:0}}>
+                  <AreaChart data={[]} margin={{top:5,right:5,left:-22,bottom:0}}>
                     <defs>
                       <linearGradient id="gThu" x1="0" y1="0" x2="0" y2="1">
                         <stop offset="5%"  stopColor="#10b981" stopOpacity={0.15}/>
@@ -536,7 +534,7 @@ Rủi ro: 6 NCR mở, 3 HĐ NTP chưa TT ~12.8 Tỷ, 2 thiết bị sắp hạn 
       <div>
         <Divider label="Portfolio Analytics — So sánh KPI toàn danh mục"/>
         <div className="mt-4">
-          <PortfolioAnalytics projects={mockProjects as any} onNavigate={onNavigate} />
+          <PortfolioAnalytics projects={projects as any} onNavigate={onNavigate} />
         </div>
       </div>
 
