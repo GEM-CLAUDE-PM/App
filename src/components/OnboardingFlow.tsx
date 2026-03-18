@@ -162,10 +162,10 @@ export default function OnboardingFlow({ onComplete, onSkip }: OnboardingFlowPro
                 <p className="text-sm text-slate-500 mt-0.5">Sẽ hiển thị trên báo cáo và hóa đơn. Có thể chỉnh sau.</p>
               </div>
               <FormGrid cols={2}>
-                <FormRow label="Tên công ty *" className="col-span-2">
+                <div className="col-span-2"><FormRow label="Tên công ty *">
                   <input className={inputCls} placeholder="VD: Công ty TNHH XD Phúc Thành"
                     value={company.name} onChange={e => setCompany(p => ({...p, name: e.target.value}))}/>
-                </FormRow>
+                </FormRow></div>
                 <FormRow label="Mã số thuế">
                   <input className={inputCls} placeholder="0123456789"
                     value={company.tax_code} onChange={e => setCompany(p => ({...p, tax_code: e.target.value}))}/>
@@ -174,10 +174,10 @@ export default function OnboardingFlow({ onComplete, onSkip }: OnboardingFlowPro
                   <input className={inputCls} placeholder="028 1234 5678"
                     value={company.phone} onChange={e => setCompany(p => ({...p, phone: e.target.value}))}/>
                 </FormRow>
-                <FormRow label="Địa chỉ" className="col-span-2">
+                <div className="col-span-2"><FormRow label="Địa chỉ">
                   <input className={inputCls} placeholder="Số nhà, đường, quận, tỉnh/thành phố"
                     value={company.address} onChange={e => setCompany(p => ({...p, address: e.target.value}))}/>
-                </FormRow>
+                </FormRow></div>
               </FormGrid>
             </div>
           )}
@@ -190,10 +190,10 @@ export default function OnboardingFlow({ onComplete, onSkip }: OnboardingFlowPro
                 <p className="text-sm text-slate-500 mt-0.5">Có thể thêm nhiều dự án sau khi thiết lập xong.</p>
               </div>
               <FormGrid cols={2}>
-                <FormRow label="Tên dự án *" className="col-span-2">
+                <div className="col-span-2"><FormRow label="Tên dự án *">
                   <input className={inputCls} placeholder="VD: Villa PAT — Quận 9 HCMC"
                     value={project.name} onChange={e => setProject(p => ({...p, name: e.target.value}))}/>
-                </FormRow>
+                </FormRow></div>
                 <FormRow label="Loại công trình">
                   <select className={selectCls} value={project.type}
                     onChange={e => setProject(p => ({...p, type: e.target.value}))}>
@@ -212,10 +212,10 @@ export default function OnboardingFlow({ onComplete, onSkip }: OnboardingFlowPro
                   <input type="date" className={inputCls}
                     onChange={e => setProject(p => ({...p, start_date: e.target.value}))}/>
                 </FormRow>
-                <FormRow label="Ngân sách (tỷ VNĐ)" className="col-span-2">
+                <div className="col-span-2"><FormRow label="Ngân sách (tỷ VNĐ)">
                   <input type="number" step="0.1" className={inputCls} placeholder="VD: 45.5"
                     value={project.budget} onChange={e => setProject(p => ({...p, budget: e.target.value}))}/>
-                </FormRow>
+                </FormRow></div>
               </FormGrid>
             </div>
           )}

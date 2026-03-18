@@ -403,17 +403,17 @@ export default function SubconPortal() {
         footer={<><BtnCancel onClick={() => setShowDocForm(false)}/><BtnSubmit label="Nộp hồ sơ" onClick={handleSubmitDoc}/></>}
       >
         <FormGrid cols={2}>
-          <FormRow label="Tiêu đề *" className="col-span-2">
+          <div className="col-span-2"><FormRow label="Tiêu đề *">
             <input className={inputCls} placeholder="VD: Đề nghị thanh toán đợt 3" value={docForm.title ?? ''} onChange={e => setDocForm(p => ({...p, title: e.target.value}))}/>
-          </FormRow>
-          <FormRow label="Loại tài liệu" className="col-span-2">
+          </FormRow></div>
+          <div className="col-span-2"><FormRow label="Loại tài liệu">
             <select className={selectCls} value={docForm.type} onChange={e => setDocForm(p => ({...p, type: e.target.value as SubconDocument['type']}))}>
               {(Object.entries(TYPE_LABEL) as [SubconDocument['type'], string][]).map(([k,v]) => <option key={k} value={k}>{v}</option>)}
             </select>
-          </FormRow>
-          <FormRow label="Ghi chú" className="col-span-2">
+          </FormRow></div>
+          <div className="col-span-2"><FormRow label="Ghi chú">
             <textarea rows={2} className={inputCls + ' resize-none'} value={docForm.notes ?? ''} onChange={e => setDocForm(p => ({...p, notes: e.target.value}))}/>
-          </FormRow>
+          </FormRow></div>
         </FormGrid>
       </ModalForm>
 

@@ -420,9 +420,9 @@ export default function RiskDashboard({ project: selectedProject, projectId: pro
       >
         <FormSection title="Thông tin rủi ro">
           <FormGrid cols={2}>
-            <FormRow label="Tiêu đề *" className="col-span-2">
+            <div className="col-span-2"><FormRow label="Tiêu đề *">
               <input className={inputCls} placeholder="Mô tả ngắn gọn rủi ro" value={riskForm.title ?? ''} onChange={e => setRiskForm(p => ({...p, title: e.target.value}))}/>
-            </FormRow>
+            </FormRow></div>
             <FormRow label="Danh mục">
               <select className={selectCls} value={riskForm.category} onChange={e => setRiskForm(p => ({...p, category: e.target.value as RiskCategory}))}>
                 {(Object.entries(CAT_LABEL) as [RiskCategory, string][]).map(([k,v]) => <option key={k} value={k}>{v}</option>)}
@@ -431,9 +431,9 @@ export default function RiskDashboard({ project: selectedProject, projectId: pro
             <FormRow label="Người phụ trách *">
               <input className={inputCls} placeholder="Tên / chức vụ" value={riskForm.owner ?? ''} onChange={e => setRiskForm(p => ({...p, owner: e.target.value}))}/>
             </FormRow>
-            <FormRow label="Mô tả" className="col-span-2">
+            <div className="col-span-2"><FormRow label="Mô tả">
               <textarea rows={2} className={inputCls + ' resize-none'} value={riskForm.description ?? ''} onChange={e => setRiskForm(p => ({...p, description: e.target.value}))}/>
-            </FormRow>
+            </FormRow></div>
           </FormGrid>
         </FormSection>
         <FormSection title="Đánh giá">
@@ -456,7 +456,7 @@ export default function RiskDashboard({ project: selectedProject, projectId: pro
           </FormGrid>
         </FormSection>
         <FormSection title="Biện pháp">
-          <FormGrid cols={1}>
+          <FormGrid cols={2}>
             <FormRow label="Biện pháp xử lý *">
               <input className={inputCls} placeholder="Hành động để giảm thiểu rủi ro" value={riskForm.mitigation ?? ''} onChange={e => setRiskForm(p => ({...p, mitigation: e.target.value}))}/>
             </FormRow>
