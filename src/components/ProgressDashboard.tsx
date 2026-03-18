@@ -667,7 +667,7 @@ export default function ProgressDashboard({ project: selectedProject, projectId:
                           className="w-full text-xs border border-slate-200 rounded-lg px-2 py-1 bg-white focus:outline-none focus:ring-1 focus:ring-emerald-400 cursor-pointer"
                         >
                           {loadMembers(pid).map(m => (
-                            <option key={m.userId} value={m.fullName}>{m.fullName}</option>
+                            <option key={m.userId} value={m.userName}>{m.userName}</option>
                           ))}
                           {/* Fallback nếu chưa có members */}
                           {loadMembers(pid).length === 0 && (
