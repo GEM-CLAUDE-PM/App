@@ -254,7 +254,7 @@ export function applyDelegationsToCtx(
   const reasons: string[] = [];
 
   for (const d of delegations) {
-    maxLevel = Math.max(maxLevel, d.levelGrant);
+    maxLevel = Math.max(maxLevel, d.levelGrant) as AuthorityLevel;
     d.domainGrant.forEach(dm => extraDomains.add(dm));
     reasons.push(`[Ủy quyền từ ${d.fromUserName} — ${d.reason}]`);
   }
