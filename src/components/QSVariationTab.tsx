@@ -5,10 +5,11 @@ import React from "react";
 import { useNotification } from './NotificationEngine';
 import {
   Plus, X, Save, Send, Sparkles, Loader2, ChevronDown, ChevronRight,
-  Check, Clock, TrendingUp, Hash, Calculator, Printer, Download,
+  Check, CheckCircle2, Clock, TrendingUp, Hash, Calculator, Printer, Download,
   AlertTriangle
 } from "lucide-react";
 import { GEM_MODEL } from './gemini';
+const GEM_QS_SYSTEM = 'Bạn là chuyên gia QS (Quantity Surveyor) xây dựng Việt Nam. Phân tích chính xác, ngắn gọn bằng tiếng Việt.';
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import type { UserContext } from "./permissions";
 import { seedApprovalDocs, canApproveDoc, processApproval } from "./approvalEngine";
