@@ -526,7 +526,7 @@ function TabKyDuyet({ docs, refresh, pid, ctx, onTriggerApproval }: {
   const handleAction = (doc: ApprovalDoc, action: 'APPROVE' | 'RETURN' | 'REJECT') => {
     const r = processApproval({ projectId: pid, docId: doc.id, action, ctx });
     if (r.ok) { notifOk(`✅ Đã ${action === 'APPROVE' ? 'phê duyệt' : action === 'RETURN' ? 'trả lại' : 'từ chối'} "${doc.title}"`); refresh(); }
-    else notifErr(`❌ ${!r.ok ? r.error : ''}`);
+    else notifErr(`❌ ${(r as any).error}`);
   };
 
   return (
@@ -665,10 +665,10 @@ function TabKyDuyet({ docs, refresh, pid, ctx, onTriggerApproval }: {
           <BtnSubmit label="Trình ký duyệt" onClick={() => {
             if (!newDoc.title?.trim()) { notifErr('Vui lòng nhập tên văn bản!'); return; }
             const cr = createDocument({ projectId: pid, docType: newDoc.docType, title: newDoc.title, data: { description: newDoc.description, deadline: newDoc.deadline }, ctx });
-            if (!cr.ok) { notifErr(`❌ ${!cr.ok ? cr.error : ''}`); return; }
+            if (!cr.ok) { notifErr(`❌ ${(cr as any).error}`); return; }
             const sr = submitDocument(pid, cr.data!.id, ctx);
             if (sr.ok) { notifOk('✅ Đã trình ký duyệt!'); refresh(); setShowForm(false); setNewDoc({ title:'', docType:'LEAVE_REQUEST', description:'', deadline:'' }); }
-            else notifErr(`❌ ${!sr.ok ? sr.error : ''}`);
+            else notifErr(`❌ ${(sr as any).error}`);
           }}/>
         </>}
       >
