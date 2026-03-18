@@ -526,7 +526,7 @@ function TabKyDuyet({ docs, refresh, pid, ctx, onTriggerApproval }: {
   const handleAction = (doc: ApprovalDoc, action: 'APPROVE' | 'RETURN' | 'REJECT') => {
     const r = processApproval({ projectId: pid, docId: doc.id, action, ctx });
     if (r.ok) { notifOk(`✅ Đã ${action === 'APPROVE' ? 'phê duyệt' : action === 'RETURN' ? 'trả lại' : 'từ chối'} "${doc.title}"`); refresh(); }
-    else notifErr(`❌ ${r.error}`);
+    else notifErr(`❌ ${!r.ok ? r.error : ''}`);
   };
 
   return (
@@ -616,7 +616,7 @@ function TabKyDuyet({ docs, refresh, pid, ctx, onTriggerApproval }: {
                       <div className="space-y-1">
                         {doc.auditLog.slice(-3).map((log, i) => (
                           <div key={i} className="flex items-center gap-2 text-[10px] text-slate-500">
-                            <span className="font-medium text-slate-700">{log.actorName}</span>
+                            <span className="font-medium text-slate-700">{log.userName}</span>
                             <span>{log.action}</span>
                             <span>{new Date(log.timestamp).toLocaleDateString('vi-VN')}</span>
                           </div>
@@ -665,10 +665,10 @@ function TabKyDuyet({ docs, refresh, pid, ctx, onTriggerApproval }: {
           <BtnSubmit label="Trình ký duyệt" onClick={() => {
             if (!newDoc.title?.trim()) { notifErr('Vui lòng nhập tên văn bản!'); return; }
             const cr = createDocument({ projectId: pid, docType: newDoc.docType, title: newDoc.title, data: { description: newDoc.description, deadline: newDoc.deadline }, ctx });
-            if (!cr.ok) { notifErr(`❌ ${cr.error}`); return; }
+            if (!cr.ok) { notifErr(`❌ ${!cr.ok ? cr.error : ''}`); return; }
             const sr = submitDocument(pid, cr.data!.id, ctx);
             if (sr.ok) { notifOk('✅ Đã trình ký duyệt!'); refresh(); setShowForm(false); setNewDoc({ title:'', docType:'LEAVE_REQUEST', description:'', deadline:'' }); }
-            else notifErr(`❌ ${sr.error}`);
+            else notifErr(`❌ ${!sr.ok ? sr.error : ''}`);
           }}/>
         </>}
       >
@@ -878,7 +878,7 @@ export default function OfficeDashboard({ project, projectId: projectIdProp }: P
         ]);
         setCvs(savedCvs);
         setMeetings(savedMtgs);
-        setDocs(savedDocs);
+        setOfficeDocs(savedDocs);
         setMinutes(savedMins);
       } catch (e) {
         console.warn('[OfficeDashboard] load error:', e);
@@ -896,7 +896,7 @@ export default function OfficeDashboard({ project, projectId: projectIdProp }: P
       getAllDocs(pid, ctx),
       db.get<MeetingMinute[]>('office_minutes', pid, MOCK_MINUTES),
     ]);
-    setCvs(savedCvs); setMeetings(savedMtgs); setDocs(savedDocs); setMinutes(savedMins);
+    setCvs(savedCvs); setMeetings(savedMtgs); setOfficeDocs(savedDocs); setMinutes(savedMins);
   });
 
   const [offQueue, setOffQueue] = useState<ApprovalDoc[]>(() => getApprovalQueue(pid, ctx));
