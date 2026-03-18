@@ -12,6 +12,7 @@ import { genAI, GEM_MODEL, GEM_MODEL_QUALITY } from './gemini';
 
 import type { DashboardProps } from './types';
 import { db, useRealtimeSync } from './db';
+import { HSEReportPrint } from './PrintService';
 
 type HSEProps = DashboardProps;
 
@@ -32,7 +33,7 @@ function useLocalCtx(ctxProp?: UserContext, projectIdProp?: string): { ctx: User
 
 export default function HSEWorkspace({ project: selectedProject, projectId: projectIdProp, ctx: ctxProp }: HSEProps) {
   const { ctx, projectId } = useLocalCtx(ctxProp, projectIdProp);
-  const { err: notifErr } = useNotification();
+  const { ok: notifOk, err: notifErr } = useNotification();
             // ── HSE WORKSPACE ĐẦYĐỦ ─────────────────────────────────────────
   // localStorage helpers removed — persistence via db.ts
 
@@ -618,7 +619,7 @@ export default function HSEWorkspace({ project: selectedProject, projectId: proj
                         setPtws(prev => {
                           const next = prev.map(x => x.id === p.id ? {
                             ...x, status: 'approved' as PTWStatus,
-                            approved_by: ctx.userName || 'HSE Officer',
+                            approved_by: ctx.userId || 'HSE Officer',
                             approved_at: new Date().toLocaleString('vi-VN'),
                           } : x);
                           db.set('hse_ptws', _hse_pid, next);
@@ -1129,7 +1130,7 @@ export default function HSEWorkspace({ project: selectedProject, projectId: proj
               className={inputCls} placeholder="Tên nhà thầu/tổ đội"/>
           </FormRow>
           <FormRow label="Mức độ vi phạm">
-            <select value={vioForm.level||'nhe'} onChange={e=>setVioForm(f=>({...f,level:e.target.value}))} className={selectCls}>
+            <select value={vioForm.level||'nhe'} onChange={e=>setVioForm(f=>({...f,level:e.target.value as ViolationLevel}))} className={selectCls}>
               <option value="nhe">Nhắc nhở</option>
               <option value="trung">Cảnh cáo</option>
               <option value="nghiem_trong">Nghiêm trọng</option>
@@ -1258,10 +1259,10 @@ export default function HSEWorkspace({ project: selectedProject, projectId: proj
             <input value={certForm.expiry||''} onChange={e=>setCertForm(f=>({...f,expiry:e.target.value}))}
               className={inputCls} placeholder="DD/MM/YYYY"/>
           </FormRow>
-          <FormRow label="Nơi cấp" className="col-span-2">
+          <div className="col-span-2"><FormRow label="Nơi cấp">
             <input value={certForm.issued_by||''} onChange={e=>setCertForm(f=>({...f,issued_by:e.target.value}))}
               className={inputCls} placeholder="Đơn vị cấp chứng chỉ"/>
-          </FormRow>
+          </FormRow></div>
         </FormGrid>
       </ModalForm>
 
@@ -1364,7 +1365,7 @@ export default function HSEWorkspace({ project: selectedProject, projectId: proj
           </FormGrid>
         </FormSection>
         <FormSection title="Đánh giá rủi ro (JSA)">
-          <FormGrid cols={1}>
+          <FormGrid cols={2}>
             <FormRow label="Mô tả công việc"><textarea className={inputCls} rows={2} value={ptwForm.work_description ?? ''} onChange={e => setPtwForm(p => ({...p, work_description: e.target.value}))}/></FormRow>
             <FormRow label="Nguy cơ / Rủi ro nhận diện"><textarea className={inputCls} rows={2} value={ptwForm.hazards ?? ''} onChange={e => setPtwForm(p => ({...p, hazards: e.target.value}))}/></FormRow>
             <FormRow label="Biện pháp kiểm soát"><textarea className={inputCls} rows={2} value={ptwForm.controls ?? ''} onChange={e => setPtwForm(p => ({...p, controls: e.target.value}))}/></FormRow>
@@ -1405,7 +1406,7 @@ export default function HSEWorkspace({ project: selectedProject, projectId: proj
           <FormRow label="Người thực hiện *"><input className={inputCls} value={toolboxForm.conducted_by ?? ''} onChange={e => setToolboxForm(p => ({...p, conducted_by: e.target.value}))}/></FormRow>
           <FormRow label="Khu vực"><input className={inputCls} value={toolboxForm.area ?? ''} onChange={e => setToolboxForm(p => ({...p, area: e.target.value}))}/></FormRow>
           <FormRow label="Số người tham dự"><input type="number" className={inputCls} value={toolboxForm.attendees_count ?? 0} onChange={e => setToolboxForm(p => ({...p, attendees_count: +e.target.value}))}/></FormRow>
-          <FormRow label="Nội dung chính" className="col-span-2"><textarea className={inputCls} rows={3} value={toolboxForm.key_points ?? ''} onChange={e => setToolboxForm(p => ({...p, key_points: e.target.value}))}/></FormRow>
+          <div className="col-span-2"><FormRow label="Nội dung chính"><textarea className={inputCls} rows={3} value={toolboxForm.key_points ?? ''} onChange={e => setToolboxForm(p => ({...p, key_points: e.target.value}))}/></FormRow></div>
         </FormGrid>
       </ModalForm>
 
