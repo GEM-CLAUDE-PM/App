@@ -42,6 +42,7 @@ import {
   AUTHORITY_LEVEL, ROLES,
   type RoleId, type Domain,
 } from './permissions';
+import type { UserContext } from './types';
 import { getPendingCount } from './approvalEngine';
 import {
   getCurrentMember, buildCtxFromMember, switchActiveRole, setActiveMemberSnap,
@@ -162,7 +163,7 @@ export default function ProjectDashboard({
 
   // Sync khi auth user thay đổi — reset dev override, dùng role thật
   useEffect(() => {
-    if (_authRole && _authRole !== 'operator') {
+    if (_authRole && (_authRole as string) !== 'operator') {
       setCurrentRole(_authRole);
       localStorage.setItem('gem_user_role', _authRole);
     }
@@ -817,9 +818,9 @@ export default function ProjectDashboard({
       return (
         <ContractDashboard
           project={selectedProject}
+          projectId={localProjectId || ''}
           currentRole={currentRole}
           canSeeFullValues={canSeeFullValues}
-          maskSensitive={maskSensitive}
           contractUnlocked={contractUnlocked}
           SESSION_KEY={SESSION_KEY}
           writeAuditLog={writeAuditLog}
@@ -836,13 +837,14 @@ export default function ProjectDashboard({
     }
 
     if (activeTab === 'progress') {
-      return <ProgressDashboard project={selectedProject} />;
+      return <ProgressDashboard project={selectedProject} projectId={localProjectId || ''} />;
     }
 
     if (activeTab === 'resources') {
       return (
         <MaterialsDashboard
           project={selectedProject}
+          projectId={localProjectId || ''}
           currentRole={currentRole}
           onAlert={(alerts) => {
             alerts.forEach(a => {
@@ -868,6 +870,7 @@ export default function ProjectDashboard({
       return (
         <ManpowerDashboard
           project={selectedProject}
+          projectId={localProjectId || ''}
           initialTab={initialManpowerTab}
         />
       );
@@ -887,6 +890,7 @@ export default function ProjectDashboard({
       return (
         <HSEWorkspace
           project={selectedProject}
+          projectId={localProjectId || ''}
         />
       );
     }
@@ -904,7 +908,7 @@ export default function ProjectDashboard({
         const d = domains[role] || [];
         return (d.includes('site') || d.includes('cross')) ? 'full' : 'readonly';
       })();
-      return <EquipmentDashboard project={selectedProject} readOnly={eqAccess === 'readonly'} />;
+      return <EquipmentDashboard project={selectedProject} projectId={localProjectId || ''} readOnly={eqAccess === 'readonly'} />;
     }
 
     if (activeTab === 'records') {
@@ -912,6 +916,7 @@ export default function ProjectDashboard({
       return (
         <RecordsDashboard
           project={selectedProject}
+          projectId={localProjectId || ''}
           isConnectedOneDrive={isConnectedOneDrive}
           isConnectedGoogleDrive={isConnectedGoogleDrive}
         />
@@ -919,7 +924,7 @@ export default function ProjectDashboard({
     }
 
     if (activeTab === 'giam-sat') {
-      return <GiamSatDashboard project={selectedProject} />;
+      return <GiamSatDashboard project={selectedProject} projectId={localProjectId || ''} />;
     }
 
     if (activeTab === 'reports') {
@@ -927,24 +932,21 @@ export default function ProjectDashboard({
       return (
         <ReportsDashboard
           project={selectedProject}
-          generateWeeklyReport={generateWeeklyReport}
-          isGeneratingReport={isGeneratingReport}
-          generatedReport={generatedReport}
-          isConnectedOneDrive={isConnectedOneDrive}
-          isConnectedGoogleDrive={isConnectedGoogleDrive}
+          projectId={localProjectId || ''}
         />
       );
     }
 
     if (activeTab === 'cloud') {
       if (!perm.atLeast('manager')) return <AccessDenied label="Cloud Storage" />;
-      return <StorageDashboard project={selectedProject} />;
+      return <StorageDashboard project={selectedProject} projectId={localProjectId || ''} />;
     }
 
     if (activeTab === 'qa-qc') {
       return (
         <QaQcDashboard
           project={selectedProject}
+          projectId={localProjectId || ''}
           setShowRecordForm={setShowRecordForm}
           setRecordType={setRecordType}
           showRecordForm={showRecordForm}
@@ -959,7 +961,7 @@ export default function ProjectDashboard({
 
     if (activeTab === 'office') {
       if (!perm.atLeast('manager')) return <AccessDenied label="Văn phòng" />;
-      return <OfficeDashboard project={selectedProject} />;
+      return <OfficeDashboard project={selectedProject} projectId={localProjectId || ''} />;
     }
 
     if (activeTab === 'notifs') {
@@ -1018,13 +1020,13 @@ export default function ProjectDashboard({
 
     if (activeTab === 'boq') {
       return (
-        <BOQDashboard project={selectedProject} maskSensitive={maskSensitive} />
+        <BOQDashboard project={selectedProject} projectId={localProjectId || ''} maskSensitive={maskSensitive} />
       );
     }
 
     if (activeTab === 'procurement') {
       return (
-        <ProcurementDashboard project={selectedProject} />
+        <ProcurementDashboard project={selectedProject} projectId={localProjectId || ''} />
       );
     }
 
