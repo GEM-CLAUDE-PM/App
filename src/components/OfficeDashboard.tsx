@@ -9,7 +9,7 @@ import {
   BookOpen, Hash, Bell, Eye, Copy, MessageSquare, Flag,
   ChevronRight, Archive, Inbox, UploadCloud, ClipboardList
 } from 'lucide-react';
-import { createDocument, submitDocument, getApprovalQueue } from './approvalEngine';
+import { createDocument, submitDocument, getApprovalQueue, getAllDocs, processApproval, getStatusConfig, getWorkflowProgress, getCurrentStepLabel } from './approvalEngine';
 import type { ApprovalDoc } from './approvalEngine';
 import { WORKFLOWS, type UserContext } from './permissions';
 import { getCurrentMember, buildCtxFromMember } from './projectMember';
@@ -17,6 +17,7 @@ import ApprovalQueue from './ApprovalQueue';
 import { db, useRealtimeSync } from './db';
 import ModalForm, { FormRow, FormGrid, FormSection, selectCls, BtnCancel, BtnSubmit } from './ModalForm';
 import type { DashboardProps } from './types';
+
 
 type Props = DashboardProps;
 
@@ -64,13 +65,6 @@ const MEET_STATUS: Record<MeetStatus, { label: string; cls: string }> = {
   in_progress: { label:'Đang diễn ra', cls:'bg-amber-100 text-amber-700'    },
   done:        { label:'Đã kết thúc',  cls:'bg-emerald-100 text-emerald-700'},
   cancelled:   { label:'Đã huỷ',       cls:'bg-slate-100 text-slate-500'    },
-};
-const APPR_STATUS: Record<ApprStatus, { label: string; cls: string }> = {
-  draft:    { label:'Nháp',          cls:'bg-slate-100 text-slate-600'    },
-  pending:  { label:'Đang chờ duyệt',cls:'bg-amber-100 text-amber-700'   },
-  approved: { label:'Đã phê duyệt',  cls:'bg-emerald-100 text-emerald-700'},
-  rejected: { label:'Từ chối',       cls:'bg-rose-100 text-rose-700'     },
-  returned: { label:'Trả lại',       cls:'bg-orange-100 text-orange-700' },
 };
 
 const GEM_OFFICE_SYS = `Bạn là Nàng GEM Siêu Việt — chuyên gia hành chính văn phòng xây dựng. Xưng "em", gọi "Anh/Chị". Soạn thảo văn bản hành chính chuẩn CHXHCN Việt Nam khi được yêu cầu. Văn phong rõ ràng, chính xác.`;
@@ -124,30 +118,6 @@ const MOCK_MEETINGS: Meeting[] = [
     notes:'', minute_id:undefined },
 ];
 
-const MOCK_APPROVALS: ApprovalDoc[] = [
-  { id:'a1', title:'Phương án kỹ thuật xử lý nền đất yếu khu C4-D6', doc_type:'Phê duyệt kỹ thuật',
-    status:'approved', submitted_by:'CHT Nguyễn Văn Anh', submitted_date:'05/03/2026', deadline:'08/03/2026', description:'Phương án cọc xi măng đất D600 theo khuyến nghị TK Kết cấu sau khảo sát địa chất bổ sung. Giá trị phát sinh: 3.2 tỷ VNĐ (đã gửi VO-005 song song).',
-    current_step:2, attachments:4,
-    steps:[
-      { name:'KS Giám sát xác nhận',   assignee:'KS Hoàng',    status:'approved', date:'05/03/2026' },
-      { name:'TVGS phê duyệt kỹ thuật', assignee:'Alpha Eng',   status:'approved', date:'06/03/2026' },
-      { name:'GĐ DA phê duyệt cuối',   assignee:'GĐ Trần Văn Bình', status:'approved', date:'07/03/2026' },
-    ] },
-  { id:'a2', title:'Báo cáo tiến độ tháng 2/2026 và kế hoạch tháng 3', doc_type:'Báo cáo định kỳ',
-    status:'pending', submitted_by:'CHT Nguyễn Văn Anh', submitted_date:'01/03/2026', deadline:'10/03/2026', description:'Báo cáo tiến độ tháng 2 đạt 78% kế hoạch. Kèm theo kế hoạch chi tiết tháng 3/2026 và đề xuất điều chỉnh tiến độ tổng thể.',
-    current_step:0, attachments:2,
-    steps:[
-      { name:'Thư ký kiểm tra hồ sơ',  assignee:'TK Lan',       status:'approved', date:'02/03/2026' },
-      { name:'GĐ DA phê duyệt',         assignee:'GĐ Trần Văn Bình', status:'pending' },
-    ] },
-  { id:'a3', title:'Đề xuất điều chỉnh ca làm việc mùa nắng nóng', doc_type:'Quy định nội bộ',
-    status:'returned', submitted_by:'HR Nguyễn Minh', submitted_date:'04/03/2026', deadline:'07/03/2026', description:'Đề xuất điều chỉnh ca sáng 5:30-11:30, nghỉ trưa, ca chiều 15:00-19:00 trong các ngày nhiệt độ >35°C để đảm bảo an toàn lao động.',
-    current_step:1, attachments:1,
-    steps:[
-      { name:'HSE xác nhận an toàn',    assignee:'HSE Hải',  status:'approved', date:'05/03/2026' },
-      { name:'GĐ DA phê duyệt',         assignee:'GĐ Trần Văn Bình', status:'returned', date:'06/03/2026', note:'Cần bổ sung đánh giá tác động đến tiến độ hợp đồng.' },
-    ] },
-];
 
 const MOCK_MINUTES: MeetingMinute[] = [
   { id:'min1', meeting_id:'m2', meeting_title:'Họp kỹ thuật xử lý nền đất yếu khu C', date:'06/03/2026',
@@ -537,23 +507,36 @@ function TabLichHop({ meetings, setMeetings, pid }: { meetings: Meeting[]; setMe
 }
 
 // ─── Sub-tab: Ký duyệt ────────────────────────────────────────────────────────
-function TabKyDuyet({ docs, setDocs, pid, onTriggerApproval }: { docs: ApprovalDoc[]; setDocs: React.Dispatch<React.SetStateAction<ApprovalDoc[]>>; pid: string; onTriggerApproval?: (title: string) => void }) {
-  const { ok: notifOk, err: notifErr, warn: notifWarn, info: notifInfo } = useNotification();
+function TabKyDuyet({ docs, refresh, pid, ctx, onTriggerApproval }: {
+  docs: ApprovalDoc[];
+  refresh: () => void;
+  pid: string;
+  ctx: UserContext;
+  onTriggerApproval?: (title: string) => void;
+}) {
+  const { ok: notifOk, err: notifErr } = useNotification();
   const [expandedId, setExpandedId] = useState<string|null>(null);
-  const [showForm, setShowForm] = useState(false);
-  const [newDoc, setNewDoc] = useState({ title:'', doc_type:'', description:'', submitted_by:'', deadline:'' });
+  const [showForm, setShowForm]     = useState(false);
+  const [newDoc, setNewDoc]         = useState({ title:'', docType:'LEAVE_REQUEST' as const, description:'', deadline:'' });
 
-  const pending = docs.filter(d=>d.status==='pending').length;
-  const returned = docs.filter(d=>d.status==='returned').length;
+  const pending  = docs.filter(d => d.status === 'SUBMITTED' || d.status === 'IN_REVIEW').length;
+  const approved = docs.filter(d => d.status === 'APPROVED' || d.status === 'COMPLETED').length;
+  const returned = docs.filter(d => d.status === 'RETURNED' || d.status === 'REJECTED').length;
+
+  const handleAction = (doc: ApprovalDoc, action: 'APPROVE' | 'RETURN' | 'REJECT') => {
+    const r = processApproval({ projectId: pid, docId: doc.id, action, ctx });
+    if (r.ok) { notifOk(`✅ Đã ${action === 'APPROVE' ? 'phê duyệt' : action === 'RETURN' ? 'trả lại' : 'từ chối'} "${doc.title}"`); refresh(); }
+    else notifErr(`❌ ${r.error}`);
+  };
 
   return (
     <div className="space-y-5">
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         {[
-          { label:'Tổng văn bản', val:docs.length, cls:'bg-violet-100 text-violet-700' },
-          { label:'Chờ phê duyệt', val:pending, cls:pending>0?'bg-amber-100 text-amber-700':'bg-slate-100 text-slate-600' },
-          { label:'Đã phê duyệt', val:docs.filter(d=>d.status==='approved').length, cls:'bg-emerald-100 text-emerald-700' },
-          { label:'Trả lại / Từ chối', val:returned+docs.filter(d=>d.status==='rejected').length, cls:returned>0?'bg-rose-100 text-rose-700':'bg-slate-100 text-slate-600' },
+          { label:'Tổng văn bản',       val:docs.length, cls:'bg-violet-100 text-violet-700' },
+          { label:'Chờ phê duyệt',      val:pending,  cls:pending>0?'bg-amber-100 text-amber-700':'bg-slate-100 text-slate-600' },
+          { label:'Đã phê duyệt',       val:approved, cls:'bg-emerald-100 text-emerald-700' },
+          { label:'Trả lại / Từ chối',  val:returned, cls:returned>0?'bg-rose-100 text-rose-700':'bg-slate-100 text-slate-600' },
         ].map((k,i)=>(
           <div key={i} className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm">
             <div className={`w-9 h-9 rounded-full flex items-center justify-center mb-3 ${k.cls}`}><CheckSquare size={16}/></div>
@@ -563,12 +546,12 @@ function TabKyDuyet({ docs, setDocs, pid, onTriggerApproval }: { docs: ApprovalD
         ))}
       </div>
 
-      {returned>0 && (
+      {returned > 0 && (
         <div className="bg-orange-50 border border-orange-200 rounded-2xl p-4 flex items-start gap-3">
           <AlertTriangle size={16} className="text-orange-500 mt-0.5 shrink-0"/>
           <div>
             <p className="font-bold text-orange-800 text-sm">Có {returned} văn bản bị trả lại — cần bổ sung</p>
-            {docs.filter(d=>d.status==='returned').map(d=><p key={d.id} className="text-xs text-orange-600 mt-0.5">• {d.title}</p>)}
+            {docs.filter(d=>d.status==='RETURNED'||d.status==='REJECTED').map(d=><p key={d.id} className="text-xs text-orange-600 mt-0.5">• {d.title}</p>)}
           </div>
         </div>
       )}
@@ -580,68 +563,87 @@ function TabKyDuyet({ docs, setDocs, pid, onTriggerApproval }: { docs: ApprovalD
       </div>
 
       <div className="space-y-3">
-        {docs.map(doc=>{
-          const st = APPR_STATUS[doc.status]; const isExpanded = expandedId===doc.id;
+        {docs.length === 0 && (
+          <div className="text-center py-12 text-slate-400">
+            <CheckSquare size={32} className="mx-auto mb-3 opacity-30"/>
+            <p className="text-sm">Chưa có văn bản nào. Nhấn "Trình ký duyệt" để tạo mới.</p>
+          </div>
+        )}
+        {docs.map(doc => {
+          const st = getStatusConfig(doc.status);
+          const progress = getWorkflowProgress(doc);
+          const stepLabel = getCurrentStepLabel(doc);
+          const isExpanded = expandedId === doc.id;
+          const canAct = doc.status === 'SUBMITTED' || doc.status === 'IN_REVIEW';
           return (
-            <div key={doc.id} className={`bg-white border rounded-2xl shadow-sm overflow-hidden ${doc.status==='pending'?'border-amber-200':doc.status==='returned'?'border-orange-200':doc.status==='rejected'?'border-rose-200':'border-slate-200'}`}>
-              <div className="p-4 flex items-center justify-between gap-4 cursor-pointer hover:bg-slate-50" onClick={()=>setExpandedId(isExpanded?null:doc.id)}>
+            <div key={doc.id} className={`bg-white border rounded-2xl shadow-sm overflow-hidden ${
+              canAct ? 'border-amber-200' : doc.status==='RETURNED'||doc.status==='REJECTED' ? 'border-rose-200' : 'border-slate-200'
+            }`}>
+              <div className="p-4 flex items-center justify-between gap-4 cursor-pointer hover:bg-slate-50"
+                onClick={() => setExpandedId(isExpanded ? null : doc.id)}>
                 <div className="flex items-start gap-3 min-w-0">
-                  <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${doc.status==='approved'?'bg-emerald-100':doc.status==='pending'?'bg-amber-100':'bg-slate-100'}`}>
-                    <CheckSquare size={17} className={doc.status==='approved'?'text-emerald-600':doc.status==='pending'?'text-amber-600':'text-slate-500'}/>
-                  </div>
+                  <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 text-lg`}
+                    style={{background: st.bgColor}}>{st.icon}</div>
                   <div className="min-w-0">
                     <div className="flex items-center gap-2 flex-wrap mb-1">
-                      <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${st.cls}`}>{st.label}</span>
-                      <span className="text-[10px] px-2 py-0.5 bg-slate-100 text-slate-500 rounded-full">{doc.doc_type}</span>
+                      <span className="text-[10px] font-bold px-2 py-0.5 rounded-full"
+                        style={{background: st.bgColor, color: st.color}}>{st.label}</span>
+                      <span className="text-[10px] px-2 py-0.5 bg-slate-100 text-slate-500 rounded-full">{doc.docType}</span>
                     </div>
                     <p className="text-sm font-semibold text-slate-800 truncate">{doc.title}</p>
-                    <p className="text-[11px] text-slate-400 mt-0.5">Nộp bởi: {doc.submitted_by} · {doc.submitted_date} · Hạn: {doc.deadline}</p>
+                    <p className="text-[11px] text-slate-400 mt-0.5">
+                      Tạo bởi: {doc.createdByName} · {new Date(doc.createdAt).toLocaleDateString('vi-VN')}
+                    </p>
                   </div>
                 </div>
                 <div className="flex items-center gap-2 shrink-0">
-                  <span className="text-xs text-slate-500">Bước {doc.current_step+1}/{doc.steps.length}</span>
+                  <div className="text-right">
+                    <p className="text-[10px] text-slate-500">{stepLabel}</p>
+                    <p className="text-[10px] text-slate-400">{progress}%</p>
+                  </div>
                   <ChevronDown size={14} className={`text-slate-400 transition-transform ${isExpanded?'rotate-180':''}`}/>
                 </div>
               </div>
               {isExpanded && (
-                <div className="border-t border-slate-100 p-4 space-y-4">
-                  <p className="text-xs text-slate-600 bg-slate-50 rounded-xl p-3">{doc.description}</p>
-                  {/* Approval workflow */}
-                  <div>
-                    <p className="text-[10px] font-bold text-slate-400 uppercase mb-3 tracking-wide">Luồng phê duyệt</p>
-                    <div className="flex items-start gap-0">
-                      {doc.steps.map((step,i)=>{
-                        const done = step.status==='approved'; const cur = i===doc.current_step;
-                        return (
-                          <React.Fragment key={i}>
-                            <div className="flex flex-col items-center min-w-0">
-                              <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold z-10 ${done?'bg-emerald-500 text-white':cur?'bg-amber-400 text-white':'bg-slate-200 text-slate-500'}`}>
-                                {done?<Check size={14}/>:i+1}
-                              </div>
-                              <p className="text-[9px] font-semibold mt-1 text-center leading-tight max-w-[70px] text-slate-600">{step.name}</p>
-                              <p className="text-[9px] text-slate-400 text-center">{step.assignee}</p>
-                              {step.date&&<p className="text-[9px] text-emerald-600 text-center">{step.date}</p>}
-                              {step.note&&<p className="text-[9px] text-orange-600 text-center max-w-[80px] leading-tight mt-0.5">{step.note}</p>}
-                            </div>
-                            {i<doc.steps.length-1&&<div className={`flex-1 h-0.5 mt-4 mx-1 ${done?'bg-emerald-400':'bg-slate-200'}`}/>}
-                          </React.Fragment>
-                        );
-                      })}
+                <div className="border-t border-slate-100 p-4 space-y-3">
+                  {doc.data?.description && (
+                    <p className="text-xs text-slate-600 bg-slate-50 rounded-xl p-3">{doc.data.description}</p>
+                  )}
+                  {/* Audit log */}
+                  {doc.auditLog.length > 0 && (
+                    <div>
+                      <p className="text-[10px] font-bold text-slate-400 uppercase mb-2 tracking-wide">Lịch sử xử lý</p>
+                      <div className="space-y-1">
+                        {doc.auditLog.slice(-3).map((log, i) => (
+                          <div key={i} className="flex items-center gap-2 text-[10px] text-slate-500">
+                            <span className="font-medium text-slate-700">{log.actorName}</span>
+                            <span>{log.action}</span>
+                            <span>{new Date(log.timestamp).toLocaleDateString('vi-VN')}</span>
+                          </div>
+                        ))}
+                      </div>
                     </div>
-                  </div>
+                  )}
                   <div className="flex gap-2 flex-wrap">
-                    {doc.status==='pending'&&(
+                    {canAct && (
                       <>
-                        <button onClick={()=>setDocs(p=>p.map(d=>d.id===doc.id?{...d,status:'approved' as ApprStatus,current_step:d.steps.length-1}:d))} className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-lg text-xs font-bold hover:bg-emerald-100">
+                        <button onClick={() => handleAction(doc, 'APPROVE')}
+                          className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-lg text-xs font-bold hover:bg-emerald-100">
                           <Check size={11}/> Phê duyệt
                         </button>
-                        <button onClick={()=>setDocs(p=>p.map(d=>d.id===doc.id?{...d,status:'returned' as ApprStatus}:d))} className="flex items-center gap-1.5 px-3 py-1.5 bg-orange-50 text-orange-700 border border-orange-200 rounded-lg text-xs font-bold hover:bg-orange-100">
+                        <button onClick={() => handleAction(doc, 'RETURN')}
+                          className="flex items-center gap-1.5 px-3 py-1.5 bg-orange-50 text-orange-700 border border-orange-200 rounded-lg text-xs font-bold hover:bg-orange-100">
                           <ArrowLeft size={11}/> Trả lại
+                        </button>
+                        <button onClick={() => handleAction(doc, 'REJECT')}
+                          className="flex items-center gap-1.5 px-3 py-1.5 bg-rose-50 text-rose-700 border border-rose-200 rounded-lg text-xs font-bold hover:bg-rose-100">
+                          <X size={11}/> Từ chối
                         </button>
                       </>
                     )}
-                    <button className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-100 text-slate-600 rounded-lg text-xs font-bold hover:bg-slate-200"><Printer size={11}/>In</button>
-                    <button className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-100 text-slate-600 rounded-lg text-xs font-bold hover:bg-slate-200"><Download size={11}/>Tải về</button>
+                    <button className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-100 text-slate-600 rounded-lg text-xs font-bold hover:bg-slate-200">
+                      <Printer size={11}/>In
+                    </button>
                   </div>
                 </div>
               )}
@@ -654,7 +656,7 @@ function TabKyDuyet({ docs, setDocs, pid, onTriggerApproval }: { docs: ApprovalD
         open={showForm}
         onClose={() => setShowForm(false)}
         title="Trình văn bản ký duyệt"
-        subtitle="Tạo yêu cầu phê duyệt văn bản"
+        subtitle="Tạo yêu cầu phê duyệt"
         icon={<CheckSquare size={18}/>}
         color="violet"
         width="md"
@@ -662,27 +664,37 @@ function TabKyDuyet({ docs, setDocs, pid, onTriggerApproval }: { docs: ApprovalD
           <BtnCancel onClick={() => setShowForm(false)}/>
           <BtnSubmit label="Trình ký duyệt" onClick={() => {
             if (!newDoc.title?.trim()) { notifErr('Vui lòng nhập tên văn bản!'); return; }
-            const d: ApprovalDoc = { id:'a_'+Date.now(), title:newDoc.title, doc_type:newDoc.doc_type||'Phê duyệt kỹ thuật', status:'pending', submitted_by:newDoc.submitted_by||'Người dùng', submitted_date:new Date().toLocaleDateString('vi-VN'), deadline:newDoc.deadline||'', description:newDoc.description, current_step:0, attachments:0, steps:[{name:'GĐ DA phê duyệt',assignee:'GĐ Trần Văn Bình',status:'pending'}] };
-            setDocs(prev => { const next = [d, ...prev]; db.set('office_approvals', pid, next); return next; }); setShowForm(false);
-            setNewDoc({ title:'', doc_type:'', description:'', submitted_by:'', deadline:'' });
+            const cr = createDocument({ projectId: pid, docType: newDoc.docType, title: newDoc.title, data: { description: newDoc.description, deadline: newDoc.deadline }, ctx });
+            if (!cr.ok) { notifErr(`❌ ${cr.error}`); return; }
+            const sr = submitDocument(pid, cr.data!.id, ctx);
+            if (sr.ok) { notifOk('✅ Đã trình ký duyệt!'); refresh(); setShowForm(false); setNewDoc({ title:'', docType:'LEAVE_REQUEST', description:'', deadline:'' }); }
+            else notifErr(`❌ ${sr.error}`);
           }}/>
         </>}
       >
         <FormGrid cols={2}>
-          <div className="col-span-2"><FormRow label="Tên văn bản *"><input className={inputCls} placeholder="VD: Phương án tổ chức thi công tầng 4" value={newDoc.title} onChange={e=>setNewDoc(p=>({...p,title:e.target.value}))}/></FormRow></div>
+          <div className="col-span-2"><FormRow label="Tên văn bản *">
+            <input className={inputCls} placeholder="VD: Đề xuất nghỉ phép 3 ngày" value={newDoc.title} onChange={e=>setNewDoc(p=>({...p,title:e.target.value}))}/>
+          </FormRow></div>
           <div className="col-span-2"><FormRow label="Loại văn bản">
-            <select className={selectCls} value={newDoc.doc_type} onChange={e=>setNewDoc(p=>({...p,doc_type:e.target.value}))}>
-              {['Phê duyệt kỹ thuật','Báo cáo định kỳ','Quy định nội bộ','Hợp đồng','Biên bản','Đề xuất'].map(t=><option key={t}>{t}</option>)}
+            <select className={selectCls} value={newDoc.docType} onChange={e=>setNewDoc(p=>({...p,docType:e.target.value as 'LEAVE_REQUEST'}))}>
+              <option value="LEAVE_REQUEST">Đề xuất nghỉ phép</option>
+              <option value="DISCIPLINE">Xử lý kỷ luật</option>
+              <option value="OVERTIME_REQUEST">Đề xuất tăng ca</option>
             </select>
           </FormRow></div>
-          <FormRow label="Người nộp"><input className={inputCls} value={newDoc.submitted_by} onChange={e=>setNewDoc(p=>({...p,submitted_by:e.target.value}))}/></FormRow>
-          <FormRow label="Hạn phê duyệt"><input className={inputCls} placeholder="DD/MM/YYYY" value={newDoc.deadline} onChange={e=>setNewDoc(p=>({...p,deadline:e.target.value}))}/></FormRow>
-          <div className="col-span-2"><FormRow label="Mô tả ngắn"><textarea rows={3} className={inputCls + " resize-none"} value={newDoc.description} onChange={e=>setNewDoc(p=>({...p,description:e.target.value}))}/></FormRow></div>
+          <FormRow label="Hạn phê duyệt">
+            <input className={inputCls} placeholder="DD/MM/YYYY" value={newDoc.deadline} onChange={e=>setNewDoc(p=>({...p,deadline:e.target.value}))}/>
+          </FormRow>
+          <div className="col-span-2"><FormRow label="Mô tả ngắn">
+            <textarea rows={3} className={inputCls + " resize-none"} value={newDoc.description} onChange={e=>setNewDoc(p=>({...p,description:e.target.value}))}/>
+          </FormRow></div>
         </FormGrid>
       </ModalForm>
     </div>
   );
 }
+
 
 // ─── Sub-tab: Biên bản họp ────────────────────────────────────────────────────
 function TabBienBan({ minutes, setMinutes, meetings, pid }: { minutes: MeetingMinute[]; setMinutes: React.Dispatch<React.SetStateAction<MeetingMinute[]>>; meetings: Meeting[]; pid: string }) {
@@ -850,7 +862,7 @@ export default function OfficeDashboard({ project, projectId: projectIdProp }: P
   // ── Lifted data state ──────────────────────────────────────────────────────
   const [cvs,      setCvs]      = useState<CongVan[]>(MOCK_CVS);
   const [meetings, setMeetings] = useState<Meeting[]>(MOCK_MEETINGS);
-  const [docs,     setDocs]     = useState<ApprovalDoc[]>(MOCK_APPROVALS);
+  const [officeDocs, setOfficeDocs] = useState<ApprovalDoc[]>(() => getAllDocs(pid, ctx));
   const [minutes,  setMinutes]  = useState<MeetingMinute[]>(MOCK_MINUTES);
 
   // ── Load from db on mount ──────────────────────────────────────────────────
@@ -861,7 +873,7 @@ export default function OfficeDashboard({ project, projectId: projectIdProp }: P
         const [savedCvs, savedMtgs, savedDocs, savedMins] = await Promise.all([
           db.get<CongVan[]>('office_congvan',   pid, MOCK_CVS),
           db.get<Meeting[]>('office_meetings',  pid, MOCK_MEETINGS),
-          db.get<ApprovalDoc[]>('office_approvals', pid, MOCK_APPROVALS),
+          getAllDocs(pid, ctx),
           db.get<MeetingMinute[]>('office_minutes', pid, MOCK_MINUTES),
         ]);
         setCvs(savedCvs);
@@ -881,7 +893,7 @@ export default function OfficeDashboard({ project, projectId: projectIdProp }: P
     const [savedCvs, savedMtgs, savedDocs, savedMins] = await Promise.all([
       db.get<CongVan[]>('office_congvan',   pid, MOCK_CVS),
       db.get<Meeting[]>('office_meetings',  pid, MOCK_MEETINGS),
-      db.get<ApprovalDoc[]>('office_approvals', pid, MOCK_APPROVALS),
+      getAllDocs(pid, ctx),
       db.get<MeetingMinute[]>('office_minutes', pid, MOCK_MINUTES),
     ]);
     setCvs(savedCvs); setMeetings(savedMtgs); setDocs(savedDocs); setMinutes(savedMins);
@@ -941,7 +953,7 @@ export default function OfficeDashboard({ project, projectId: projectIdProp }: P
 
       {tab==='congvan'  && <TabCongVan cvs={cvs} setCvs={setCvs} pid={pid}/>}
       {tab==='lichhop'  && <TabLichHop meetings={meetings} setMeetings={setMeetings} pid={pid}/>}
-      {tab==='kyduyet'  && <TabKyDuyet docs={docs} setDocs={setDocs} pid={pid} onTriggerApproval={(title: string) => triggerOffDoc(title, 'LEAVE_REQUEST')} />}
+      {tab==='kyduyet'  && <TabKyDuyet docs={officeDocs} refresh={() => setOfficeDocs(getAllDocs(pid, ctx))} pid={pid} ctx={ctx} onTriggerApproval={(title: string) => triggerOffDoc(title, 'LEAVE_REQUEST')} />}
       {tab==='bienban'  && <TabBienBan minutes={minutes} setMinutes={setMinutes} meetings={meetings} pid={pid}/>}
 
       {/* Approval Queue Drawer */}
