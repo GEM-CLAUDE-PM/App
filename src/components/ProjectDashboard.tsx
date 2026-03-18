@@ -830,6 +830,7 @@ export default function ProjectDashboard({
             setActiveTab('overview');
           }}
           onNavigate={(tabId) => setActiveTab(tabId as any)}
+          onRequestPin={() => setShowPinDialog(true)}
         />
       );
     }

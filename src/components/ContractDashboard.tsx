@@ -8,6 +8,7 @@ import { getCurrentCtx } from './projectMember';
 import ApprovalQueue from './ApprovalQueue';
 import ModalForm, { FormRow, FormGrid, FormSection, inputCls, selectCls, BtnCancel, BtnSubmit } from './ModalForm';
 import { db } from './db';
+import { ContractPrint } from './PrintService';
 
 import type { DashboardProps } from './types';
 
@@ -18,10 +19,11 @@ type Props = DashboardProps & {
   writeAuditLog:    (action: string, detail: string) => void;
   onManualLock:     () => void;
   onNavigate?:      (tabId: string) => void;
+  onRequestPin?:    () => void;
   SESSION_KEY:      string;
 };
 
-export default function ContractDashboard({ project: selectedProject, currentRole, canSeeFullValues, contractUnlocked, writeAuditLog, onManualLock, onNavigate, SESSION_KEY }: Props) {
+export default function ContractDashboard({ project: selectedProject, currentRole, canSeeFullValues, contractUnlocked, writeAuditLog, onManualLock, onNavigate, onRequestPin, SESSION_KEY }: Props) {
   const ROLE_LABELS: Record<string,string> = { giam_doc:'Giám đốc DA', ke_toan:'Kế toán', chi_huy_truong:'Chỉ huy trưởng', giam_sat:'Giám sát QA/QC' };
   const pid         = selectedProject?.id ?? 'p1';
   const projectName = selectedProject?.name ?? 'Dự án';
@@ -72,7 +74,7 @@ export default function ContractDashboard({ project: selectedProject, currentRol
             <p className="text-sm text-slate-500 text-center max-w-xs leading-relaxed mb-8">
               Tab Hợp đồng chứa thông tin tài chính và pháp lý nhạy cảm của dự án. Xác thực để tiếp tục.
             </p>
-            <button onClick={() => setShowPinDialog(true)}
+            <button onClick={() => onRequestPin?.()}
               className="flex items-center gap-2 px-6 py-3 bg-slate-900 hover:bg-slate-800 text-white rounded-2xl font-semibold transition-all shadow-lg hover:shadow-xl active:scale-95">
               <Lock size={16}/> Nhập mã PIN để mở
             </button>
@@ -536,10 +538,10 @@ export default function ContractDashboard({ project: selectedProject, currentRol
                   </h3>
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
                     {[
-                      { label:'Giá trị HĐ',         val: c.canSeeFullValues ?? true ? `${(c.value/1e9).toFixed(2)} tỷ` : '***' },
+                      { label:'Giá trị HĐ',         val: canSeeFullValues ? `${(c.value/1e9).toFixed(2)} tỷ` : '***' },
                       { label:'Tỷ lệ LAD/ngày',      val: '0.05%' },
                       { label:'Ngày trễ (ước tính)', val: '14 ngày' },
-                      { label:'LAD ước tính',        val: c.canSeeFullValues ?? true ? `${((c.value * 0.0005 * 14)/1e6).toFixed(0)} Tr đ` : '***' },
+                      { label:'LAD ước tính',        val: canSeeFullValues ? `${((c.value * 0.0005 * 14)/1e6).toFixed(0)} Tr đ` : '***' },
                     ].map(k => (
                       <div key={k.label} className="bg-slate-50 rounded-xl p-3 text-center">
                         <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wide mb-1">{k.label}</p>
@@ -607,13 +609,13 @@ export default function ContractDashboard({ project: selectedProject, currentRol
                     {e.status === 'pending' && (
                       <div className="flex gap-1 shrink-0">
                         <button onClick={() => setEotLog(prev => {
-                          const next = prev.map(x => x.id === e.id ? {...x, status: 'approved'} : x);
+                          const next = prev.map(x => x.id === e.id ? {...x, status: 'approved' as const} : x);
                           if (dbLoaded.current && selectedContract?.id) db.set(`contract_eot_${selectedContract.id}`, selectedContract.id, next);
                           return next;
                         })}
                           className="px-2 py-1 bg-emerald-100 text-emerald-700 rounded-lg text-[10px] font-bold hover:bg-emerald-200">Duyệt</button>
                         <button onClick={() => setEotLog(prev => {
-                          const next = prev.map(x => x.id === e.id ? {...x, status: 'rejected'} : x);
+                          const next = prev.map(x => x.id === e.id ? {...x, status: 'rejected' as const} : x);
                           if (dbLoaded.current && selectedContract?.id) db.set(`contract_eot_${selectedContract.id}`, selectedContract.id, next);
                           return next;
                         })}
@@ -673,9 +675,9 @@ export default function ContractDashboard({ project: selectedProject, currentRol
                 <FormRow label="Ngày nộp">
                   <input className={inputCls} placeholder="DD/MM/YYYY" value={eotForm.date} onChange={e => setEotForm(p => ({...p, date: e.target.value}))}/>
                 </FormRow>
-                <FormRow label="Lý do xin gia hạn *" className="col-span-2">
+                <div className="col-span-2"><FormRow label="Lý do xin gia hạn *">
                   <textarea rows={3} className={inputCls + ' resize-none'} placeholder="Mô tả nguyên nhân khách quan..." value={eotForm.reason} onChange={e => setEotForm(p => ({...p, reason: e.target.value}))}/>
-                </FormRow>
+                </FormRow></div>
               </FormGrid>
             </ModalForm>
           </div>
