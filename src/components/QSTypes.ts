@@ -41,6 +41,14 @@ export interface PaymentRequest {
   net_payable: number;
   status: "draft" | "submitted" | "approved" | "paid";
   note?: string;
+  // Extended fields for print
+  title?: string;
+  contract_value?: number;
+  completed_pct?: number;
+  prev_claimed?: number;
+  amount?: number;
+  retention_pct?: number;
+  contractor?: string;
 }
 
 // ── Subcontractor types ───────────────────────────────────────────────────────

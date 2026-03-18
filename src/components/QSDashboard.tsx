@@ -32,6 +32,7 @@ import VariationOrdersTab from './QSVariationTab';
 import SubcontractorTab   from './QSSubcontractorTab';
 import {
   type BOQItem, type AcceptanceLot, type PaymentRequest, type QSProps,
+  type SubContractor, type SubPayment, type PayMechanism,
   INIT_BOQ, INIT_ACCEPTANCE, INIT_PAYMENTS, S_CURVE_DATA,
   PAYMENT_STATUS, ACCEPT_STATUS, CHAPTERS, CHAPTER_NAMES, CHAPTER_COLORS,
   fmt, fmtB, pct, calcBOQValue, calcDoneValue,
@@ -568,7 +569,7 @@ export default function QSDashboard({ projectId, projectName, contractValue = 45
     };
     setSubs(prev=>[...prev, s]);
     setNewSub({type:"subcontractor",pay_mechanism:"progress",retention_pct:5});
-    setShowNewSub(false);
+    setShowNewSubPay(false);
   };
 
   // ── Tab config ──────────────────────────────────────────────────────────────
