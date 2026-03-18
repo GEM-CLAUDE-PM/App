@@ -9,12 +9,13 @@ import {
   BookOpen, Hash, Bell, Eye, Copy, MessageSquare, Flag,
   ChevronRight, Archive, Inbox, UploadCloud, ClipboardList
 } from 'lucide-react';
-import { createDocument, submitDocument, getApprovalQueue, type ApprovalDoc } from './approvalEngine';
+import { createDocument, submitDocument, getApprovalQueue } from './approvalEngine';
+import type { ApprovalDoc } from './approvalEngine';
 import { WORKFLOWS, type UserContext } from './permissions';
 import { getCurrentMember, buildCtxFromMember } from './projectMember';
 import ApprovalQueue from './ApprovalQueue';
 import { db, useRealtimeSync } from './db';
-import ModalForm, { FormRow, FormGrid, FormSection, inputCls, selectCls, BtnCancel, BtnSubmit } from './ModalForm';
+import ModalForm, { FormRow, FormGrid, FormSection, selectCls, BtnCancel, BtnSubmit } from './ModalForm';
 import type { DashboardProps } from './types';
 
 type Props = DashboardProps;
@@ -37,12 +38,6 @@ interface Meeting {
   id: string; title: string; date: string; time_start: string; time_end: string;
   location: string; status: MeetStatus; organizer: string;
   attendees: string[]; agenda: string[]; notes: string; minute_id?: string;
-}
-interface ApprovalDoc {
-  id: string; title: string; doc_type: string; status: ApprStatus;
-  submitted_by: string; submitted_date: string; deadline: string;
-  current_step: number; steps: { name: string; assignee: string; status: ApprStatus; date?: string; note?: string }[];
-  description: string; attachments: number;
 }
 interface MeetingMinute {
   id: string; meeting_id: string; meeting_title: string; date: string;
@@ -177,6 +172,7 @@ const MOCK_MINUTES: MeetingMinute[] = [
 
 // ─── Sub-tab: Công văn ────────────────────────────────────────────────────────
 function TabCongVan({ cvs, setCvs, pid }: { cvs: CongVan[]; setCvs: React.Dispatch<React.SetStateAction<CongVan[]>>; pid: string }) {
+  const { ok: notifOk, err: notifErr, warn: notifWarn, info: notifInfo } = useNotification();
   const [dir, setDir] = useState<'all'|CVDir>('all');
   const [filterCat, setFilterCat] = useState('Tất cả');
   const [search, setSearch] = useState('');
@@ -340,7 +336,7 @@ function TabCongVan({ cvs, setCvs, pid }: { cvs: CongVan[]; setCvs: React.Dispat
                 <option value="outbound">Công văn đi</option><option value="inbound">Công văn đến</option>
               </select>
             </FormRow>
-            <FormRow label="Trích yếu *" className="col-span-2"><input className={inputCls} placeholder="Nội dung trích yếu ngắn gọn" value={newCV.trich_yeu} onChange={e=>setNewCV(p=>({...p,trich_yeu:e.target.value}))}/></FormRow>
+            <div className="col-span-2"><FormRow label="Trích yếu *"><input className={inputCls} placeholder="Nội dung trích yếu ngắn gọn" value={newCV.trich_yeu} onChange={e=>setNewCV(p=>({...p,trich_yeu:e.target.value}))}/></FormRow></div>
             <FormRow label="Danh mục">
               <select className={selectCls} value={newCV.category} onChange={e=>setNewCV(p=>({...p,category:e.target.value}))}>
                 {['Kỹ thuật','Nghiệm thu','Báo cáo','Vật tư','Chỉ đạo','Hành chính'].map(c=><option key={c}>{c}</option>)}
@@ -370,6 +366,7 @@ function TabCongVan({ cvs, setCvs, pid }: { cvs: CongVan[]; setCvs: React.Dispat
 
 // ─── Sub-tab: Lịch họp ────────────────────────────────────────────────────────
 function TabLichHop({ meetings, setMeetings, pid }: { meetings: Meeting[]; setMeetings: React.Dispatch<React.SetStateAction<Meeting[]>>; pid: string }) {
+  const { ok: notifOk, err: notifErr, warn: notifWarn, info: notifInfo } = useNotification();
   const [expandedId, setExpandedId] = useState<string|null>(null);
   const [showForm, setShowForm] = useState(false);
   const [gemLoading, setGemLoading] = useState(false);
@@ -518,12 +515,12 @@ function TabLichHop({ meetings, setMeetings, pid }: { meetings: Meeting[]; setMe
       >
         <FormSection title="Thông tin cuộc họp">
           <FormGrid cols={2}>
-            <FormRow label="Tiêu đề *" className="col-span-2"><input className={inputCls} placeholder="VD: Họp giao ban tuần 11" value={newMeet.title} onChange={e=>setNewMeet(p=>({...p,title:e.target.value}))}/></FormRow>
+            <div className="col-span-2"><FormRow label="Tiêu đề *"><input className={inputCls} placeholder="VD: Họp giao ban tuần 11" value={newMeet.title} onChange={e=>setNewMeet(p=>({...p,title:e.target.value}))}/></FormRow></div>
             <FormRow label="Ngày *"><input className={inputCls} placeholder="DD/MM/YYYY" value={newMeet.date} onChange={e=>setNewMeet(p=>({...p,date:e.target.value}))}/></FormRow>
             <FormRow label="Địa điểm"><input className={inputCls} placeholder="Phòng họp, địa chỉ..." value={newMeet.location} onChange={e=>setNewMeet(p=>({...p,location:e.target.value}))}/></FormRow>
             <FormRow label="Bắt đầu"><input type="time" className={inputCls} value={newMeet.time_start} onChange={e=>setNewMeet(p=>({...p,time_start:e.target.value}))}/></FormRow>
             <FormRow label="Kết thúc"><input type="time" className={inputCls} value={newMeet.time_end} onChange={e=>setNewMeet(p=>({...p,time_end:e.target.value}))}/></FormRow>
-            <FormRow label="Chủ trì" className="col-span-2"><input className={inputCls} placeholder="Tên người chủ trì" value={newMeet.organizer} onChange={e=>setNewMeet(p=>({...p,organizer:e.target.value}))}/></FormRow>
+            <div className="col-span-2"><FormRow label="Chủ trì"><input className={inputCls} placeholder="Tên người chủ trì" value={newMeet.organizer} onChange={e=>setNewMeet(p=>({...p,organizer:e.target.value}))}/></FormRow></div>
           </FormGrid>
         </FormSection>
         <FormSection title="Chương trình nghị sự">
@@ -541,6 +538,7 @@ function TabLichHop({ meetings, setMeetings, pid }: { meetings: Meeting[]; setMe
 
 // ─── Sub-tab: Ký duyệt ────────────────────────────────────────────────────────
 function TabKyDuyet({ docs, setDocs, pid, onTriggerApproval }: { docs: ApprovalDoc[]; setDocs: React.Dispatch<React.SetStateAction<ApprovalDoc[]>>; pid: string; onTriggerApproval?: (title: string) => void }) {
+  const { ok: notifOk, err: notifErr, warn: notifWarn, info: notifInfo } = useNotification();
   const [expandedId, setExpandedId] = useState<string|null>(null);
   const [showForm, setShowForm] = useState(false);
   const [newDoc, setNewDoc] = useState({ title:'', doc_type:'', description:'', submitted_by:'', deadline:'' });
@@ -671,15 +669,15 @@ function TabKyDuyet({ docs, setDocs, pid, onTriggerApproval }: { docs: ApprovalD
         </>}
       >
         <FormGrid cols={2}>
-          <FormRow label="Tên văn bản *" className="col-span-2"><input className={inputCls} placeholder="VD: Phương án tổ chức thi công tầng 4" value={newDoc.title} onChange={e=>setNewDoc(p=>({...p,title:e.target.value}))}/></FormRow>
-          <FormRow label="Loại văn bản" className="col-span-2">
+          <div className="col-span-2"><FormRow label="Tên văn bản *"><input className={inputCls} placeholder="VD: Phương án tổ chức thi công tầng 4" value={newDoc.title} onChange={e=>setNewDoc(p=>({...p,title:e.target.value}))}/></FormRow></div>
+          <div className="col-span-2"><FormRow label="Loại văn bản">
             <select className={selectCls} value={newDoc.doc_type} onChange={e=>setNewDoc(p=>({...p,doc_type:e.target.value}))}>
               {['Phê duyệt kỹ thuật','Báo cáo định kỳ','Quy định nội bộ','Hợp đồng','Biên bản','Đề xuất'].map(t=><option key={t}>{t}</option>)}
             </select>
-          </FormRow>
+          </FormRow></div>
           <FormRow label="Người nộp"><input className={inputCls} value={newDoc.submitted_by} onChange={e=>setNewDoc(p=>({...p,submitted_by:e.target.value}))}/></FormRow>
           <FormRow label="Hạn phê duyệt"><input className={inputCls} placeholder="DD/MM/YYYY" value={newDoc.deadline} onChange={e=>setNewDoc(p=>({...p,deadline:e.target.value}))}/></FormRow>
-          <FormRow label="Mô tả ngắn" className="col-span-2"><textarea rows={3} className={inputCls + " resize-none"} value={newDoc.description} onChange={e=>setNewDoc(p=>({...p,description:e.target.value}))}/></FormRow>
+          <div className="col-span-2"><FormRow label="Mô tả ngắn"><textarea rows={3} className={inputCls + " resize-none"} value={newDoc.description} onChange={e=>setNewDoc(p=>({...p,description:e.target.value}))}/></FormRow></div>
         </FormGrid>
       </ModalForm>
     </div>
@@ -688,6 +686,7 @@ function TabKyDuyet({ docs, setDocs, pid, onTriggerApproval }: { docs: ApprovalD
 
 // ─── Sub-tab: Biên bản họp ────────────────────────────────────────────────────
 function TabBienBan({ minutes, setMinutes, meetings, pid }: { minutes: MeetingMinute[]; setMinutes: React.Dispatch<React.SetStateAction<MeetingMinute[]>>; meetings: Meeting[]; pid: string }) {
+  const { ok: notifOk, err: notifErr, warn: notifWarn, info: notifInfo } = useNotification();
   const [expandedId, setExpandedId] = useState<string|null>(null);
   const [showForm, setShowForm] = useState(false);
   const [gemLoading, setGemLoading] = useState(false);
@@ -825,12 +824,12 @@ function TabBienBan({ minutes, setMinutes, meetings, pid }: { minutes: MeetingMi
         </>}
       >
         <FormGrid cols={2}>
-          <FormRow label="Tên cuộc họp *" className="col-span-2"><input className={inputCls} value={newMin.meeting_title} onChange={e=>setNewMin(p=>({...p,meeting_title:e.target.value}))}/></FormRow>
+          <div className="col-span-2"><FormRow label="Tên cuộc họp *"><input className={inputCls} value={newMin.meeting_title} onChange={e=>setNewMin(p=>({...p,meeting_title:e.target.value}))}/></FormRow></div>
           <FormRow label="Ngày"><input className={inputCls} placeholder="DD/MM/YYYY" value={newMin.date} onChange={e=>setNewMin(p=>({...p,date:e.target.value}))}/></FormRow>
           <FormRow label="Địa điểm"><input className={inputCls} value={newMin.location} onChange={e=>setNewMin(p=>({...p,location:e.target.value}))}/></FormRow>
-          <FormRow label="Người lập biên bản" className="col-span-2"><input className={inputCls} value={newMin.prepared_by} onChange={e=>setNewMin(p=>({...p,prepared_by:e.target.value}))}/></FormRow>
-          <FormRow label="Nội dung thảo luận" className="col-span-2"><textarea rows={3} className={inputCls + " resize-none"} value={newMin.content} onChange={e=>setNewMin(p=>({...p,content:e.target.value}))}/></FormRow>
-          <FormRow label="Quyết định (mỗi dòng một quyết định)" className="col-span-2"><textarea rows={3} className={inputCls + " resize-none"} placeholder={"Quyết định 1\nQuyết định 2..."} value={newMin.decisions_raw} onChange={e=>setNewMin(p=>({...p,decisions_raw:e.target.value}))}/></FormRow>
+          <div className="col-span-2"><FormRow label="Người lập biên bản"><input className={inputCls} value={newMin.prepared_by} onChange={e=>setNewMin(p=>({...p,prepared_by:e.target.value}))}/></FormRow></div>
+          <div className="col-span-2"><FormRow label="Nội dung thảo luận"><textarea rows={3} className={inputCls + " resize-none"} value={newMin.content} onChange={e=>setNewMin(p=>({...p,content:e.target.value}))}/></FormRow></div>
+          <div className="col-span-2"><FormRow label="Quyết định (mỗi dòng một quyết định)"><textarea rows={3} className={inputCls + " resize-none"} placeholder={"Quyết định 1\nQuyết định 2..."} value={newMin.decisions_raw} onChange={e=>setNewMin(p=>({...p,decisions_raw:e.target.value}))}/></FormRow></div>
         </FormGrid>
       </ModalForm>
     </div>
