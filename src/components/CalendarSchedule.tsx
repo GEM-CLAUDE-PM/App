@@ -94,8 +94,9 @@ interface ModalProps {
   defaultDate?: string;
   onSave: (e: CalEvent) => void;
   onClose: () => void;
+  projects?: any[];
 }
-function EventModal({ event, defaultDate, onSave, onClose }: ModalProps) {
+function EventModal({ event, defaultDate, onSave, onClose, projects = [] }: ModalProps) {
   const isEdit = !!event;
   const [form, setForm] = useState<Omit<CalEvent,'id'>>({
     date:      event?.date      || defaultDate || getTodayStr(),
@@ -721,6 +722,7 @@ export default function CalendarSchedule({ projects = [] }: { projects?: any[] }
           defaultDate={modalDate}
           onSave={saveEvent}
           onClose={() => { setShowModal(false); setEditEvent(null); }}
+          projects={projects}
         />
       )}
     </div>
