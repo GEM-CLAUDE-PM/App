@@ -227,7 +227,7 @@ function CreateDelegationForm({ projectId, ctx, members, onCreated, onCancel }: 
     const result = createDelegation({
       projectId,
       fromUserId:   ctx.userId,
-      fromUserName: ctx.userName,
+      fromUserName: ctx.userId,
       fromRoleId:   ctx.roleId,
       toUserId,
       toUserName:   toMember?.userName || toUserId,
@@ -261,7 +261,7 @@ function CreateDelegationForm({ projectId, ctx, members, onCreated, onCancel }: 
           </div>
           <div>
             <p className="text-white font-bold text-sm">Tạo ủy quyền mới</p>
-            <p className="text-slate-400 text-[10px]">Từ {ctx.userName} — {ROLES[ctx.roleId]?.label}</p>
+            <p className="text-slate-400 text-[10px]">Từ {ctx.userId} — {ROLES[ctx.roleId]?.label}</p>
           </div>
         </div>
         <button onClick={onCancel} className="text-slate-500 hover:text-white transition-colors">
