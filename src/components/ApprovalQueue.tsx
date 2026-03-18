@@ -261,9 +261,10 @@ interface DocDetailProps {
   uploadMode:  boolean;
   onUpload:    (doc: ApprovalDoc, file: File) => void;
   actionError?: string;
+  processing?: boolean;
 }
 
-function DocDetailPanel({ doc, ctx, onAction, onClose, uploadMode, onUpload, actionError }: DocDetailProps) {
+function DocDetailPanel({ doc, ctx, onAction, onClose, uploadMode, onUpload, actionError, processing = false }: DocDetailProps) {
   const workflow    = WORKFLOWS[doc.docType];
   const statusCfg   = getStatusConfig(doc.status);
   const stepLabel   = getCurrentStepLabel(doc);
@@ -1077,6 +1078,7 @@ export default function ApprovalQueue({ projectId, projectName, ctx, onClose }: 
           uploadMode={selectedDoc.status === 'PENDING_EXTERNAL'}
           onUpload={handleUpload}
           actionError={actionError}
+          processing={processing}
         />
       )}
 

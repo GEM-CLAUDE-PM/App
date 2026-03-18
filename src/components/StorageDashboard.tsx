@@ -9,7 +9,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { genAI, GEM_MODEL, GEM_MODEL_QUALITY } from './gemini';
 import { useAuth } from './AuthProvider';
 import {
-  StorageService, CATEGORY_META, MOCK_FILES,
+  StorageService, CATEGORY_META,
   type StorageFile, type FileCategory, type UploadProgress,
 } from './StorageService';
 import {
