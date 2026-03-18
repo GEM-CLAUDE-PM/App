@@ -91,7 +91,7 @@ export default function HSEImageAnalyzer({
           { inlineData: { data: base64, mimeType } },
           { text: HSE_ANALYSIS_PROMPT },
         ],
-        { model: GEM_MODEL_VISION, temperature: 0.1 }
+        { model: GEM_MODEL_VISION, generationConfig: { temperature: 0.1 } }
       );
 
       // Parse JSON — strip markdown fences nếu có

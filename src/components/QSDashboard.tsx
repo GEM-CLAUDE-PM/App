@@ -1665,19 +1665,12 @@ export default function QSDashboard({ projectId, projectName, contractValue = 45
         width="lg"
         footer={<>
           <BtnCancel onClick={() => { setShowNewPayment(false); setSelectedLotIds([]); }} />
-          <BtnSubmit 
-        <FormSection title="Hồ sơ đính kèm">
-          <FormFileUpload
-            files={[]}
-            onChange={() => {}}
-            accept=".pdf,.docx,.xlsx,.jpg"
-            maxFiles={5}
-            label="Hồ sơ đề nghị thanh toán"
-          />
-        </FormSection>
-label="Lưu đề nghị TT" color="blue" onClick={saveNewPayment} />
+          <BtnSubmit label="Lưu đề nghị TT" color="blue" onClick={saveNewPayment} />
         </>}
       >
+        <FormSection title="Hồ sơ đính kèm">
+          <FormFileUpload files={[]} onChange={() => {}} accept=".pdf,.docx,.xlsx,.jpg" maxFiles={5} label="Hồ sơ đề nghị thanh toán"/>
+        </FormSection>
         <FormSection title="Thông tin chung">
           <FormGrid cols={2}>
             <FormRow label="Người lập YCTT" required><input className={inputCls} placeholder="Họ tên người lập" /></FormRow>

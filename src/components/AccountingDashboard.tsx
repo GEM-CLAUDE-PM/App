@@ -1,7 +1,7 @@
 import { useNotification } from './NotificationEngine';
 import React, { useState, useCallback, useEffect } from 'react';
 import { db, useRealtimeSync } from './db';
-import ModalForm, { FormRow, FormGrid, selectCls, BtnCancel, BtnSubmit, FormFileUpload } from './ModalForm';
+import ModalForm, { FormRow, FormGrid, FormSection, selectCls, BtnCancel, BtnSubmit, FormFileUpload } from './ModalForm';
 import { getAllDocs, seedApprovalDocs, createDocument, submitDocument as engineSubmitDoc, getApprovalQueue, type ApprovalDoc } from './approvalEngine';
 import type { SeedVoucherInput } from './approvalEngine';
 import { createLegacyContext, WORKFLOWS, type UserContext } from './permissions';

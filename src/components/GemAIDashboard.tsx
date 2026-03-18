@@ -332,7 +332,7 @@ export default function GemAIDashboard({ projectName = 'Dự án', projectId }: 
   // ── Main render ────────────────────────────────────────────────────────
   return (
     <div className="space-y-5">
-      {/* S20: Main tab switcher */}
+      {/* S20: Tab switcher */}
       <div className="flex gap-1 bg-slate-100 rounded-xl p-1 w-fit">
         {([["rag","📄 Phân tích tài liệu"],["predictive","📈 Dự báo AI"]] as const).map(([id,label]) => (
           <button key={id} onClick={() => setMainTab(id)}
@@ -342,14 +342,16 @@ export default function GemAIDashboard({ projectName = 'Dự án', projectId }: 
         ))}
       </div>
 
-      {mainTab === "predictive" && projectId && (
-        <GemAIPredictive projectId={projectId} projectName={projectName} />
+      {/* Predictive tab */}
+      {mainTab === "predictive" && (
+        <>{projectId
+          ? <GemAIPredictive projectId={projectId} projectName={projectName} />
+          : <p className="text-sm text-slate-400 py-8 text-center">Cần chọn dự án để xem dự báo.</p>
+        }</>
       )}
-      {mainTab === "predictive" && !projectId && (
-        <div className="text-sm text-slate-400 py-8 text-center">Cần chọn dự án để xem dự báo.</div>
-      )}
-      {mainTab === "rag" && <>{/* RAG content below */}</>}
-      {mainTab === "rag" && <div className="space-y-5" style={{display: mainTab === "rag" ? undefined : "none"}}>
+
+      {/* RAG tab — dùng display:none để ẩn, không unmount */}
+      <div style={{display: mainTab === "rag" ? undefined : "none"}}>
       {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
@@ -611,8 +613,8 @@ export default function GemAIDashboard({ projectName = 'Dự án', projectId }: 
           })}
         </div>
       </div>
+      </div>{/* end RAG wrapper */}
     </div>
-      </div>}
   );
 }
 

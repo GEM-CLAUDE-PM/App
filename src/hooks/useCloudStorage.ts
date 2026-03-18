@@ -12,7 +12,7 @@ export const useCloudStorage = (selectedProjectName: string) => {
     // Khởi tạo Microsoft Provider nếu chưa có (Tránh lỗi TypeError)
     if (!Providers.globalProvider) {
       Providers.globalProvider = new Msal2Provider({
-        clientId: import.meta.env.VITE_MS_CLIENT_ID || '',
+        clientId: (import.meta as any).env?.VITE_MS_CLIENT_ID || '',
         scopes: ['files.readwrite.all', 'user.read']
       });
     }
@@ -20,7 +20,7 @@ export const useCloudStorage = (selectedProjectName: string) => {
     // Khởi tạo Google API
     const initGapi = () => {
       gapi.client.init({
-        clientId: import.meta.env.VITE_GOOGLE_CLIENT_ID || '',
+        clientId: (import.meta as any).env?.VITE_GOOGLE_CLIENT_ID || '',
         discoveryDocs: ["https://www.googleapis.com/discovery/v1/apis/drive/v3/rest"],
         scope: 'https://www.googleapis.com/auth/drive.file',
       }).then(() => {

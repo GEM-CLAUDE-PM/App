@@ -1,4 +1,4 @@
-import ModalForm, { FormRow, FormGrid, FormSection, inputCls, selectCls, BtnCancel, BtnSubmit, FormSection, FormFileUpload } from './ModalForm';
+import ModalForm, { FormRow, FormGrid, FormSection, inputCls, selectCls, BtnCancel, BtnSubmit, FormFileUpload } from './ModalForm';
 import { db, useRealtimeSync } from "./db";
 import { getProjectTemplate, PROJECT_TEMPLATES } from "./projectTemplates";
 import { useNotification } from './NotificationEngine';

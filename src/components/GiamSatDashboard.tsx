@@ -3,14 +3,14 @@ import BIMViewer from "./BIMViewer";
 import CameraCapture from "./CameraCapture";
 import VoiceCapture from "./VoiceCapture";
 import { useNotification } from './NotificationEngine';
-import ModalForm, { FormRow, FormGrid, FormSection, inputCls, selectCls, inputCls, FormSection, FormFileUpload, BtnCancel, BtnSubmit } from './ModalForm';
+import ModalForm, { FormRow, FormGrid, FormSection, inputCls, selectCls, FormFileUpload, BtnCancel, BtnSubmit } from './ModalForm';
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { genAI, GEM_MODEL, GEM_MODEL_QUALITY } from './gemini';
 import {
   Box, ClipboardList, MessageCircle, Files, LayoutDashboard,
   AlertTriangle, AlertCircle, ChevronRight, Plus, Search,
   X, Printer, Sparkles, Loader2, Eye, CheckCircle2, Calendar,
-  ChevronDown, RefreshCw,
+  ChevronDown, RefreshCw, Camera,
 } from 'lucide-react';
 
 // ── Types — khai báo NGOÀI component ─────────────────────────────────────────

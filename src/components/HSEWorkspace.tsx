@@ -1,5 +1,5 @@
 import { useNotification } from './NotificationEngine';
-import ModalForm, { FormRow, FormGrid, FormSection, inputCls, selectCls, BtnCancel, BtnSubmit } from './ModalForm';
+import ModalForm, { FormRow, FormGrid, FormSection, FormFileUpload, inputCls, selectCls, BtnCancel, BtnSubmit } from './ModalForm';
 import CameraCapture, { type CaptureResult } from './CameraCapture';
 import VoiceCapture from './VoiceCapture';
 import HSEImageAnalyzer, { type HSEAnalysisResult } from './HSEImageAnalyzer';

@@ -15,7 +15,7 @@ import { WORKFLOWS, type UserContext } from './permissions';
 import { getCurrentMember, buildCtxFromMember } from './projectMember';
 import ApprovalQueue from './ApprovalQueue';
 import { db, useRealtimeSync } from './db';
-import ModalForm, { FormRow, FormGrid, FormSection, selectCls, inputCls, FormSection, FormFileUpload, BtnCancel, BtnSubmit } from './ModalForm';
+import ModalForm, { FormRow, FormGrid, FormSection, selectCls, FormFileUpload, BtnCancel, BtnSubmit } from './ModalForm';
 import type { DashboardProps } from './types';
 
 

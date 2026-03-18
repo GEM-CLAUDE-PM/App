@@ -3,7 +3,7 @@ import React, { useState, useRef, useMemo } from 'react';
 import { Truck, Wrench, Fuel, Activity, AlertTriangle, Plus, X, Save, Clock,
   CheckCircle2, CircleDashed, AlertCircle, Sparkles,
   TrendingUp, TrendingDown, BarChart2, Calendar, User, Eye,
-  DollarSign, Shield, Gauge, Info, Search } from 'lucide-react';
+  DollarSign, Shield, Gauge, Info, Search, Scan } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line } from 'recharts';
 import { createDocument, submitDocument, getApprovalQueue, type ApprovalDoc } from './approvalEngine';
 import { WORKFLOWS, type UserContext } from './permissions';

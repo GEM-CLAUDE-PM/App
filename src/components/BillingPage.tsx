@@ -7,8 +7,6 @@ import React, { useState } from 'react';
 import { useNotification } from './NotificationEngine';
 import { getSupabase, type PlanId } from './supabase';
 import { useAuth } from './AuthProvider';
-import { getSupabase, type PlanId } from './supabase';
-import { useAuth } from './AuthProvider';
 import ModalForm, { FormRow, FormGrid, inputCls, selectCls, BtnCancel, BtnSubmit } from './ModalForm';
 import {
   Check, X, Zap, Shield, Crown, CreditCard,
@@ -147,7 +145,7 @@ export default function BillingPage({ onClose }: { onClose?: () => void }) {
       notifInfo('Vui lòng liên hệ: gemclaudepm@gmail.com hoặc hotline để được tư vấn gói Enterprise.');
       return;
     }
-    if (plan === currentPlan && currentPlan !== 'trial') {
+    if ((currentPlan as string) === (plan as string) && currentPlan !== 'trial') {
       notifInfo(`Anh đang dùng gói ${plan.toUpperCase()} rồi.`);
       return;
     }

@@ -335,14 +335,6 @@ export default function ProjectDashboard({
   const [showRecordGemChat, setShowRecordGemChat] = useState(false);
 
   const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
-  // S25 Responsive: pending count ở component level cho bottom nav
-  const pendingApprovalCount = React.useMemo(() => {
-    if (!localProjectId) return 0;
-    try {
-      const ctx = { userId: `user_${currentRole}`, roleId: currentRole as any };
-      return getPendingCount(localProjectId, ctx);
-    } catch { return 0; }
-  }, [localProjectId, currentRole]);
   useEffect(() => {
     const handleResize = () => setIsMobile(window.innerWidth < 768);
     window.addEventListener('resize', handleResize);
@@ -354,6 +346,15 @@ export default function ProjectDashboard({
     initialProjectId ?? selectedProjectId ?? null
   );
   const selectedProject = projects.find(p => p.id === localProjectId) || null;
+
+  // S25 Responsive: pending count ở component level cho bottom nav
+  const pendingApprovalCount = React.useMemo(() => {
+    if (!localProjectId) return 0;
+    try {
+      const ctx = { userId: `user_${currentRole}`, roleId: currentRole as any };
+      return getPendingCount(localProjectId, ctx);
+    } catch { return 0; }
+  }, [localProjectId, currentRole]);
 
   // Seed members cho project hiện tại khi chọn
   useEffect(() => {
