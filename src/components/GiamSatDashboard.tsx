@@ -18,7 +18,7 @@ interface SupervisionLog {
   id: string; date: string; inspector: string; area: string;
   weather: string; temp: string; workers_count: number;
   items: { work: string; standard: string; result: 'pass' | 'fail' | 'note'; observation: string }[];
-  conclusion: string; next_plan: string; status: LogStatus;
+  conclusion: string; next_plan: string; status: LogStatus; gemSuggestion?: string;
 }
 interface RFIItem {
   id: string; code: string; title: string; description: string;
@@ -1089,15 +1089,15 @@ export default function GiamSatDashboard({ project }: Props) {
         </>}
       >
         <FormGrid cols={2}>
-          <FormRow label="Bản vẽ *" className="col-span-2">
+          <div className="col-span-2"><FormRow label="Bản vẽ *">
             <select className={selectCls} value={newRevDrawingId} onChange={e => setNewRevDrawingId(e.target.value)}>
               <option value="">-- Chọn bản vẽ --</option>
               {drawings.map(d => <option key={d.id} value={d.id}>{d.drawing_code} — {d.title}</option>)}
             </select>
-          </FormRow>
+          </FormRow></div>
           <FormRow label="Ký hiệu Rev *"><input className={inputCls} placeholder="VD: D" value={newRevCode} onChange={e => setNewRevCode(e.target.value)}/></FormRow>
           <FormRow label="Người phát hành"><input className={inputCls} placeholder="VD: TK Hùng" value={newRevIssuer} onChange={e => setNewRevIssuer(e.target.value)}/></FormRow>
-          <FormRow label="Mô tả thay đổi" className="col-span-2"><input className={inputCls} placeholder="Mô tả nội dung thay đổi..." value={newRevDesc} onChange={e => setNewRevDesc(e.target.value)}/></FormRow>
+          <div className="col-span-2"><FormRow label="Mô tả thay đổi"><input className={inputCls} placeholder="Mô tả nội dung thay đổi..." value={newRevDesc} onChange={e => setNewRevDesc(e.target.value)}/></FormRow></div>
         </FormGrid>
       </ModalForm>
 
@@ -1112,7 +1112,7 @@ export default function GiamSatDashboard({ project }: Props) {
           const newLog: SupervisionLog = {
             id: `gl${Date.now()}`, date: logForm.date || new Date().toLocaleDateString('vi-VN'),
             inspector: logForm.inspector || '', area: logForm.area!,
-            weather: logForm.weather || 'Nắng', temp: logForm.temp || 32,
+            weather: logForm.weather || 'Nắng', temp: String(logForm.temp || 32),
             workers_count: logForm.workers_count || 0, items: logForm.items || [],
             conclusion: logForm.conclusion || '', next_plan: logForm.next_plan || '',
             status: 'draft', gemSuggestion: '',
@@ -1128,7 +1128,7 @@ export default function GiamSatDashboard({ project }: Props) {
           const newLog: SupervisionLog = {
             id: `gl${Date.now()}`, date: logForm.date || new Date().toLocaleDateString('vi-VN'),
             inspector: logForm.inspector || '', area: logForm.area!,
-            weather: logForm.weather || 'Nắng', temp: logForm.temp || 32,
+            weather: logForm.weather || 'Nắng', temp: String(logForm.temp || 32),
             workers_count: logForm.workers_count || 0, items: logForm.items || [],
             conclusion: logForm.conclusion || '', next_plan: logForm.next_plan || '',
             status: 'signed', gemSuggestion: '',
