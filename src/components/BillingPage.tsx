@@ -255,8 +255,15 @@ export default function BillingPage({ onClose }: { onClose?: () => void }) {
           <span className={`text-sm font-semibold ${cycle === 'monthly' ? 'text-slate-800' : 'text-slate-400'}`}>Hàng tháng</span>
           <button
             onClick={() => setCycle(c => c === 'monthly' ? 'yearly' : 'monthly')}
-            className={`relative w-12 h-6 rounded-full transition-colors ${cycle === 'yearly' ? 'bg-emerald-500' : 'bg-slate-300'}`}>
-            <span className={`absolute top-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform ${cycle === 'yearly' ? 'translate-x-6' : 'translate-x-1'}`}/>
+            style={{ width: 48, height: 28, position: 'relative', borderRadius: 14, border: 'none', cursor: 'pointer', transition: 'background 0.2s', background: cycle === 'yearly' ? '#10b981' : '#cbd5e1', flexShrink: 0 }}
+          >
+            <span style={{
+              position: 'absolute', top: 3, width: 22, height: 22,
+              background: 'white', borderRadius: '50%',
+              boxShadow: '0 1px 3px rgba(0,0,0,0.2)',
+              transition: 'left 0.2s',
+              left: cycle === 'yearly' ? 23 : 3,
+            }}/>
           </button>
           <span className={`text-sm font-semibold ${cycle === 'yearly' ? 'text-slate-800' : 'text-slate-400'}`}>
             Hàng năm
