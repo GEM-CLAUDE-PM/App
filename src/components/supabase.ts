@@ -242,14 +242,14 @@ export const AuthService = {
     if (error) return { user: null, error: error.message };
     const { data: profile } = await sb
       .from('profiles')
-      .select('*, tenants!inner(plan_id, trial_ends_at, is_active)')
+      .select('*, tenants!inner(plan, trial_ends_at, is_locked)')
       .eq('id', data.user.id)
       .single();
     if (profile) {
       // Flatten tenant fields vào profile để client không cần join
       const merged: UserProfile = {
         ...profile,
-        plan_id:       profile.tenants?.plan_id       ?? profile.plan_id       ?? 'trial',
+        plan_id:       profile.tenants?.plan         ?? profile.plan_id        ?? 'trial',
         trial_ends_at: profile.tenants?.trial_ends_at ?? profile.trial_ends_at ?? null,
       };
       AuthService.persistSession(merged);
@@ -299,9 +299,9 @@ export const AuthService = {
       .from('tenants')
       .insert({
         name:          params.company_name,
-        plan_id:       'trial' as PlanId,
+        plan:          'trial',
         trial_ends_at: trialEndsAt,
-        is_active:     true,
+        is_locked:     false,
         admin_user_id: userId,
       })
       .select('id')
@@ -316,7 +316,7 @@ export const AuthService = {
       .update({
         tenant_id:       tenantId,
         is_tenant_admin: true,
-        plan_id:         'trial' as PlanId,
+        plan:            'trial',
         trial_ends_at:   trialEndsAt,
       })
       .eq('id', userId);
@@ -338,13 +338,13 @@ export const AuthService = {
     if (!data.session) return null;
     const { data: profile } = await sb
       .from('profiles')
-      .select('*, tenants!inner(plan_id, trial_ends_at, is_active)')
+      .select('*, tenants!inner(plan, trial_ends_at, is_locked)')
       .eq('id', data.session.user.id)
       .single();
     if (profile) {
       const merged: UserProfile = {
         ...profile,
-        plan_id:       profile.tenants?.plan_id       ?? profile.plan_id       ?? 'trial',
+        plan_id:       profile.tenants?.plan         ?? profile.plan_id        ?? 'trial',
         trial_ends_at: profile.tenants?.trial_ends_at ?? profile.trial_ends_at ?? null,
       };
       AuthService.persistSession(merged);
