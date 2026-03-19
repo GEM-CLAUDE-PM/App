@@ -13,8 +13,9 @@ import {
   Users, UserPlus, Trash2, Edit3, Save, X, Shield, ShieldCheck,
   Building2, ChevronDown, CheckCircle2, AlertCircle,
   Loader2, RefreshCw, Key, Mail, Phone, Lock,
-  Eye, EyeOff, Copy, Check,
+  Eye, EyeOff, Copy, Check, UploadCloud,
 } from 'lucide-react';
+import BulkUserUpload from './BulkUserUpload';
 import { getSupabase, JOB_LABELS, TIER_LABELS, TIER_COLORS, JOB_TO_TIER, JOB_ROLE_TO_ROLE_ID,
   type UserProfile, type JobRole, type TierRole } from './supabase';
 
@@ -54,9 +55,12 @@ interface AdminPanelProps {
   currentUserId: string;
   onClose?: () => void;
   projects?: any[];
+  tenantSlug?: string;
+  tenantId?: string;
+  currentUser?: UserProfile;
 }
 
-export default function AdminPanel({ currentUserId, onClose, projects = [] }: AdminPanelProps) {
+export default function AdminPanel({ currentUserId, onClose, projects = [], tenantSlug = 'my-company', tenantId = '', currentUser }: AdminPanelProps) {
   const sb = getSupabase();
 
   const [users, setUsers]           = useState<UserProfile[]>([]);
@@ -70,6 +74,7 @@ export default function AdminPanel({ currentUserId, onClose, projects = [] }: Ad
   const [copiedPwd, setCopiedPwd]   = useState(false);
   const [deleteConfirm, setDeleteConfirm]     = useState<string | null>(null);
   const [transferConfirm, setTransferConfirm] = useState<string | null>(null);
+  const [activeTab, setActiveTab]             = useState<'users' | 'bulk'>('users');
 
   // L4/L5 roles có thể làm tenant admin
   const ADMIN_ELIGIBLE_ROLES: JobRole[] = ['giam_doc', 'pm', 'ke_toan_truong'];
@@ -282,6 +287,35 @@ export default function AdminPanel({ currentUserId, onClose, projects = [] }: Ad
         </div>
       </div>
 
+      {/* ── Tabs ── */}
+      <div className="bg-white border-b border-slate-200 px-6">
+        <div className="flex gap-1">
+          <button
+            onClick={() => setActiveTab('users')}
+            className={`flex items-center gap-2 px-4 py-3 text-sm font-semibold border-b-2 transition-colors ${activeTab === 'users' ? 'border-violet-600 text-violet-700' : 'border-transparent text-slate-500 hover:text-slate-700'}`}
+          >
+            <Users size={15}/> Danh sách ({users.length})
+          </button>
+          <button
+            onClick={() => setActiveTab('bulk')}
+            className={`flex items-center gap-2 px-4 py-3 text-sm font-semibold border-b-2 transition-colors ${activeTab === 'bulk' ? 'border-violet-600 text-violet-700' : 'border-transparent text-slate-500 hover:text-slate-700'}`}
+          >
+            <UploadCloud size={15}/> Import hàng loạt
+          </button>
+        </div>
+      </div>
+
+      {activeTab === 'bulk' ? (
+        <div className="max-w-5xl mx-auto px-6 py-6">
+          <BulkUserUpload
+            tenantSlug={tenantSlug}
+            tenantId={tenantId}
+            projects={projects}
+            currentUser={currentUser ?? { id: currentUserId } as any}
+            onDone={() => { setActiveTab('users'); loadUsers(); }}
+          />
+        </div>
+      ) : (
       <div className="max-w-5xl mx-auto px-6 py-6 space-y-5">
 
         {/* ── Action bar ── */}
@@ -429,6 +463,8 @@ export default function AdminPanel({ currentUserId, onClose, projects = [] }: Ad
           </div>
         )}
       </div>
+
+      )}
 
       {/* ── Create / Edit Form Modal ── */}
       <ModalForm

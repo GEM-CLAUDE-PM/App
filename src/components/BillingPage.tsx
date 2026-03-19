@@ -1,7 +1,7 @@
 /**
  * BillingPage.tsx — GEM & CLAUDE PM Pro
  * S17 — 3 gói dịch vụ: Starter / Pro / Enterprise
- * VNPay mock integration + trial 14 ngày + invoice tự động
+ * VNPay mock integration + trial 30 ngày + invoice tự động
  */
 import React, { useState } from 'react';
 import { useNotification } from './NotificationEngine';
@@ -32,17 +32,22 @@ interface PlanConfig {
   cta: string;
 }
 
+// M4 Hybrid: theo dự án + free worker L1-L2
+// Starter: 1 DA · 5 seats L3+ · Worker unlimited
+// Pro: 5 DA · 15 seats L3+ · Worker unlimited
+// Enterprise: Custom · Unlimited
 const PLANS: PlanConfig[] = [
   {
     id: 'starter',
     name: 'Starter',
     price: { monthly: 990_000, yearly: 9_900_000 },
-    users: '≤ 10 người dùng',
-    projects: '3 dự án',
+    users: '5 seats quản lý (L3+)',
+    projects: '1 dự án',
     storage: '5 GB',
     color: 'slate',
     icon: <Zap size={20}/>,
     features: [
+      'Worker L1-L2 không giới hạn (miễn phí)',
       'Tiến độ & Gantt cơ bản',
       'Vật tư & Kho',
       'QA/QC & Nghiệm thu',
@@ -54,21 +59,21 @@ const PLANS: PlanConfig[] = [
     limitations: [
       'Không có SubconPortal',
       'Không có ClientPortal',
-      'Không có Multi-tenant',
     ],
-    cta: 'Dùng thử 14 ngày',
+    cta: 'Dùng thử 30 ngày',
   },
   {
     id: 'pro',
     name: 'Pro',
     badge: 'Phổ biến nhất',
     price: { monthly: 2_490_000, yearly: 24_900_000 },
-    users: 'Không giới hạn',
-    projects: 'Không giới hạn',
+    users: '15 seats quản lý (L3+)',
+    projects: '5 dự án',
     storage: '50 GB',
     color: 'emerald',
     icon: <Shield size={20}/>,
     features: [
+      'Worker L1-L2 không giới hạn (miễn phí)',
       'Tất cả tính năng Starter',
       'SubconPortal — NTP login riêng',
       'ClientPortal — CĐT xem read-only',
@@ -79,13 +84,13 @@ const PLANS: PlanConfig[] = [
       'Export Excel + PDF nâng cao',
       'Hỗ trợ ưu tiên (chat + call)',
     ],
-    cta: 'Dùng thử 14 ngày',
+    cta: 'Dùng thử 30 ngày',
   },
   {
     id: 'enterprise',
     name: 'Enterprise',
     price: { monthly: 0, yearly: 0 },
-    users: '50+ người dùng',
+    users: 'Không giới hạn',
     projects: 'Không giới hạn',
     storage: 'Không giới hạn',
     color: 'violet',
@@ -94,7 +99,7 @@ const PLANS: PlanConfig[] = [
       'Tất cả tính năng Pro',
       'Server riêng hoàn toàn (Single-tenant)',
       'Data isolated 100% — GEM&CLAUDE host hộ',
-      'Tự quản lý user trong app — không cần IT',
+      'Tự quản lý user — không cần IT',
       'SLA cam kết 99.9% uptime',
       'Audit log đầy đủ',
       'Custom branding',
@@ -111,7 +116,7 @@ const FAQ = [
   { q: 'Nếu tôi ngừng dùng, data có mất không?', a: 'Không. Starter/Pro: xuất CSV/Excel bất cứ lúc nào. Enterprise: GEM&CLAUDE cam kết xuất toàn bộ data dưới dạng backup ngay khi bạn yêu cầu.' },
   { q: 'Thanh toán bằng phương thức nào?', a: 'Chuyển khoản ngân hàng, VNPay (thẻ Visa/Mastercard/ATM nội địa), hoặc xuất hóa đơn VAT theo tháng/quý/năm.' },
   { q: 'Có thể nâng cấp/hạ cấp gói không?', a: 'Có. Nâng cấp có hiệu lực ngay, tính phí theo ngày còn lại. Hạ cấp có hiệu lực từ chu kỳ thanh toán tiếp theo.' },
-  { q: 'Trial 14 ngày có cần thẻ tín dụng không?', a: 'Không. Đăng ký email là dùng thử ngay, không cần thông tin thanh toán. Sau 14 ngày sẽ nhận email nhắc chọn gói.' },
+  { q: 'Trial 30 ngày có cần thẻ tín dụng không?', a: 'Không. Đăng ký email là dùng thử ngay, không cần thông tin thanh toán. Sau 30 ngày sẽ nhận email nhắc chọn gói.' },
 ];
 
 export default function BillingPage({ onClose }: { onClose?: () => void }) {
@@ -223,7 +228,7 @@ export default function BillingPage({ onClose }: { onClose?: () => void }) {
           <span className="text-sm font-black text-slate-800">GEM & CLAUDE PM Pro</span>
         </div>
         <h1 className="text-2xl font-black text-slate-900 mb-2">Chọn gói phù hợp với dự án của anh</h1>
-        <p className="text-slate-500 text-sm max-w-lg mx-auto">Tất cả gói đều có trial 14 ngày miễn phí. Không cần thẻ tín dụng.</p>
+        <p className="text-slate-500 text-sm max-w-lg mx-auto">Tất cả gói đều có trial 30 ngày miễn phí. Không cần thẻ tín dụng.</p>
 
         {/* Trial / current plan status */}
         {currentPlan === 'trial' && (
@@ -251,7 +256,7 @@ export default function BillingPage({ onClose }: { onClose?: () => void }) {
           <button
             onClick={() => setCycle(c => c === 'monthly' ? 'yearly' : 'monthly')}
             className={`relative w-12 h-6 rounded-full transition-colors ${cycle === 'yearly' ? 'bg-emerald-500' : 'bg-slate-300'}`}>
-            <span className={`absolute top-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform ${cycle === 'yearly' ? 'translate-x-6' : 'translate-x-0.5'}`}/>
+            <span className={`absolute top-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform ${cycle === 'yearly' ? 'translate-x-6' : 'translate-x-1'}`}/>
           </button>
           <span className={`text-sm font-semibold ${cycle === 'yearly' ? 'text-slate-800' : 'text-slate-400'}`}>
             Hàng năm
@@ -355,7 +360,7 @@ export default function BillingPage({ onClose }: { onClose?: () => void }) {
           {[
             { icon:<Shield size={16}/>, text:'Mã hóa AES-256', sub:'Data an toàn tuyệt đối' },
             { icon:<Lock size={16}/>, text:'RLS Supabase', sub:'Không ai xem data của bạn' },
-            { icon:<Calendar size={16}/>, text:'Trial 14 ngày', sub:'Không cần thẻ tín dụng' },
+            { icon:<Calendar size={16}/>, text:'Trial 30 ngày', sub:'Không cần thẻ tín dụng' },
             { icon:<Download size={16}/>, text:'Xuất data tự do', sub:'Không bị lock-in' },
           ].map(k => (
             <div key={k.text} className="bg-white border border-slate-200 rounded-2xl px-4 py-3 flex items-center gap-3">
@@ -395,7 +400,7 @@ export default function BillingPage({ onClose }: { onClose?: () => void }) {
       <ModalForm
         open={showPayForm}
         onClose={() => setShowPayForm(false)}
-        title={`Kích hoạt trial 14 ngày — ${selectedPlan === 'starter' ? 'Starter' : 'Pro'}`}
+        title={`Kích hoạt trial 30 ngày — ${selectedPlan === 'starter' ? 'Starter' : 'Pro'}`}
         subtitle="Không cần thẻ tín dụng. Hủy bất cứ lúc nào."
         icon={<Star size={18}/>}
         color="emerald"
@@ -433,8 +438,8 @@ export default function BillingPage({ onClose }: { onClose?: () => void }) {
           </div>
         </FormRow>
         <div className="mt-4 p-3 bg-emerald-50 border border-emerald-200 rounded-xl text-xs text-emerald-800 leading-relaxed">
-          ✅ <strong>14 ngày dùng thử đầy đủ tính năng</strong> — không giới hạn, không cần thanh toán.
-          Sau 14 ngày em sẽ nhắc anh chọn gói hoặc hủy — không tự động trừ tiền.
+          ✅ <strong>30 ngày dùng thử đầy đủ tính năng</strong> — không giới hạn, không cần thanh toán.
+          Sau 30 ngày em sẽ nhắc anh chọn gói hoặc hủy — không tự động trừ tiền.
         </div>
       </ModalForm>
     </div>
