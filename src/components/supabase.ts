@@ -95,11 +95,15 @@ export type PlanId = 'trial' | 'starter' | 'pro' | 'enterprise';
 export interface TenantRecord {
   id: string;                   // uuid — tenant_id, FK trên mọi table
   name: string;                 // Tên công ty
-  plan_id: PlanId;
-  trial_ends_at: string | null; // ISO timestamp — null nếu đã upgrade
-  is_active: boolean;           // false = locked (trial hết hạn / unpaid)
+  slug: string;
+  plan: PlanId;                 // enum: trial | starter | pro | enterprise
+  trial_ends_at: string | null;
+  plan_expires_at: string | null;
+  is_locked: boolean;           // true = locked (trial hết hạn / unpaid)
+  stripe_customer_id?: string;
+  payos_customer_id?: string;
   created_at: string;
-  admin_user_id: string;        // uuid — giam_doc tạo tenant
+  updated_at: string;
 }
 
 export interface UserProfile {
@@ -242,14 +246,14 @@ export const AuthService = {
     if (error) return { user: null, error: error.message };
     const { data: profile } = await sb
       .from('profiles')
-      .select('*, tenants!inner(plan, trial_ends_at, is_locked)')
+      .select('*, tenants(plan, trial_ends_at, is_locked)')
       .eq('id', data.user.id)
       .single();
     if (profile) {
       // Flatten tenant fields vào profile để client không cần join
       const merged: UserProfile = {
         ...profile,
-        plan_id:       profile.tenants?.plan         ?? profile.plan_id        ?? 'trial',
+        plan_id:       profile.tenants?.plan ?? profile.plan_id        ?? 'trial',
         trial_ends_at: profile.tenants?.trial_ends_at ?? profile.trial_ends_at ?? null,
       };
       AuthService.persistSession(merged);
@@ -294,7 +298,7 @@ export const AuthService = {
     const userId = authData.user.id;
 
     // Bước 2: Tạo tenant record — 14 ngày trial
-    const trialEndsAt = new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString();
+    const trialEndsAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
     const { data: tenant, error: tenantError } = await sb
       .from('tenants')
       .insert({
@@ -302,7 +306,6 @@ export const AuthService = {
         plan:          'trial',
         trial_ends_at: trialEndsAt,
         is_locked:     false,
-        admin_user_id: userId,
       })
       .select('id')
       .single();
@@ -316,7 +319,7 @@ export const AuthService = {
       .update({
         tenant_id:       tenantId,
         is_tenant_admin: true,
-        plan:            'trial',
+        plan_id:         'trial',
         trial_ends_at:   trialEndsAt,
       })
       .eq('id', userId);
@@ -338,13 +341,13 @@ export const AuthService = {
     if (!data.session) return null;
     const { data: profile } = await sb
       .from('profiles')
-      .select('*, tenants!inner(plan, trial_ends_at, is_locked)')
+      .select('*, tenants(plan, trial_ends_at, is_locked)')
       .eq('id', data.session.user.id)
       .single();
     if (profile) {
       const merged: UserProfile = {
         ...profile,
-        plan_id:       profile.tenants?.plan         ?? profile.plan_id        ?? 'trial',
+        plan_id:       profile.tenants?.plan ?? profile.plan_id       ?? 'trial',
         trial_ends_at: profile.tenants?.trial_ends_at ?? profile.trial_ends_at ?? null,
       };
       AuthService.persistSession(merged);
@@ -358,6 +361,57 @@ export const AuthService = {
     localStorage.setItem('gem_auth_user', JSON.stringify(user));
     localStorage.setItem('gem_user_role', user.job_role);
   },
+
+  // ── M4: Phone OTP Auth ──────────────────────────────────────────────────
+
+  /** Gửi OTP SMS qua ESMS Edge Function — lần đầu login hoặc đổi thiết bị */
+  async sendPhoneOTP(phone: string): Promise<{ error: string | null }> {
+    const sb = getSupabase();
+    if (!sb) return { error: 'Không thể kết nối máy chủ.' };
+    const normalized = phone.startsWith('0') ? '+84' + phone.slice(1)
+      : phone.startsWith('+') ? phone : '+84' + phone;
+    try {
+      const { error } = await sb.functions.invoke('send-otp', {
+        body: { phone: normalized },
+      });
+      if (error) return { error: error.message };
+      return { error: null };
+    } catch (e: any) {
+      return { error: e.message };
+    }
+  },
+
+  /** Xác minh OTP — nếu đúng tạo session, lưu device flag 30 ngày */
+  async verifyPhoneOTP(phone: string, token: string): Promise<{ user: UserProfile | null; error: string | null }> {
+    const sb = getSupabase();
+    if (!sb) return { user: null, error: 'Không thể kết nối máy chủ.' };
+    const normalized = phone.startsWith('0') ? '+84' + phone.slice(1)
+      : phone.startsWith('+') ? phone : '+84' + phone;
+    const { data, error } = await sb.auth.verifyOtp({
+      phone: normalized, token, type: 'sms',
+    });
+    if (error || !data.user) return { user: null, error: error?.message ?? 'OTP không đúng hoặc đã hết hạn.' };
+    const { data: profile } = await sb
+      .from('profiles')
+      .select('*, tenants(plan, trial_ends_at, is_locked)')
+      .eq('id', data.user.id)
+      .single();
+    if (!profile) return { user: null, error: 'Không tìm thấy profile.' };
+    const merged: UserProfile = {
+      ...profile,
+      plan_id:       profile.tenants?.plan ?? profile.plan_id       ?? 'trial',
+      trial_ends_at: profile.tenants?.trial_ends_at ?? profile.trial_ends_at ?? null,
+    };
+    AuthService.persistSession(merged);
+    localStorage.setItem('gem_device_verified_' + data.user.id, '1');
+    return { user: merged, error: null };
+  },
+
+  /** Thiết bị đã được verify → không cần OTP lại */
+  isDeviceVerified(userId: string): boolean {
+    return localStorage.getItem('gem_device_verified_' + userId) === '1';
+  },
+
 };
 
 // ─── Supabase SQL Migrations ─────────────────────────────────────────────────

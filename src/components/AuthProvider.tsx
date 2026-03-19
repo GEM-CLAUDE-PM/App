@@ -129,7 +129,7 @@ function SplashScreen() {
 
 // ─── Login Screen ─────────────────────────────────────────────────────────────
 function LoginScreen({ onSignIn }: { onSignIn: (e: string, p: string) => Promise<string | null> }) {
-  const [mode, setMode]         = useState<'login' | 'signup'>('login');
+  const [mode, setMode]         = useState<'login' | 'signup' | 'phone'>('login');
   const [email, setEmail]       = useState('');
   const [password, setPassword] = useState('');
   const [showPw, setShowPw]     = useState(false);
@@ -140,6 +140,11 @@ function LoginScreen({ onSignIn }: { onSignIn: (e: string, p: string) => Promise
   const [fullName, setFullName]       = useState('');
   const [companyName, setCompanyName] = useState('');
   const [confirmPw, setConfirmPw]     = useState('');
+  // M4: Phone OTP fields
+  const [phone, setPhone]         = useState('');
+  const [otp, setOtp]             = useState('');
+  const [otpSent, setOtpSent]     = useState(false);
+  const [otpLoading, setOtpLoading] = useState(false);
 
   const handleSignup = async () => {
     if (!fullName.trim())    { setError('Vui lòng nhập họ tên.'); return; }
@@ -152,6 +157,27 @@ function LoginScreen({ onSignIn }: { onSignIn: (e: string, p: string) => Promise
     setLoading(false);
     if (err) { setError(err); return; }
     setSuccess('Tài khoản đã tạo thành công! Kiểm tra email để xác nhận trước khi đăng nhập.');
+  };
+
+  const handleSendOTP = async () => {
+    const p = phone.trim();
+    if (!/^(0|\+84)[0-9]{9}$/.test(p)) { setError('Số điện thoại không hợp lệ (VD: 0901234567).'); return; }
+    setOtpLoading(true); setError('');
+    const { error: err } = await AuthService.sendPhoneOTP(p);
+    setOtpLoading(false);
+    if (err) { setError(err); return; }
+    setOtpSent(true);
+    setSuccess('OTP đã gửi — kiểm tra tin nhắn SMS trên điện thoại.');
+  };
+
+  const handleVerifyOTP = async () => {
+    if (otp.length !== 6) { setError('OTP gồm 6 chữ số.'); return; }
+    setLoading(true); setError('');
+    const { user: u, error: err } = await AuthService.verifyPhoneOTP(phone.trim(), otp.trim());
+    setLoading(false);
+    if (err || !u) { setError(err ?? 'Xác minh thất bại.'); return; }
+    // onSignIn không cần gọi — verifyPhoneOTP đã persistSession
+    window.location.reload();
   };
 
   const handleLogin = async (e?: React.FormEvent) => {
@@ -192,6 +218,10 @@ function LoginScreen({ onSignIn }: { onSignIn: (e: string, p: string) => Promise
             <button onClick={() => { setMode('signup'); setError(''); setSuccess(''); }}
               className={`flex-1 py-2 rounded-xl text-sm font-bold transition-all ${mode==='signup' ? 'bg-violet-600 text-white shadow' : 'text-violet-300 hover:text-white'}`}>
               Đăng ký dùng thử
+            </button>
+            <button onClick={() => { setMode('phone'); setError(''); setSuccess(''); setOtpSent(false); setOtp(''); }}
+              className={`flex-1 py-2 rounded-xl text-sm font-bold transition-all ${mode==='phone' ? 'bg-violet-600 text-white shadow' : 'text-violet-300 hover:text-white'}`}>
+              <span className="flex items-center justify-center gap-1"><Phone size={12}/>SĐT</span>
             </button>
           </div>
 
@@ -300,6 +330,48 @@ function LoginScreen({ onSignIn }: { onSignIn: (e: string, p: string) => Promise
                 }
               </button>
             </>
+          )}
+
+          {/* M4: Phone OTP form */}
+          {mode === 'phone' && (
+            <div className="space-y-3">
+              <p className="text-violet-200 text-xs text-center">Đăng nhập bằng số điện thoại — nhận OTP qua SMS</p>
+              <div>
+                <label className="text-violet-200 text-xs font-semibold mb-1.5 block">Số điện thoại</label>
+                <div className="relative">
+                  <Phone size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-violet-400"/>
+                  <input type="tel" value={phone} onChange={e => setPhone(e.target.value)}
+                    placeholder="0901 234 567"
+                    className="w-full bg-white/10 border border-white/20 rounded-2xl pl-10 pr-4 py-3 text-white placeholder-violet-400 text-sm focus:outline-none focus:border-violet-400"
+                    disabled={otpSent}/>
+                </div>
+              </div>
+              {!otpSent ? (
+                <button onClick={handleSendOTP} disabled={otpLoading}
+                  className="w-full py-3 rounded-2xl bg-violet-600 hover:bg-violet-500 text-white font-bold text-sm flex items-center justify-center gap-2 disabled:opacity-60">
+                  {otpLoading ? <Loader2 size={15} className="animate-spin"/> : <Phone size={15}/>}
+                  {otpLoading ? 'Đang gửi OTP...' : 'Gửi mã OTP'}
+                </button>
+              ) : (
+                <div className="space-y-3">
+                  <div>
+                    <label className="text-violet-200 text-xs font-semibold mb-1.5 block">Mã OTP (6 chữ số)</label>
+                    <input type="text" inputMode="numeric" maxLength={6}
+                      value={otp} onChange={e => setOtp(e.target.value.replace(/\D/g,''))}
+                      placeholder="_ _ _ _ _ _"
+                      className="w-full bg-white/10 border border-white/20 rounded-2xl px-4 py-3 text-white text-center text-xl tracking-widest placeholder-violet-400 focus:outline-none focus:border-violet-400"
+                    />
+                  </div>
+                  <button onClick={handleVerifyOTP} disabled={loading}
+                    className="w-full py-3 rounded-2xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-sm flex items-center justify-center gap-2 disabled:opacity-60">
+                    {loading ? <Loader2 size={15} className="animate-spin"/> : <CheckCircle2 size={15}/>}
+                    {loading ? 'Đang xác minh...' : 'Xác nhận OTP'}
+                  </button>
+                  <button onClick={() => { setOtpSent(false); setOtp(''); setSuccess(''); }}
+                    className="w-full text-xs text-violet-400 hover:text-violet-200 py-1">Đổi số điện thoại</button>
+                </div>
+              )}
+            </div>
           )}
 
         </div>
