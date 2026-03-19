@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>GEM PM — Phiếu Tiếp Cận Khách Hàng</title>
-<script src="https://unpkg.com/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+
 <style>
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
   :root {
@@ -435,12 +435,8 @@
 <div class="toast" id="toast"></div>
 
 <script>
-// ─── Config Supabase ──────────────────────────────────────
-const SUPABASE_URL  = 'https://vbjnycvowylsuwdjjzfp.supabase.co';
-const SUPABASE_ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZiam55Y3Zvd3lsc3V3ZGpqemZwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzM0NDYzMDQsImV4cCI6MjA4OTAyMjMwNH0.Dj-DsdAFZFpOAYDnOuMmf-DJM07KMjsdDlhf1ioUPN8';
-// UMD bundle: try supabase.createClient, fallback to window.supabase
-const _sb = (typeof supabase !== 'undefined' ? supabase : window.supabase);
-const sb = _sb.createClient(SUPABASE_URL, SUPABASE_ANON);
+// ─── Config ───────────────────────────────────────────────
+const EDGE_URL = 'https://vbjnycvowylsuwdjjzfp.supabase.co/functions/v1/crm-submit';
 
 // ─── State ────────────────────────────────────────────────
 let currentStep = 1;
@@ -600,15 +596,15 @@ async function submitForm() {
 
   try {
     const data = collectData();
-    const { data: result, error } = await sb
-      .from('crm_leads')
-      .insert(data)
-      .select('ma_kh')
-      .single();
+    const res = await fetch(EDGE_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data),
+    });
+    const result = await res.json();
+    if (!res.ok || result.error) throw new Error(result.error || 'Lỗi server');
 
-    if (error) throw new Error(error.message);
-
-    document.getElementById('successMaKH').textContent = result?.ma_kh || 'KH###';
+    document.getElementById('successMaKH').textContent = result.ma_kh || 'KH###';
     document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
     document.getElementById('stepSuccess').classList.add('active');
     document.getElementById('progressBar').style.width = '100%';
