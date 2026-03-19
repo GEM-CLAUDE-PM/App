@@ -1,0 +1,921 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>CRM Review — GEM & CLAUDE PM Pro</title>
+
+  <!-- Supabase JS -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+  <!-- jsPDF + html2canvas cho export PDF -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+
+  <style>
+    /* ── Reset & Base ── */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --bg:        #f1f5f9;
+      --surface:   #ffffff;
+      --border:    #e2e8f0;
+      --text:      #0f172a;
+      --muted:     #64748b;
+      --primary:   #1d4ed8;
+      --primary-h: #1e40af;
+      --accent:    #0ea5e9;
+      --danger:    #dc2626;
+      --success:   #16a34a;
+      --warn:      #d97706;
+      --radius:    10px;
+      --sidebar-w: 280px;
+    }
+    html, body { height: 100%; font-family: 'Segoe UI', system-ui, sans-serif; font-size: 14px; background: var(--bg); color: var(--text); }
+
+    /* ── Login screen ── */
+    #login-screen {
+      display: flex; align-items: center; justify-content: center;
+      min-height: 100vh; background: linear-gradient(135deg, #0f172a 0%, #1e3a5f 100%);
+    }
+    .login-card {
+      background: var(--surface); border-radius: 16px; padding: 40px 48px;
+      width: 380px; box-shadow: 0 24px 60px rgba(0,0,0,.3);
+      text-align: center;
+    }
+    .login-logo { font-size: 22px; font-weight: 800; color: var(--primary); margin-bottom: 4px; }
+    .login-sub  { font-size: 12px; color: var(--muted); margin-bottom: 28px; }
+    .login-label { display: block; text-align: left; font-size: 12px; font-weight: 600; color: var(--muted); margin-bottom: 6px; }
+    .login-input {
+      width: 100%; padding: 10px 14px; border: 1.5px solid var(--border); border-radius: var(--radius);
+      font-size: 14px; outline: none; transition: border-color .15s;
+    }
+    .login-input:focus { border-color: var(--primary); }
+    .login-btn {
+      width: 100%; margin-top: 20px; padding: 11px; background: var(--primary); color: #fff;
+      border: none; border-radius: var(--radius); font-size: 14px; font-weight: 700;
+      cursor: pointer; transition: background .15s;
+    }
+    .login-btn:hover { background: var(--primary-h); }
+    .login-err { margin-top: 12px; font-size: 12px; color: var(--danger); min-height: 18px; }
+
+    /* ── App shell ── */
+    #app { display: none; height: 100vh; overflow: hidden; }
+    .shell { display: flex; height: 100%; }
+
+    /* ── Sidebar ── */
+    .sidebar {
+      width: var(--sidebar-w); background: var(--surface); border-right: 1px solid var(--border);
+      display: flex; flex-direction: column; flex-shrink: 0; overflow: hidden;
+    }
+    .sidebar-head {
+      padding: 16px; border-bottom: 1px solid var(--border);
+      display: flex; align-items: center; justify-content: space-between;
+    }
+    .sidebar-title { font-weight: 700; font-size: 13px; color: var(--text); }
+    .sidebar-count { font-size: 11px; background: #dbeafe; color: var(--primary); padding: 2px 8px; border-radius: 20px; font-weight: 700; }
+    .search-wrap { padding: 10px 12px; border-bottom: 1px solid var(--border); }
+    .search-input {
+      width: 100%; padding: 7px 10px 7px 30px; border: 1px solid var(--border);
+      border-radius: 8px; font-size: 12px; outline: none; background: var(--bg);
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' fill='%2394a3b8' viewBox='0 0 24 24'%3E%3Cpath d='M21 21l-4.35-4.35M17 11A6 6 0 1 1 5 11a6 6 0 0 1 12 0z' stroke='%2394a3b8' stroke-width='2' fill='none'/%3E%3C/svg%3E");
+      background-repeat: no-repeat; background-position: 8px center;
+      transition: border-color .15s;
+    }
+    .search-input:focus { border-color: var(--primary); background-color: #fff; }
+    .lead-list { overflow-y: auto; flex: 1; }
+    .lead-item {
+      padding: 12px 14px; border-bottom: 1px solid var(--border); cursor: pointer;
+      transition: background .1s; position: relative;
+    }
+    .lead-item:hover  { background: #f8fafc; }
+    .lead-item.active { background: #eff6ff; border-left: 3px solid var(--primary); }
+    .lead-company { font-weight: 600; font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .lead-contact { font-size: 11px; color: var(--muted); margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .lead-meta    { display: flex; gap: 6px; align-items: center; margin-top: 5px; flex-wrap: wrap; }
+    .lead-code    { font-size: 10px; color: var(--muted); }
+    .badge {
+      font-size: 10px; padding: 1px 7px; border-radius: 20px; font-weight: 600;
+      white-space: nowrap;
+    }
+    .badge-moi           { background:#f1f5f9; color:#475569; }
+    .badge-dang_tiep_can { background:#dbeafe; color:#1d4ed8; }
+    .badge-demo          { background:#ede9fe; color:#7c3aed; }
+    .badge-bao_gia       { background:#fef9c3; color:#b45309; }
+    .badge-dam_phan      { background:#ffedd5; color:#c2410c; }
+    .badge-chot          { background:#dcfce7; color:#15803d; }
+    .badge-tu_choi       { background:#fee2e2; color:#b91c1c; }
+
+    /* ── Main pane ── */
+    .main { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+
+    /* Topbar */
+    .topbar {
+      background: var(--surface); border-bottom: 1px solid var(--border);
+      padding: 12px 20px; display: flex; align-items: center; gap: 12px; flex-shrink: 0;
+    }
+    .topbar-info { flex: 1; }
+    .topbar-name { font-weight: 700; font-size: 16px; }
+    .topbar-sub  { font-size: 12px; color: var(--muted); margin-top: 1px; }
+    .btn {
+      display: inline-flex; align-items: center; gap: 6px;
+      padding: 8px 14px; border-radius: 8px; font-size: 13px; font-weight: 600;
+      border: none; cursor: pointer; transition: background .15s, opacity .15s;
+    }
+    .btn:disabled { opacity: .5; cursor: not-allowed; }
+    .btn-ghost   { background: var(--bg); color: var(--text); }
+    .btn-ghost:hover  { background: var(--border); }
+    .btn-primary { background: var(--primary); color: #fff; }
+    .btn-primary:hover { background: var(--primary-h); }
+    .btn-success { background: #16a34a; color: #fff; }
+    .btn-success:hover { background: #15803d; }
+
+    /* Template select */
+    .tmpl-select {
+      padding: 8px 10px; border: 1.5px solid var(--border); border-radius: 8px;
+      font-size: 13px; background: var(--surface); outline: none; cursor: pointer;
+      transition: border-color .15s; min-width: 220px;
+    }
+    .tmpl-select:focus { border-color: var(--primary); }
+
+    /* Tabs */
+    .tabs { background: var(--surface); border-bottom: 1px solid var(--border); padding: 0 20px; display: flex; gap: 4px; flex-shrink: 0; }
+    .tab-btn {
+      padding: 10px 16px; font-size: 13px; font-weight: 600; border: none;
+      background: none; cursor: pointer; border-bottom: 2px solid transparent;
+      color: var(--muted); transition: color .15s, border-color .15s;
+    }
+    .tab-btn.active { color: var(--primary); border-bottom-color: var(--primary); }
+    .tab-btn:hover:not(.active) { color: var(--text); }
+
+    /* Content scroll area */
+    .content { flex: 1; overflow-y: auto; padding: 24px; }
+
+    /* ── Edit form ── */
+    .form-group { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; margin-bottom: 16px; }
+    .form-group-head { padding: 10px 16px; background: var(--bg); border-bottom: 1px solid var(--border); font-weight: 700; font-size: 12px; color: var(--muted); letter-spacing: .04em; text-transform: uppercase; }
+    .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; padding: 16px; }
+    .form-field { display: flex; flex-direction: column; gap: 5px; }
+    .form-field.span2 { grid-column: span 2; }
+    .form-label { font-size: 11px; font-weight: 600; color: var(--muted); }
+    .form-input, .form-select, .form-textarea {
+      padding: 8px 10px; border: 1.5px solid var(--border); border-radius: 7px;
+      font-size: 13px; font-family: inherit; outline: none; transition: border-color .15s; background: #fff;
+      width: 100%;
+    }
+    .form-input:focus, .form-select:focus, .form-textarea:focus { border-color: var(--primary); }
+    .form-textarea { resize: vertical; min-height: 70px; }
+
+    /* ── Preview iframe ── */
+    .preview-wrap { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; }
+    .preview-bar  { padding: 10px 16px; background: var(--bg); border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; }
+    .preview-label { font-size: 12px; font-weight: 600; color: var(--muted); }
+    #preview-frame { width: 100%; height: 900px; border: none; display: block; }
+
+    /* ── Empty state ── */
+    .empty { display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%; color: var(--muted); gap: 12px; }
+    .empty-icon { font-size: 48px; opacity: .3; }
+    .empty-text { font-size: 14px; }
+
+    /* ── Toast ── */
+    #toast {
+      position: fixed; bottom: 24px; right: 24px; z-index: 9999;
+      padding: 12px 20px; border-radius: 10px; font-size: 13px; font-weight: 600;
+      color: #fff; box-shadow: 0 8px 24px rgba(0,0,0,.2);
+      transform: translateY(80px); opacity: 0;
+      transition: transform .25s, opacity .25s;
+      max-width: 340px;
+    }
+    #toast.show { transform: translateY(0); opacity: 1; }
+    #toast.success { background: var(--success); }
+    #toast.error   { background: var(--danger); }
+    #toast.info    { background: var(--primary); }
+
+    /* Spinner */
+    .spin {
+      display: inline-block; width: 14px; height: 14px;
+      border: 2px solid rgba(255,255,255,.4); border-top-color: #fff;
+      border-radius: 50%; animation: spin .6s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* Scrollbar */
+    ::-webkit-scrollbar { width: 6px; } 
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 3px; }
+  </style>
+</head>
+<body>
+
+<!-- ═══════════════════════════════ LOGIN ═══════════════════════════════ -->
+<div id="login-screen">
+  <div class="login-card">
+    <div class="login-logo">GEM & CLAUDE PM Pro</div>
+    <div class="login-sub">CRM Internal Tool — Nội bộ</div>
+    <label class="login-label" for="pw-input">Mật khẩu truy cập</label>
+    <input id="pw-input" class="login-input" type="password" placeholder="Nhập mật khẩu..." autocomplete="current-password" />
+    <button class="login-btn" id="login-btn" onclick="doLogin()">Đăng nhập</button>
+    <div class="login-err" id="login-err"></div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════ APP ════════════════════════════════ -->
+<div id="app">
+  <div class="shell">
+
+    <!-- Sidebar -->
+    <div class="sidebar">
+      <div class="sidebar-head">
+        <span class="sidebar-title">Khách hàng CRM</span>
+        <span class="sidebar-count" id="lead-count">0</span>
+      </div>
+      <div class="search-wrap">
+        <input class="search-input" id="search-input" type="text" placeholder="Tìm tên công ty, liên hệ..." oninput="filterLeads()" />
+      </div>
+      <div class="lead-list" id="lead-list">
+        <div class="empty" style="padding:40px 0"><span class="empty-text">Đang tải...</span></div>
+      </div>
+    </div>
+
+    <!-- Main -->
+    <div class="main" id="main-pane">
+      <div class="empty" style="height:100%">
+        <div class="empty-icon">📋</div>
+        <div class="empty-text">Chọn khách hàng từ danh sách</div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- Toast -->
+<div id="toast"></div>
+
+<script>
+// ══════════════════════════════════════════════════════════════════
+// CONFIG — Anh Tuấn điền vào trước khi deploy
+// ══════════════════════════════════════════════════════════════════
+const SUPABASE_URL      = 'https://vbjnycvowylsuwdjjzfp.supabase.co';
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZiam55Y3Zvd3lsc3V3ZGpqemZwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzM0NDYzMDQsImV4cCI6MjA4OTAyMjMwNH0.Dj-DsdAFZFpOAYDnOuMmf-DJM07KMjsdDlhf1ioUPN8';
+
+// Password đơn giản bảo vệ trang — thay bằng mật khẩu thực
+const ACCESS_PASSWORD = 'GemPM2026CRM';
+
+// ══════════════════════════════════════════════════════════════════
+// GLOBALS
+// ══════════════════════════════════════════════════════════════════
+let sb = null;
+let allLeads = [];
+let currentLead = null;
+let currentTemplate = 'phieu_tiep_can';
+
+const GOI_LABELS = {
+  starter:    'Starter — 1 DA / 5 seats',
+  pro:        'Pro — 5 DA / 15 seats',
+  enterprise: 'Enterprise — Không giới hạn',
+};
+const GOI_PRICES = {
+  starter:    { monthly: 2_900_000,  annual: 29_000_000  },
+  pro:        { monthly: 7_900_000,  annual: 79_000_000  },
+  enterprise: { monthly: 25_000_000, annual: 240_000_000 },
+};
+const TRANG_THAI_OPTIONS = [
+  { value: 'moi',           label: 'Mới' },
+  { value: 'dang_tiep_can', label: 'Đang tiếp cận' },
+  { value: 'demo',          label: 'Demo' },
+  { value: 'bao_gia',       label: 'Báo giá' },
+  { value: 'dam_phan',      label: 'Đàm phán' },
+  { value: 'chot',          label: 'Chốt' },
+  { value: 'tu_choi',       label: 'Từ chối' },
+];
+const TEMPLATE_LABELS = {
+  hop_dong:       'Hợp đồng Dịch vụ SaaS',
+  proposal:       'Proposal Enterprise',
+  phieu_tiep_can: 'Phiếu Tiếp Cận Khách Hàng',
+};
+
+// ══════════════════════════════════════════════════════════════════
+// AUTH (password gate)
+// ══════════════════════════════════════════════════════════════════
+function doLogin() {
+  const pw = document.getElementById('pw-input').value.trim();
+  if (pw === ACCESS_PASSWORD) {
+    sessionStorage.setItem('crm_auth', '1');
+    bootApp();
+  } else {
+    document.getElementById('login-err').textContent = 'Mật khẩu không đúng.';
+    document.getElementById('pw-input').focus();
+  }
+}
+
+document.getElementById('pw-input').addEventListener('keydown', e => {
+  if (e.key === 'Enter') doLogin();
+});
+
+// ══════════════════════════════════════════════════════════════════
+// BOOT
+// ══════════════════════════════════════════════════════════════════
+window.addEventListener('DOMContentLoaded', () => {
+  if (sessionStorage.getItem('crm_auth') === '1') {
+    bootApp();
+  }
+});
+
+function bootApp() {
+  document.getElementById('login-screen').style.display = 'none';
+  document.getElementById('app').style.display = 'flex';
+
+  try {
+    sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+  } catch(e) {
+    // Supabase chưa cấu hình → dev mode với mock data
+    sb = null;
+  }
+  loadLeads();
+}
+
+// ══════════════════════════════════════════════════════════════════
+// LOAD LEADS
+// ══════════════════════════════════════════════════════════════════
+async function loadLeads() {
+  try {
+    if (!sb || SUPABASE_URL.includes('REPLACE')) {
+      // Dev mock
+      allLeads = [
+        {
+          id: 'mock-1', ma_kh: 'KH-2026-0001', ten_cong_ty: 'Công ty XD Hưng Thịnh',
+          nguoi_lien_he: 'Nguyễn Văn Anh', chuc_vu: 'Giám đốc',
+          email: 'anh@hungthinhxd.vn', dien_thoai: '0901234567',
+          dia_chi: '123 Nguyễn Huệ, Q.1', tinh_thanh: 'TP. Hồ Chí Minh',
+          nguon: 'Website', goi_quan_tam: 'pro', so_du_an: 5, so_nhan_su: 45,
+          nhu_cau_chinh: 'Quản lý tiến độ và tài chính đa dự án',
+          van_de_hien_tai: 'Đang dùng Excel, khó theo dõi nhiều công trình',
+          ngan_sach: '5–10 triệu/tháng', thoi_gian_quyet_dinh: 'Q2/2026',
+          nguoi_phu_trach: 'Trần Minh', ghi_chu: 'Đã demo lần 1, quan tâm gói Pro',
+          trang_thai: 'demo', created_at: new Date().toISOString(),
+        },
+        {
+          id: 'mock-2', ma_kh: 'KH-2026-0002', ten_cong_ty: 'Tập đoàn Xây dựng Phú Mỹ',
+          nguoi_lien_he: 'Trần Thị Bích', chuc_vu: 'Trưởng phòng IT',
+          email: 'bich@phumygroup.vn', dien_thoai: '0912345678',
+          dia_chi: '456 Lê Lợi', tinh_thanh: 'Hà Nội',
+          nguon: 'Referral', goi_quan_tam: 'enterprise', so_du_an: 20, so_nhan_su: 200,
+          nhu_cau_chinh: 'Quản lý toàn bộ hệ thống công trình lớn',
+          van_de_hien_tai: 'Không có hệ thống tập trung, dữ liệu phân tán',
+          ngan_sach: 'Trên 20 triệu/tháng', thoi_gian_quyet_dinh: 'Q3/2026',
+          nguoi_phu_trach: 'Lê Văn Sales', ghi_chu: 'KH lớn, cần demo riêng',
+          trang_thai: 'bao_gia', created_at: new Date().toISOString(),
+        },
+      ];
+    } else {
+      const { data, error } = await sb
+        .from('crm_leads')
+        .select('*')
+        .order('created_at', { ascending: false });
+      if (error) throw error;
+      allLeads = data || [];
+    }
+    renderSidebar(allLeads);
+  } catch(e) {
+    showToast('Lỗi tải dữ liệu: ' + e.message, 'error');
+  }
+}
+
+// ══════════════════════════════════════════════════════════════════
+// SIDEBAR
+// ══════════════════════════════════════════════════════════════════
+function filterLeads() {
+  const q = document.getElementById('search-input').value.toLowerCase();
+  const filtered = q
+    ? allLeads.filter(l =>
+        (l.ten_cong_ty||'').toLowerCase().includes(q) ||
+        (l.nguoi_lien_he||'').toLowerCase().includes(q) ||
+        (l.ma_kh||'').toLowerCase().includes(q)
+      )
+    : allLeads;
+  renderSidebar(filtered);
+}
+
+function renderSidebar(leads) {
+  document.getElementById('lead-count').textContent = leads.length;
+  const el = document.getElementById('lead-list');
+  if (!leads.length) {
+    el.innerHTML = '<div class="empty" style="padding:40px 0"><span class="empty-text">Không tìm thấy khách hàng</span></div>';
+    return;
+  }
+  el.innerHTML = leads.map(l => `
+    <div class="lead-item ${currentLead?.id === l.id ? 'active' : ''}" onclick="selectLead('${l.id}')">
+      <div class="lead-company">${esc(l.ten_cong_ty)}</div>
+      <div class="lead-contact">${esc(l.nguoi_lien_he||'')} · ${esc(l.dien_thoai||'')}</div>
+      <div class="lead-meta">
+        ${l.ma_kh ? `<span class="lead-code">${esc(l.ma_kh)}</span>` : ''}
+        ${l.trang_thai ? `<span class="badge badge-${l.trang_thai}">${getTrangThaiLabel(l.trang_thai)}</span>` : ''}
+        ${l.goi_quan_tam ? `<span class="badge" style="background:#e0f2fe;color:#0369a1">${esc(l.goi_quan_tam)}</span>` : ''}
+      </div>
+    </div>
+  `).join('');
+}
+
+function getTrangThaiLabel(val) {
+  return TRANG_THAI_OPTIONS.find(o => o.value === val)?.label || val;
+}
+
+// ══════════════════════════════════════════════════════════════════
+// SELECT LEAD → render main pane
+// ══════════════════════════════════════════════════════════════════
+function selectLead(id) {
+  currentLead = JSON.parse(JSON.stringify(allLeads.find(l => l.id === id)));
+  renderSidebar(document.getElementById('search-input').value
+    ? allLeads.filter(l => (l.ten_cong_ty||'').toLowerCase().includes(document.getElementById('search-input').value.toLowerCase()))
+    : allLeads
+  );
+  renderMain('info');
+}
+
+function renderMain(tab) {
+  if (!currentLead) return;
+  const l = currentLead;
+  document.getElementById('main-pane').innerHTML = `
+    <!-- Topbar -->
+    <div class="topbar">
+      <div class="topbar-info">
+        <div class="topbar-name">${esc(l.ten_cong_ty)}</div>
+        <div class="topbar-sub">${esc(l.ma_kh||'Chưa có mã')} · ${esc(l.nguoi_lien_he||'')}</div>
+      </div>
+      <select class="tmpl-select" id="tmpl-select" onchange="changeTemplate(this.value)">
+        <option value="phieu_tiep_can" ${currentTemplate==='phieu_tiep_can'?'selected':''}>📋 Phiếu Tiếp Cận Khách Hàng</option>
+        <option value="proposal"       ${currentTemplate==='proposal'?'selected':''}>📊 Proposal Enterprise</option>
+        <option value="hop_dong"       ${currentTemplate==='hop_dong'?'selected':''}>📝 Hợp đồng Dịch vụ SaaS</option>
+      </select>
+      <button class="btn btn-ghost" onclick="saveLead()" id="save-btn">
+        <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4"/></svg>
+        Lưu
+      </button>
+      <button class="btn btn-primary" onclick="exportPDF()" id="export-btn">
+        <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+        Xuất PDF
+      </button>
+    </div>
+
+    <!-- Tabs -->
+    <div class="tabs">
+      <button class="tab-btn ${tab==='info'?'active':''}"    onclick="switchTab('info')">✏️ Chỉnh sửa</button>
+      <button class="tab-btn ${tab==='preview'?'active':''}" onclick="switchTab('preview')">👁 Xem trước</button>
+    </div>
+
+    <!-- Content -->
+    <div class="content" id="tab-content">
+      ${tab === 'info' ? renderEditForm(l) : renderPreview(l)}
+    </div>
+  `;
+}
+
+function switchTab(tab) {
+  // Capture current form values before switching
+  if (tab === 'preview') syncFormToLead();
+  renderMain(tab);
+}
+
+function changeTemplate(val) {
+  currentTemplate = val;
+  // Stay on same tab
+  const activeTab = document.querySelector('.tab-btn.active')?.textContent?.includes('Xem') ? 'preview' : 'info';
+  if (activeTab === 'preview') {
+    syncFormToLead();
+    renderMain('preview');
+  }
+}
+
+// ══════════════════════════════════════════════════════════════════
+// EDIT FORM
+// ══════════════════════════════════════════════════════════════════
+function renderEditForm(l) {
+  return `
+    <div class="form-group">
+      <div class="form-group-head">Thông tin công ty</div>
+      <div class="form-grid">
+        <div class="form-field"><label class="form-label">Mã KH</label><input class="form-input" id="f_ma_kh" value="${esc(l.ma_kh||'')}" /></div>
+        <div class="form-field"><label class="form-label">Tên công ty *</label><input class="form-input" id="f_ten_cong_ty" value="${esc(l.ten_cong_ty||'')}" /></div>
+        <div class="form-field"><label class="form-label">Địa chỉ</label><input class="form-input" id="f_dia_chi" value="${esc(l.dia_chi||'')}" /></div>
+        <div class="form-field"><label class="form-label">Tỉnh/Thành</label><input class="form-input" id="f_tinh_thanh" value="${esc(l.tinh_thanh||'')}" /></div>
+      </div>
+    </div>
+
+    <div class="form-group">
+      <div class="form-group-head">Người liên hệ</div>
+      <div class="form-grid">
+        <div class="form-field"><label class="form-label">Họ tên *</label><input class="form-input" id="f_nguoi_lien_he" value="${esc(l.nguoi_lien_he||'')}" /></div>
+        <div class="form-field"><label class="form-label">Chức vụ</label><input class="form-input" id="f_chuc_vu" value="${esc(l.chuc_vu||'')}" /></div>
+        <div class="form-field"><label class="form-label">Điện thoại</label><input class="form-input" id="f_dien_thoai" value="${esc(l.dien_thoai||'')}" /></div>
+        <div class="form-field"><label class="form-label">Email</label><input class="form-input" id="f_email" value="${esc(l.email||'')}" /></div>
+      </div>
+    </div>
+
+    <div class="form-group">
+      <div class="form-group-head">Nhu cầu & Gói dịch vụ</div>
+      <div class="form-grid">
+        <div class="form-field">
+          <label class="form-label">Gói quan tâm</label>
+          <select class="form-select" id="f_goi_quan_tam">
+            <option value="">— Chọn —</option>
+            <option value="starter"    ${l.goi_quan_tam==='starter'?'selected':''}>Starter</option>
+            <option value="pro"        ${l.goi_quan_tam==='pro'?'selected':''}>Pro</option>
+            <option value="enterprise" ${l.goi_quan_tam==='enterprise'?'selected':''}>Enterprise</option>
+          </select>
+        </div>
+        <div class="form-field"><label class="form-label">Nguồn tiếp cận</label><input class="form-input" id="f_nguon" value="${esc(l.nguon||'')}" /></div>
+        <div class="form-field"><label class="form-label">Số dự án đang quản lý</label><input class="form-input" type="number" id="f_so_du_an" value="${l.so_du_an||''}" /></div>
+        <div class="form-field"><label class="form-label">Số nhân sự</label><input class="form-input" type="number" id="f_so_nhan_su" value="${l.so_nhan_su||''}" /></div>
+        <div class="form-field span2"><label class="form-label">Nhu cầu chính</label><textarea class="form-textarea" id="f_nhu_cau_chinh">${esc(l.nhu_cau_chinh||'')}</textarea></div>
+        <div class="form-field span2"><label class="form-label">Vấn đề hiện tại</label><textarea class="form-textarea" id="f_van_de_hien_tai">${esc(l.van_de_hien_tai||'')}</textarea></div>
+      </div>
+    </div>
+
+    <div class="form-group">
+      <div class="form-group-head">Thương lượng & Theo dõi</div>
+      <div class="form-grid">
+        <div class="form-field"><label class="form-label">Ngân sách</label><input class="form-input" id="f_ngan_sach" value="${esc(l.ngan_sach||'')}" /></div>
+        <div class="form-field"><label class="form-label">Thời gian quyết định</label><input class="form-input" id="f_thoi_gian_quyet_dinh" value="${esc(l.thoi_gian_quyet_dinh||'')}" /></div>
+        <div class="form-field"><label class="form-label">Người phụ trách</label><input class="form-input" id="f_nguoi_phu_trach" value="${esc(l.nguoi_phu_trach||'')}" /></div>
+        <div class="form-field">
+          <label class="form-label">Trạng thái</label>
+          <select class="form-select" id="f_trang_thai">
+            ${TRANG_THAI_OPTIONS.map(o => `<option value="${o.value}" ${l.trang_thai===o.value?'selected':''}>${o.label}</option>`).join('')}
+          </select>
+        </div>
+        <div class="form-field span2"><label class="form-label">Ghi chú</label><textarea class="form-textarea" id="f_ghi_chu">${esc(l.ghi_chu||'')}</textarea></div>
+      </div>
+    </div>
+  `;
+}
+
+// Sync form inputs back to currentLead object
+function syncFormToLead() {
+  const g = (id) => {
+    const el = document.getElementById(id);
+    return el ? el.value : '';
+  };
+  if (!currentLead) return;
+  currentLead.ma_kh                = g('f_ma_kh');
+  currentLead.ten_cong_ty          = g('f_ten_cong_ty');
+  currentLead.dia_chi              = g('f_dia_chi');
+  currentLead.tinh_thanh           = g('f_tinh_thanh');
+  currentLead.nguoi_lien_he        = g('f_nguoi_lien_he');
+  currentLead.chuc_vu              = g('f_chuc_vu');
+  currentLead.dien_thoai           = g('f_dien_thoai');
+  currentLead.email                = g('f_email');
+  currentLead.goi_quan_tam         = g('f_goi_quan_tam');
+  currentLead.nguon                = g('f_nguon');
+  currentLead.so_du_an             = parseInt(g('f_so_du_an')) || null;
+  currentLead.so_nhan_su           = parseInt(g('f_so_nhan_su')) || null;
+  currentLead.nhu_cau_chinh        = g('f_nhu_cau_chinh');
+  currentLead.van_de_hien_tai      = g('f_van_de_hien_tai');
+  currentLead.ngan_sach            = g('f_ngan_sach');
+  currentLead.thoi_gian_quyet_dinh = g('f_thoi_gian_quyet_dinh');
+  currentLead.nguoi_phu_trach      = g('f_nguoi_phu_trach');
+  currentLead.trang_thai           = g('f_trang_thai');
+  currentLead.ghi_chu              = g('f_ghi_chu');
+}
+
+// ══════════════════════════════════════════════════════════════════
+// SAVE
+// ══════════════════════════════════════════════════════════════════
+async function saveLead() {
+  syncFormToLead();
+  const btn = document.getElementById('save-btn');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spin"></span> Đang lưu...';
+
+  try {
+    if (!sb || SUPABASE_URL.includes('REPLACE')) {
+      // Dev: update allLeads local
+      const idx = allLeads.findIndex(l => l.id === currentLead.id);
+      if (idx > -1) allLeads[idx] = { ...currentLead };
+      showToast('Đã lưu (dev mode)', 'success');
+    } else {
+      const { error } = await sb.from('crm_leads').update({
+        ma_kh:                currentLead.ma_kh,
+        ten_cong_ty:          currentLead.ten_cong_ty,
+        dia_chi:              currentLead.dia_chi,
+        tinh_thanh:           currentLead.tinh_thanh,
+        nguoi_lien_he:        currentLead.nguoi_lien_he,
+        chuc_vu:              currentLead.chuc_vu,
+        dien_thoai:           currentLead.dien_thoai,
+        email:                currentLead.email,
+        goi_quan_tam:         currentLead.goi_quan_tam,
+        nguon:                currentLead.nguon,
+        so_du_an:             currentLead.so_du_an,
+        so_nhan_su:           currentLead.so_nhan_su,
+        nhu_cau_chinh:        currentLead.nhu_cau_chinh,
+        van_de_hien_tai:      currentLead.van_de_hien_tai,
+        ngan_sach:            currentLead.ngan_sach,
+        thoi_gian_quyet_dinh: currentLead.thoi_gian_quyet_dinh,
+        nguoi_phu_trach:      currentLead.nguoi_phu_trach,
+        trang_thai:           currentLead.trang_thai,
+        ghi_chu:              currentLead.ghi_chu,
+      }).eq('id', currentLead.id);
+      if (error) throw error;
+      const idx = allLeads.findIndex(l => l.id === currentLead.id);
+      if (idx > -1) allLeads[idx] = { ...currentLead };
+      showToast('Đã lưu thông tin khách hàng', 'success');
+    }
+    // Re-render sidebar to reflect changes
+    filterLeads();
+  } catch(e) {
+    showToast('Lỗi khi lưu: ' + e.message, 'error');
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = `<svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4"/></svg> Lưu`;
+  }
+}
+
+// ══════════════════════════════════════════════════════════════════
+// PREVIEW
+// ══════════════════════════════════════════════════════════════════
+function renderPreview(l) {
+  let html = '';
+  if (currentTemplate === 'hop_dong')       html = buildHopDong(l);
+  else if (currentTemplate === 'proposal')  html = buildProposal(l);
+  else                                       html = buildPhieuTiepCan(l);
+
+  const doc = `<!DOCTYPE html><html><head><meta charset="UTF-8"><style>
+    *{box-sizing:border-box;margin:0;padding:0}
+    body{font-family:'Times New Roman',serif;font-size:13px;color:#111;padding:40px 50px;line-height:1.65;background:#fff}
+    h1{font-size:17px;font-weight:bold;text-align:center;margin-bottom:6px}
+    h2{font-size:13px;font-weight:bold;margin:18px 0 8px;border-left:3px solid #1d4ed8;padding-left:8px}
+    .sub{font-size:11px;text-align:center;margin-bottom:22px;color:#555}
+    table{width:100%;border-collapse:collapse;margin:10px 0}
+    td,th{border:1px solid #ccc;padding:6px 10px;font-size:12px;vertical-align:top}
+    th{background:#f4f4f5;font-weight:bold;width:36%;text-align:left}
+    .hl{background:#fffbeb}
+    .sig{display:flex;justify-content:space-between;margin-top:40px}
+    .sig-box{text-align:center;width:45%}
+    .sig-box b{display:block;margin-bottom:56px}
+    .sig-box small{font-size:11px;color:#555}
+    .footer{margin-top:36px;font-size:10px;color:#aaa;text-align:center;border-top:1px solid #eee;padding-top:10px}
+    p{margin:6px 0}
+  </style></head><body>${html}</body></html>`;
+
+  return `
+    <div class="preview-wrap">
+      <div class="preview-bar">
+        <span class="preview-label">Preview: ${TEMPLATE_LABELS[currentTemplate]} — ${esc(l.ten_cong_ty)}</span>
+        <button class="btn btn-primary" style="padding:6px 12px;font-size:12px" onclick="exportPDF()">⬇ Tải PDF</button>
+      </div>
+      <iframe id="preview-frame" srcdoc="${esc_attr(doc)}"></iframe>
+    </div>
+  `;
+}
+
+// ══════════════════════════════════════════════════════════════════
+// PDF EXPORT
+// ══════════════════════════════════════════════════════════════════
+async function exportPDF() {
+  syncFormToLead();
+  const btn = document.getElementById('export-btn');
+  if (btn) { btn.disabled = true; btn.innerHTML = '<span class="spin"></span> Đang xuất...'; }
+
+  try {
+    let html = '';
+    if (currentTemplate === 'hop_dong')       html = buildHopDong(currentLead);
+    else if (currentTemplate === 'proposal')  html = buildProposal(currentLead);
+    else                                       html = buildPhieuTiepCan(currentLead);
+
+    // Render in hidden iframe → html2canvas → jsPDF
+    const iframe = document.createElement('iframe');
+    iframe.style.cssText = 'position:fixed;left:-9999px;top:0;width:794px;height:1200px;border:none;';
+    document.body.appendChild(iframe);
+
+    await new Promise(res => {
+      iframe.onload = res;
+      iframe.srcdoc = `<!DOCTYPE html><html><head><meta charset="UTF-8"><style>
+        *{box-sizing:border-box;margin:0;padding:0}
+        body{font-family:'Times New Roman',serif;font-size:13px;color:#111;padding:40px 50px;line-height:1.65;background:#fff}
+        h1{font-size:17px;font-weight:bold;text-align:center;margin-bottom:6px}
+        h2{font-size:13px;font-weight:bold;margin:18px 0 8px;border-left:3px solid #1d4ed8;padding-left:8px}
+        .sub{font-size:11px;text-align:center;margin-bottom:22px;color:#555}
+        table{width:100%;border-collapse:collapse;margin:10px 0}
+        td,th{border:1px solid #ccc;padding:6px 10px;font-size:12px;vertical-align:top}
+        th{background:#f4f4f5;font-weight:bold;width:36%;text-align:left}
+        .hl{background:#fffbeb}
+        .sig{display:flex;justify-content:space-between;margin-top:40px}
+        .sig-box{text-align:center;width:45%}
+        .sig-box b{display:block;margin-bottom:56px}
+        .sig-box small{font-size:11px;color:#555}
+        .footer{margin-top:36px;font-size:10px;color:#aaa;text-align:center;border-top:1px solid #eee;padding-top:10px}
+        p{margin:6px 0}
+      </style></head><body>${html}</body></html>`;
+    });
+
+    const canvas = await html2canvas(iframe.contentDocument.body, {
+      scale: 2, useCORS: true, width: 794, windowWidth: 794,
+    });
+    document.body.removeChild(iframe);
+
+    const { jsPDF } = window.jspdf;
+    const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+    const pW = pdf.internal.pageSize.getWidth();
+    const pH = pdf.internal.pageSize.getHeight();
+    const totalH = (canvas.height / 2) * (pW / (canvas.width / 2));
+    const imgData = canvas.toDataURL('image/jpeg', 0.93);
+
+    let yOff = 0;
+    while (yOff < totalH) {
+      if (yOff > 0) pdf.addPage();
+      pdf.addImage(imgData, 'JPEG', 0, -yOff, pW, totalH);
+      yOff += pH;
+    }
+
+    const today = new Date().toLocaleDateString('vi-VN').replace(/\//g, '');
+    const fname = `GEM_${TEMPLATE_LABELS[currentTemplate].replace(/\s+/g,'_')}_${currentLead.ma_kh||currentLead.id.slice(0,6)}_${today}.pdf`;
+    pdf.save(fname);
+    showToast('Đã xuất PDF: ' + fname, 'success');
+  } catch(e) {
+    showToast('Lỗi xuất PDF: ' + e.message, 'error');
+  } finally {
+    if (btn) {
+      btn.disabled = false;
+      btn.innerHTML = `<svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg> Xuất PDF`;
+    }
+  }
+}
+
+// ══════════════════════════════════════════════════════════════════
+// TEMPLATE BUILDERS
+// ══════════════════════════════════════════════════════════════════
+function fmt(n) { return Number(n).toLocaleString('vi-VN') + ' đ'; }
+function todayStr() { return new Date().toLocaleDateString('vi-VN', { day:'2-digit', month:'2-digit', year:'numeric' }); }
+
+function buildHopDong(l) {
+  const goi = l.goi_quan_tam || 'pro';
+  const price = GOI_PRICES[goi] || GOI_PRICES.pro;
+  const goiLabel = GOI_LABELS[goi] || goi;
+  return `
+    <h1>CỘNG HÒA XÃ HỘI CHỦ NGHĨA VIỆT NAM</h1>
+    <div class="sub">Độc lập – Tự do – Hạnh phúc<br>───────────────</div>
+    <h1>HỢP ĐỒNG DỊCH VỤ PHẦN MỀM SAAS</h1>
+    <div class="sub">Số: ${esc(l.ma_kh||'___/HĐ/GEM')} — ${todayStr()}</div>
+    <p><strong>Căn cứ:</strong> Bộ luật Dân sự 2015; Luật CNTT 2006; nhu cầu và thỏa thuận hai bên.</p>
+    <h2>ĐIỀU 1. CÁC BÊN KÝ KẾT</h2>
+    <table>
+      <tr><th colspan="2" style="text-align:center;background:#eff6ff">BÊN A — CUNG CẤP DỊCH VỤ</th></tr>
+      <tr><th>Tên công ty</th><td>CÔNG TY GEM &amp; CLAUDE PM PRO</td></tr>
+      <tr><th>Website</th><td>gemclaudepm.com</td></tr>
+      <tr><th>Email hỗ trợ</th><td>support@gemclaudepm.com</td></tr>
+    </table>
+    <table>
+      <tr><th colspan="2" style="text-align:center;background:#fffbeb">BÊN B — SỬ DỤNG DỊCH VỤ</th></tr>
+      <tr><th>Tên công ty</th><td><strong>${esc(l.ten_cong_ty)}</strong></td></tr>
+      <tr><th>Người đại diện</th><td>${esc(l.nguoi_lien_he||'')} — ${esc(l.chuc_vu||'Giám đốc')}</td></tr>
+      <tr><th>Địa chỉ</th><td>${esc(l.dia_chi||'')}${l.tinh_thanh?', '+esc(l.tinh_thanh):''}</td></tr>
+      <tr><th>Điện thoại</th><td>${esc(l.dien_thoai||'')}</td></tr>
+      <tr><th>Email</th><td>${esc(l.email||'')}</td></tr>
+    </table>
+    <h2>ĐIỀU 2. NỘI DUNG DỊCH VỤ</h2>
+    <table>
+      <tr><th>Gói dịch vụ</th><td class="hl"><strong>${esc(goiLabel)}</strong></td></tr>
+      <tr><th>Số dự án</th><td>${l.so_du_an||'—'} dự án</td></tr>
+      <tr><th>Số người dùng</th><td>${l.so_nhan_su||'—'} tài khoản</td></tr>
+      <tr><th>Thời hạn hợp đồng</th><td>12 tháng kể từ ngày ký</td></tr>
+      <tr><th>Dùng thử miễn phí</th><td>30 ngày đầu — không thu phí</td></tr>
+    </table>
+    <h2>ĐIỀU 3. GIÁ TRỊ HỢP ĐỒNG</h2>
+    <table>
+      <tr><th>Phí hàng tháng</th><td>${fmt(price.monthly)}/tháng</td></tr>
+      <tr><th>Phí thanh toán năm</th><td class="hl"><strong>${fmt(price.annual)}/năm</strong> (tiết kiệm ${fmt(price.monthly*12 - price.annual)})</td></tr>
+      <tr><th>Hình thức thanh toán</th><td>Chuyển khoản ngân hàng / PayOS</td></tr>
+      <tr><th>Hạn thanh toán</th><td>Trong vòng 7 ngày kể từ ngày ký hợp đồng</td></tr>
+    </table>
+    <h2>ĐIỀU 4. CAM KẾT CHẤT LƯỢNG (SLA)</h2>
+    <table>
+      <tr><th>Uptime cam kết</th><td>99.5% / tháng</td></tr>
+      <tr><th>Hỗ trợ kỹ thuật</th><td>8h–18h Thứ 2–Thứ 7</td></tr>
+      <tr><th>Sao lưu dữ liệu</th><td>Hàng ngày, lưu giữ 30 bản</td></tr>
+      <tr><th>Onboarding</th><td>2 buổi hướng dẫn trực tuyến miễn phí</td></tr>
+    </table>
+    <h2>ĐIỀU 5. ĐIỀU KHOẢN CHUNG</h2>
+    <p>Hợp đồng có hiệu lực từ ngày ký. Tranh chấp giải quyết bằng thương lượng; nếu không đạt đưa ra Tòa án có thẩm quyền tại TP. Hồ Chí Minh.</p>
+    <div class="sig">
+      <div class="sig-box"><b>ĐẠI DIỆN BÊN A</b><small>GEM &amp; CLAUDE PM Pro<br>Giám đốc</small></div>
+      <div class="sig-box"><b>ĐẠI DIỆN BÊN B</b><small>${esc(l.ten_cong_ty)}<br>${esc(l.chuc_vu||'Giám đốc')}</small></div>
+    </div>
+    <div class="footer">GEM &amp; CLAUDE PM Pro · gemclaudepm.com · ${todayStr()}</div>
+  `;
+}
+
+function buildProposal(l) {
+  const goi = l.goi_quan_tam || 'enterprise';
+  const price = GOI_PRICES[goi] || GOI_PRICES.enterprise;
+  return `
+    <div style="text-align:center;margin-bottom:20px">
+      <div style="font-size:20px;font-weight:800;letter-spacing:1px">GEM &amp; CLAUDE PM PRO</div>
+      <div style="font-size:11px;color:#555;margin-top:3px">Nàng GEM Siêu Việt · Phần mềm Quản lý Dự án Xây dựng</div>
+    </div>
+    <h1 style="border-bottom:2px solid #1d4ed8;padding-bottom:8px;text-align:left">ĐỀ XUẤT GIẢI PHÁP — PROPOSAL</h1>
+    <p style="margin:12px 0">Kính gửi: <strong>${esc(l.nguoi_lien_he||'')}</strong> — ${esc(l.chuc_vu||'')} · <strong>${esc(l.ten_cong_ty)}</strong></p>
+    <p style="margin-bottom:16px;color:#555;font-size:12px">Ngày: ${todayStr()}</p>
+    <h2>1. Hiểu biết nhu cầu Quý khách</h2>
+    <table>
+      <tr><th>Quy mô</th><td>${l.so_du_an||'?'} dự án · ${l.so_nhan_su||'?'} nhân sự</td></tr>
+      <tr><th>Nhu cầu chính</th><td>${esc(l.nhu_cau_chinh||'—')}</td></tr>
+      <tr><th>Vấn đề hiện tại</th><td>${esc(l.van_de_hien_tai||'—')}</td></tr>
+      <tr><th>Ngân sách</th><td>${esc(l.ngan_sach||'Đang thương lượng')}</td></tr>
+    </table>
+    <h2>2. Giải pháp đề xuất</h2>
+    <table>
+      <tr><th>Gói dịch vụ</th><td class="hl"><strong>${esc(GOI_LABELS[goi]||goi)}</strong></td></tr>
+      <tr><th>Phí hàng tháng</th><td>${fmt(price.monthly)}</td></tr>
+      <tr><th>Phí năm (ưu đãi)</th><td class="hl"><strong>${fmt(price.annual)}</strong></td></tr>
+      <tr><th>Dùng thử</th><td><strong>30 ngày miễn phí</strong> — không cần thẻ</td></tr>
+    </table>
+    <h2>3. Tính năng nổi bật</h2>
+    <table>
+      <tr><th>Tiến độ & Gantt</th><td>Gantt tương tác, S-Curve, cảnh báo trễ</td></tr>
+      <tr><th>Tài chính</th><td>QS · Kế toán · Hợp đồng tích hợp</td></tr>
+      <tr><th>HSE / An toàn</th><td>Checklist, sự cố, phân tích ảnh bằng AI</td></tr>
+      <tr><th>Nhân sự</th><td>Chấm công, bảng lương BHXH, ca 3 kíp</td></tr>
+      <tr><th>GEM AI</th><td>Báo cáo tự động, dự đoán rủi ro</td></tr>
+      <tr><th>Phê duyệt</th><td>Workflow 5 bước, xác thực PIN, mobile</td></tr>
+      <tr><th>Portal ngoài</th><td>Cổng nhà thầu phụ + Cổng chủ đầu tư</td></tr>
+    </table>
+    <h2>4. Lộ trình triển khai</h2>
+    <table>
+      <tr><th>Tuần 1</th><td>Dùng thử, onboarding, cấu hình dự án đầu tiên</td></tr>
+      <tr><th>Tuần 2–3</th><td>Đào tạo team, nhập dữ liệu hiện có</td></tr>
+      <tr><th>Tuần 4</th><td>Go-live chính thức, ký hợp đồng</td></tr>
+    </table>
+    <h2>5. Bước tiếp theo</h2>
+    <p>Chúng tôi đề xuất buổi demo trực tuyến 45 phút theo quy trình thực tế của ${esc(l.ten_cong_ty)}.</p>
+    <p style="margin-top:8px">Liên hệ: <strong>support@gemclaudepm.com</strong> · <strong>gemclaudepm.com</strong></p>
+    <div class="sig">
+      <div class="sig-box"><b>Người lập Proposal</b><small>${esc(l.nguoi_phu_trach||'GEM Sales Team')}</small></div>
+      <div class="sig-box"><b>Xác nhận quan tâm</b><small>${esc(l.nguoi_lien_he||'')} · ${esc(l.ten_cong_ty)}</small></div>
+    </div>
+    <div class="footer">GEM &amp; CLAUDE PM Pro · gemclaudepm.com · Proposal ngày ${todayStr()}</div>
+  `;
+}
+
+function buildPhieuTiepCan(l) {
+  return `
+    <h1>PHIẾU TIẾP CẬN KHÁCH HÀNG</h1>
+    <div class="sub">GEM &amp; CLAUDE PM Pro — Sales Team · ${todayStr()}</div>
+    <h2>I. THÔNG TIN KHÁCH HÀNG</h2>
+    <table>
+      <tr><th>Mã KH</th><td>${esc(l.ma_kh||'—')}</td></tr>
+      <tr><th>Tên công ty</th><td><strong>${esc(l.ten_cong_ty)}</strong></td></tr>
+      <tr><th>Người liên hệ</th><td>${esc(l.nguoi_lien_he||'—')}</td></tr>
+      <tr><th>Chức vụ</th><td>${esc(l.chuc_vu||'—')}</td></tr>
+      <tr><th>Điện thoại</th><td>${esc(l.dien_thoai||'—')}</td></tr>
+      <tr><th>Email</th><td>${esc(l.email||'—')}</td></tr>
+      <tr><th>Địa chỉ</th><td>${esc(l.dia_chi||'—')}${l.tinh_thanh?', '+esc(l.tinh_thanh):''}</td></tr>
+    </table>
+    <h2>II. NHU CẦU & TÌNH TRẠNG</h2>
+    <table>
+      <tr><th>Nguồn tiếp cận</th><td>${esc(l.nguon||'—')}</td></tr>
+      <tr><th>Gói quan tâm</th><td class="hl"><strong>${esc(GOI_LABELS[l.goi_quan_tam]||l.goi_quan_tam||'—')}</strong></td></tr>
+      <tr><th>Số dự án đang quản lý</th><td>${l.so_du_an||'—'}</td></tr>
+      <tr><th>Quy mô nhân sự</th><td>${l.so_nhan_su||'—'} người</td></tr>
+      <tr><th>Nhu cầu chính</th><td>${esc(l.nhu_cau_chinh||'—')}</td></tr>
+      <tr><th>Vấn đề hiện tại</th><td>${esc(l.van_de_hien_tai||'—')}</td></tr>
+    </table>
+    <h2>III. ĐÁNH GIÁ & KẾ HOẠCH</h2>
+    <table>
+      <tr><th>Ngân sách dự kiến</th><td>${esc(l.ngan_sach||'—')}</td></tr>
+      <tr><th>Thời gian quyết định</th><td>${esc(l.thoi_gian_quyet_dinh||'—')}</td></tr>
+      <tr><th>Nhân viên phụ trách</th><td>${esc(l.nguoi_phu_trach||'—')}</td></tr>
+      <tr><th>Trạng thái</th><td class="hl">${getTrangThaiLabel(l.trang_thai)||'Mới'}</td></tr>
+    </table>
+    <h2>IV. GHI CHÚ</h2>
+    <table><tr><td style="min-height:50px;padding:10px">${esc(l.ghi_chu||'(Chưa có ghi chú)')}</td></tr></table>
+    <h2>V. KẾT QUẢ TIẾP CẬN</h2>
+    <table>
+      <tr><th>Kết quả buổi gặp</th><td style="height:36px"></td></tr>
+      <tr><th>Bước tiếp theo</th><td style="height:36px"></td></tr>
+      <tr><th>Hẹn lại ngày</th><td style="height:36px"></td></tr>
+    </table>
+    <div class="sig">
+      <div class="sig-box"><b>Nhân viên phụ trách</b><small>${esc(l.nguoi_phu_trach||'...')}</small></div>
+      <div class="sig-box"><b>Trưởng Sales xác nhận</b><small>...</small></div>
+    </div>
+    <div class="footer">GEM &amp; CLAUDE PM Pro · gemclaudepm.com · ${todayStr()}</div>
+  `;
+}
+
+// ══════════════════════════════════════════════════════════════════
+// UTILS
+// ══════════════════════════════════════════════════════════════════
+function esc(s) {
+  return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+function esc_attr(s) {
+  return String(s||'').replace(/"/g,'&quot;');
+}
+
+function showToast(msg, type='info') {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.className = `show ${type}`;
+  clearTimeout(el._t);
+  el._t = setTimeout(() => { el.className = type; }, 3200);
+}
+</script>
+</body>
+</html>
