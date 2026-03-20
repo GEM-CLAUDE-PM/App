@@ -204,6 +204,25 @@ export default function NotificationEngine({ project }: Props) {
   const [composeData, setComposeData] = useState({ to:'', channel:'zalo' as NotifChannel, subject:'', context:'' });
   const [isSending, setIsSending]     = useState(false);
   const [sendResult, setSendResult]   = useState<{success:boolean;sent:number;failed:number;errorMsg?:string}|null>(null);
+  const [allUsers, setAllUsers]       = useState<{id:string;full_name:string;job_role:string}[]>([]);
+  const [selectedUsers, setSelectedUsers] = useState<string[]>([]); // array of user IDs
+
+  // Load danh sách users từ Supabase profiles
+  React.useEffect(() => {
+    (async () => {
+      const { getSupabase } = await import('./supabase');
+      const sb = getSupabase();
+      if (!sb) return;
+      const { data } = await sb.from('profiles').select('id,full_name,job_role').order('full_name');
+      if (data) setAllUsers(data);
+    })();
+  }, []);
+
+  const toggleUser = (uid: string) => setSelectedUsers(prev =>
+    prev.includes(uid) ? prev.filter(x => x !== uid) : [...prev, uid]
+  );
+  const selectAll = () => setSelectedUsers(allUsers.map(u => u.id));
+  const clearAll  = () => setSelectedUsers([]);
 
   const { ok: notifOk, err: notifErr, info: notifInfo } = useNotification();
   const toggleRule = (id: string) => setRules(p => p.map(r => r.id===id ? {...r, active:!r.active} : r));
@@ -256,28 +275,47 @@ export default function NotificationEngine({ project }: Props) {
         sent = toAddresses.length;
 
       } else if (composeData.channel === 'inapp') {
-        // ── In-App notification — dispatch toast + lưu log ───────────────────
-        // Strip markdown trước khi hiện toast (GEM soạn ra **bold** *italic*)
+        // ── In-App: lưu vào Supabase inapp_notifications cho từng recipient ──
         const plainText = gemText
           .replace(/\*\*(.*?)\*\*/g, '$1')
           .replace(/\*(.*?)\*/g, '$1')
           .replace(/_(.*?)_/g, '$1')
           .replace(/`(.*?)`/g, '$1')
           .trim();
-        notifInfo(plainText);
-        // Lưu vào notif_log để hiện trong Lịch sử
+
+        const targets = selectedUsers.length > 0 ? selectedUsers : allUsers.map(u => u.id);
+        if (targets.length === 0) throw new Error('Không có người nhận — danh sách user trống');
+
+        const { getSupabase } = await import('./supabase');
+        const sb = getSupabase();
+        if (!sb) throw new Error('Không kết nối được Supabase');
+
+        const rows = targets.map(uid => ({
+          recipient_id: uid,
+          message:      plainText,
+          title:        composeData.subject || 'Thông báo từ GEM PM Pro',
+          category:     'general',
+        }));
+
+        const { error: insErr } = await sb.from('inapp_notifications').insert(rows);
+        if (insErr) throw new Error(insErr.message);
+
+        // Toast cho chính người gửi
+        notifInfo(`Đã gửi In-App cho ${targets.length} người`);
+        sent = targets.length;
+
+        // Lưu log
         const newLog: NotifLog = {
           id:       `l${Date.now()}`,
           ruleId:   'manual',
           ruleName: 'Gửi thủ công',
           channel:  'inapp',
-          recipient: composeData.to,
-          message:  gemText,
+          recipient: targets.length === allUsers.length ? '@All' : `${targets.length} người`,
+          message:  plainText,
           status:   'sent',
           sentAt:   new Date().toLocaleString('vi-VN'),
         };
         setLogs(prev => [newLog, ...prev]);
-        sent = 1;
       }
 
       setSendResult({ success: failed === 0, sent, failed });
@@ -506,8 +544,38 @@ export default function NotificationEngine({ project }: Props) {
                   <input value={composeData.to} onChange={e=>setComposeData(p=>({...p,to:e.target.value}))} placeholder="GĐ DA, CHT, Kế toán..." className={inputCls}/>
                 </div>
               ) : (
-                <div className="flex items-center gap-2 px-3 py-2 bg-violet-50 rounded-xl text-xs text-violet-600 font-semibold">
-                  <Bell size={13}/> Toast hiện ngay cho người đang dùng app — không cần chọn người nhận
+                <div>
+                  <div className="flex items-center justify-between mb-2">
+                    <label className="text-xs font-bold text-slate-500 uppercase tracking-wide">Người nhận In-App</label>
+                    <div className="flex gap-2">
+                      <button onClick={selectAll} className="text-[10px] text-violet-600 font-bold hover:underline">Chọn tất cả ({allUsers.length})</button>
+                      <span className="text-slate-300">|</span>
+                      <button onClick={clearAll} className="text-[10px] text-slate-400 font-bold hover:underline">Bỏ chọn</button>
+                    </div>
+                  </div>
+                  <div className="max-h-36 overflow-y-auto border border-slate-200 rounded-xl divide-y divide-slate-100">
+                    {allUsers.length === 0 ? (
+                      <div className="px-3 py-3 text-xs text-slate-400 text-center">Đang tải danh sách user...</div>
+                    ) : allUsers.map(u => (
+                      <label key={u.id} className="flex items-center gap-2.5 px-3 py-2 hover:bg-slate-50 cursor-pointer">
+                        <input type="checkbox" checked={selectedUsers.includes(u.id)}
+                          onChange={()=>toggleUser(u.id)}
+                          className="w-3.5 h-3.5 accent-violet-600"/>
+                        <span className="text-xs font-semibold text-slate-700 flex-1">{u.full_name}</span>
+                        <span className="text-[10px] text-slate-400">{u.job_role}</span>
+                      </label>
+                    ))}
+                  </div>
+                  {selectedUsers.length > 0 && (
+                    <p className="text-[10px] text-violet-600 font-semibold mt-1.5">
+                      Đã chọn {selectedUsers.length}/{allUsers.length} người nhận
+                    </p>
+                  )}
+                  {allUsers.length > 0 && selectedUsers.length === 0 && (
+                    <p className="text-[10px] text-amber-500 font-semibold mt-1.5">
+                      Chưa chọn ai — sẽ gửi cho tất cả {allUsers.length} user
+                    </p>
+                  )}
                 </div>
               )}
               {composeData.channel==='email'&&(
