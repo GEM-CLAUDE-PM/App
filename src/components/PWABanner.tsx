@@ -14,6 +14,33 @@ import {
 } from 'lucide-react';
 import { usePWA, usePWADeepLink } from './usePWA';
 
+// ─── iOS Debug Logger — TẠM THỜI, XÓA SAU KHI FIX ──────────────────────────
+function IOSDebugLog() {
+  const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
+  React.useEffect(() => {
+    if (!isIOS) return;
+    const t = setTimeout(() => {
+      const logs: string[] = [];
+      document.querySelectorAll('*').forEach(el => {
+        const s = window.getComputedStyle(el);
+        if (s.position === 'fixed' && parseInt(s.zIndex) > 100) {
+          const rect = el.getBoundingClientRect();
+          if (rect.width > 100 && rect.height > 100) {
+            logs.push(`z${s.zIndex}: ${el.className.slice(0, 50)} [${Math.round(rect.width)}x${Math.round(rect.height)}]`);
+          }
+        }
+      });
+      if (logs.length > 0) {
+        alert('iOS DEBUG fixed elements:\n' + logs.join('\n'));
+      } else {
+        alert('iOS DEBUG: không có fixed element lớn nào sau 800ms');
+      }
+    }, 800);
+    return () => clearTimeout(t);
+  }, []);
+  return null;
+}
+
 // ─── Offline pill ─────────────────────────────────────────────────────────────
 export function OfflineIndicator({ isOnline }: { isOnline: boolean }) {
   const [dismissed, setDismissed] = useState(false);
@@ -159,6 +186,7 @@ export function PWAManager({
 
   return (
     <>
+      <IOSDebugLog />
       <OfflineIndicator isOnline={isOnline} />
       <OnlineToast isOnline={isOnline} />
       <InstallBanner isInstallable={isInstallable} isInstalled={isInstalled} onInstall={installPrompt} />
