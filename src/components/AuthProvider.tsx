@@ -53,11 +53,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser]       = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
   // Restore session on mount
+  // .catch() bắt buộc — iOS Chrome (WebKit/ITP) có thể reject promise
+  // nếu không catch: setLoading(false) không chạy → màn trắng mãi
   useEffect(() => {
-    AuthService.restoreSession().then(u => {
-      setUser(u);
-      setLoading(false);
-    });
+    AuthService.restoreSession()
+      .then(u => { setUser(u); setLoading(false); })
+      .catch(() => { setLoading(false); });
   }, []);
 
   const signIn = useCallback(async (email: string, password: string): Promise<string | null> => {
