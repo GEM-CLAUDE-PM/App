@@ -11,7 +11,7 @@
  *   - SKIP_WAITING message handler
  */
 
-const CACHE_NAME    = 'gem-pm-v1';
+const CACHE_NAME    = 'gem-pm-v2';
 const STATIC_ASSETS = [
   '/',
   '/offline.html',
