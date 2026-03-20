@@ -321,11 +321,31 @@ export default function WorkspaceActionBar({
       {open && (
         <div
           ref={panelRef}
-          className="absolute right-0 top-full mt-2 w-[420px] max-w-[calc(100vw-1rem)] bg-white rounded-2xl shadow-2xl border border-slate-200 overflow-hidden"
-          style={{
-            animation: 'dropIn 0.15s cubic-bezier(0.16,1,0.3,1)',
-            transformOrigin: 'top right',
-          }}
+          className="bg-white rounded-2xl shadow-2xl border border-slate-200 overflow-hidden z-[9990]"
+          style={(() => {
+            const isMobile = window.innerWidth < 768;
+            const rect = triggerRef.current?.getBoundingClientRect();
+            if (isMobile) {
+              return {
+                position: 'fixed' as const,
+                left: 8,
+                right: 8,
+                top: rect ? rect.bottom + 8 : 60,
+                animation: 'dropIn 0.15s cubic-bezier(0.16,1,0.3,1)',
+                transformOrigin: 'top center',
+              };
+            }
+            return {
+              position: 'absolute' as const,
+              right: 0,
+              top: '100%',
+              marginTop: 8,
+              width: 420,
+              maxWidth: 'calc(100vw - 1rem)',
+              animation: 'dropIn 0.15s cubic-bezier(0.16,1,0.3,1)',
+              transformOrigin: 'top right',
+            };
+          })()}
         >
           <style>{`
             @keyframes dropIn {
