@@ -258,7 +258,7 @@ export const AuthService = {
         trial_ends_at: profile.tenants?.trial_ends_at ?? profile.trial_ends_at ?? null,
         tenant_name:   profile.tenants?.name ?? undefined,
       };
-      if (merged.tenant_name) localStorage.setItem('gem_company_name', merged.tenant_name);
+      try { if (merged.tenant_name) localStorage.setItem('gem_company_name', merged.tenant_name); } catch {}
       AuthService.persistSession(merged);
       return { user: merged, error: null };
     }
@@ -354,7 +354,7 @@ export const AuthService = {
         trial_ends_at: profile.tenants?.trial_ends_at ?? profile.trial_ends_at ?? null,
         tenant_name:   profile.tenants?.name ?? undefined,
       };
-      if (merged.tenant_name) localStorage.setItem('gem_company_name', merged.tenant_name);
+      try { if (merged.tenant_name) localStorage.setItem('gem_company_name', merged.tenant_name); } catch {}
       AuthService.persistSession(merged);
       return merged;
     }

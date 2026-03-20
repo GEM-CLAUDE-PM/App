@@ -94,13 +94,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   })();
 
   // Sync roleId và allowedProjectIds vào localStorage (cache cho getCurrentMember)
+  // try/catch bắt buộc — iOS Safari Private Mode throw exception với localStorage
   if (user) {
-    localStorage.setItem('gem_user_role', roleId);
-    if (allowedProjectIds !== null) {
-      // Ghi 2 keys: key chuẩn (user_${id}) và key legacy (user_${roleId}) để tương thích
-      localStorage.setItem(`gem_member_projects_user_${user.id}`, JSON.stringify(allowedProjectIds));
-      localStorage.setItem(`gem_member_projects_user_${roleId}`, JSON.stringify(allowedProjectIds));
-    }
+    try {
+      localStorage.setItem('gem_user_role', roleId);
+      if (allowedProjectIds !== null) {
+        localStorage.setItem(`gem_member_projects_user_${user.id}`, JSON.stringify(allowedProjectIds));
+        localStorage.setItem(`gem_member_projects_user_${roleId}`, JSON.stringify(allowedProjectIds));
+      }
+    } catch {}
   }
 
   return (
