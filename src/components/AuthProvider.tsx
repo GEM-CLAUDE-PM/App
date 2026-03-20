@@ -93,9 +93,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return user.project_ids ?? [];            // L1-L3 — chỉ project được admin gán
   })();
 
-  // Sync roleId và allowedProjectIds vào localStorage (cache cho getCurrentMember)
-  // try/catch bắt buộc — iOS Safari Private Mode throw exception với localStorage
-  if (user) {
+  // Sync roleId và allowedProjectIds vào localStorage — trong useEffect tránh iOS re-render loop
+  React.useEffect(() => {
+    if (!user) return;
     try {
       localStorage.setItem('gem_user_role', roleId);
       if (allowedProjectIds !== null) {
@@ -103,7 +103,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         localStorage.setItem(`gem_member_projects_user_${roleId}`, JSON.stringify(allowedProjectIds));
       }
     } catch {}
-  }
+  }, [user?.id, roleId]);
 
   return (
     <AuthContext.Provider value={{ user, perm, loading, roleId, allowedProjectIds, signIn, signOut }}>
