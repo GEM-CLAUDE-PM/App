@@ -196,20 +196,21 @@ function InAppToastStack() {
 export default function NotificationEngine({ project }: Props) {
   const [tab, setTab] = useState<'rules'|'logs'|'compose'>('rules');
   const [rules, setRules] = useState<NotifRule[]>(INIT_RULES);
-  const [logs] = useState<NotifLog[]>(INIT_LOGS);
+  const [logs, setLogs] = useState<NotifLog[]>(INIT_LOGS);
   const [expandedRule, setExpandedRule] = useState<string|null>(null);
   const [showForm, setShowForm] = useState(false);
   const [gemLoading, setGemLoading] = useState(false);
   const [gemText, setGemText] = useState('');
   const [composeData, setComposeData] = useState({ to:'', channel:'zalo' as NotifChannel, subject:'', context:'' });
   const [isSending, setIsSending]     = useState(false);
-  const [sendResult, setSendResult]   = useState<{success:boolean;sent:number;failed:number}|null>(null);
+  const [sendResult, setSendResult]   = useState<{success:boolean;sent:number;failed:number;errorMsg?:string}|null>(null);
 
   const { ok: notifOk, err: notifErr, info: notifInfo } = useNotification();
   const toggleRule = (id: string) => setRules(p => p.map(r => r.id===id ? {...r, active:!r.active} : r));
 
   const sendMessage = useCallback(async () => {
-    if (!gemText || !composeData.to) return;
+    const needsTo = composeData.channel !== 'inapp';
+    if (!gemText || (needsTo && !composeData.to)) return;
     setIsSending(true); setSendResult(null);
     let sent = 0; let failed = 0;
 
@@ -256,7 +257,14 @@ export default function NotificationEngine({ project }: Props) {
 
       } else if (composeData.channel === 'inapp') {
         // ── In-App notification — dispatch toast + lưu log ───────────────────
-        notifInfo(gemText);
+        // Strip markdown trước khi hiện toast (GEM soạn ra **bold** *italic*)
+        const plainText = gemText
+          .replace(/\*\*(.*?)\*\*/g, '$1')
+          .replace(/\*(.*?)\*/g, '$1')
+          .replace(/_(.*?)_/g, '$1')
+          .replace(/`(.*?)`/g, '$1')
+          .trim();
+        notifInfo(plainText);
         // Lưu vào notif_log để hiện trong Lịch sử
         const newLog: NotifLog = {
           id:       `l${Date.now()}`,
@@ -289,8 +297,9 @@ export default function NotificationEngine({ project }: Props) {
         if (composeData.channel !== 'inapp') setLogs(prev => [newLog, ...prev]);
       }
     } catch (e: any) {
-      setSendResult({ success: false, sent, failed: failed || 1 });
-      notifErr(`Gửi thất bại: ${e?.message ?? 'Lỗi không xác định'}`);
+      const errorMsg = e?.message ?? e?.error_description ?? JSON.stringify(e) ?? 'Lỗi không xác định';
+      setSendResult({ success: false, sent, failed: failed || 1, errorMsg });
+      notifErr(`Gửi thất bại: ${errorMsg}`);
     }
     setIsSending(false);
   }, [gemText, composeData, notifOk, notifErr, notifInfo]);
@@ -491,10 +500,16 @@ export default function NotificationEngine({ project }: Props) {
                   ))}
                 </div>
               </div>
-              <div>
-                <label className="text-xs font-bold text-slate-500 uppercase mb-1 block tracking-wide">Gửi đến</label>
-                <input value={composeData.to} onChange={e=>setComposeData(p=>({...p,to:e.target.value}))} placeholder="GĐ DA, CHT, Kế toán..." className={inputCls}/>
-              </div>
+              {composeData.channel !== 'inapp' ? (
+                <div>
+                  <label className="text-xs font-bold text-slate-500 uppercase mb-1 block tracking-wide">Gửi đến</label>
+                  <input value={composeData.to} onChange={e=>setComposeData(p=>({...p,to:e.target.value}))} placeholder="GĐ DA, CHT, Kế toán..." className={inputCls}/>
+                </div>
+              ) : (
+                <div className="flex items-center gap-2 px-3 py-2 bg-violet-50 rounded-xl text-xs text-violet-600 font-semibold">
+                  <Bell size={13}/> Toast hiện ngay cho người đang dùng app — không cần chọn người nhận
+                </div>
+              )}
               {composeData.channel==='email'&&(
                 <div>
                   <label className="text-xs font-bold text-slate-500 uppercase mb-1 block tracking-wide">Tiêu đề email</label>
@@ -515,7 +530,7 @@ export default function NotificationEngine({ project }: Props) {
             <div className="flex items-center justify-between mb-4">
               <h3 className="font-bold text-slate-800 flex items-center gap-2"><Eye size={15} className="text-slate-500"/>Xem trước</h3>
               {gemText&&(
-                <button onClick={sendMessage} disabled={isSending||!composeData.to}
+                <button onClick={sendMessage} disabled={isSending||(composeData.channel!=='inapp'&&!composeData.to)}
                   className="flex items-center gap-1.5 px-3 py-1.5 bg-violet-600 text-white rounded-lg text-xs font-bold hover:bg-violet-700 disabled:opacity-50">
                   {isSending?<Loader2 size={10} className="animate-spin"/>:<Send size={10}/>}
                   {isSending?'Đang gửi...':'Gửi ngay'}
@@ -532,9 +547,14 @@ export default function NotificationEngine({ project }: Props) {
               {gemLoading&&<div className="flex items-center gap-2 text-slate-400"><Loader2 size={14} className="animate-spin"/>Đang soạn...</div>}
               {gemText&&<pre className="text-sm text-slate-700 whitespace-pre-wrap font-sans leading-relaxed">{gemText}</pre>}
               {sendResult&&(
-                <div className={`mt-3 flex items-center gap-2 p-2.5 rounded-xl text-xs font-semibold ${sendResult.success?'bg-emerald-50 text-emerald-700':'bg-rose-50 text-rose-700'}`}>
-                  {sendResult.success?<CheckCircle2 size={13}/>:<AlertTriangle size={13}/>}
-                  {sendResult.success?`Đã gửi ${sendResult.sent} người thành công`:`Lỗi: ${sendResult.failed} thất bại`}
+                <div className={`mt-3 p-2.5 rounded-xl text-xs font-semibold ${sendResult.success?'bg-emerald-50 text-emerald-700':'bg-rose-50 text-rose-700'}`}>
+                  <div className="flex items-center gap-2">
+                    {sendResult.success?<CheckCircle2 size={13}/>:<AlertTriangle size={13}/>}
+                    {sendResult.success?`Đã gửi ${sendResult.sent} người thành công`:`Gửi thất bại`}
+                  </div>
+                  {sendResult.errorMsg&&(
+                    <p className="mt-1 text-[11px] font-normal opacity-80 break-all">{sendResult.errorMsg}</p>
+                  )}
                 </div>
               )}
             </div>
