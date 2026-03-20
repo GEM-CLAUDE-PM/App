@@ -17,6 +17,17 @@ export default defineConfig(({mode}) => {
     },
     build: {
       target: ['es2020', 'safari14'],
+      chunkSizeWarningLimit: 800,
+      rollupOptions: {
+        output: {
+          manualChunks: {
+            'vendor-react':    ['react', 'react-dom'],
+            'vendor-supabase': ['@supabase/supabase-js'],
+            'vendor-ui':       ['lucide-react'],
+            'vendor-markdown': ['react-markdown'],
+          },
+        },
+      },
     },
     optimizeDeps: {
       esbuildOptions: {
