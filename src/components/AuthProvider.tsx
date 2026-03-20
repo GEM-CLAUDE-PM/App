@@ -18,7 +18,7 @@ import {
   LogIn, LogOut, User, Shield, ChevronDown, Loader2,
   Eye, EyeOff, AlertCircle, CheckCircle2, CheckCircle, Lock, Building2,
   Sparkles, RefreshCw, UserCircle, Settings, X, Mail, UserPlus,
-  Phone, Calendar, Badge, Users, CreditCard,
+  Phone, Badge, Users, CreditCard,
 } from 'lucide-react';
 
 // ─── Context ──────────────────────────────────────────────────────────────────
@@ -107,26 +107,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   return (
     <AuthContext.Provider value={{ user, perm, loading, roleId, allowedProjectIds, signIn, signOut }}>
-      {loading ? <SplashScreen /> : !user ? <LoginScreen onSignIn={signIn} /> : children}
+      {loading
+        ? null  // iOS fix: không render SplashScreen tím ở đây — App.tsx đã có SplashScreen riêng
+                // Trả về null tránh race condition loading=true flicker sau login trên iOS Safari/WebKit
+        : !user
+          ? <LoginScreen onSignIn={signIn} />
+          : children}
     </AuthContext.Provider>
-  );
-}
-
-// ─── Splash Screen ────────────────────────────────────────────────────────────
-function SplashScreen() {
-  return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-violet-950 to-slate-900 flex items-center justify-center">
-      <div className="text-center space-y-4">
-        <div className="w-16 h-16 bg-violet-600/20 rounded-2xl flex items-center justify-center mx-auto animate-pulse">
-          <Sparkles size={32} className="text-violet-300" />
-        </div>
-        <p className="text-violet-200 font-semibold text-lg tracking-wide">Nàng GEM Siêu Việt</p>
-        <div className="flex items-center gap-2 text-violet-400 text-sm">
-          <Loader2 size={14} className="animate-spin" />
-          Đang khởi động hệ thống...
-        </div>
-      </div>
-    </div>
   );
 }
 

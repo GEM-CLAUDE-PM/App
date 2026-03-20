@@ -70,7 +70,17 @@ function safeLS(key: string): string | null {
 
 function AppInner() {
   const { ok: notifOk, err: notifErr, warn: notifWarn, info: notifInfo } = useNotification();
-  const { user } = useAuth();
+  const { user, loading } = useAuth();
+
+  // iOS fix: khi AuthProvider đang restoreSession (loading=true), hiện spinner nhỏ
+  // thay vì blank screen — tránh user thấy màn trắng trong khoảng 300-800ms
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-slate-50 flex items-center justify-center">
+        <Loader2 size={24} className="animate-spin text-teal-500" />
+      </div>
+    );
+  }
 
   // ── Portal routing — NTP users get SubconPortal, CĐT get ClientPortal ───
   if (user?.job_role === 'ntp') return <SubconPortal />;
@@ -974,9 +984,13 @@ function AppInner() {
 
 // ─── AuthProvider wrapper ────────────────────────────────────────────────────
 export default function App() {
-  // Show splash một lần duy nhất mỗi session (không lặp lại khi F5)
+  // Show splash một lần duy nhất mỗi session
+  // iOS Safari PWA: sessionStorage bị clear khi suspend → giới hạn thêm bằng performance.now() < 10s
   const [showSplash, setShowSplash] = React.useState(() => {
-    return !sessionStorage.getItem("gem_splash_done");
+    if (sessionStorage.getItem("gem_splash_done")) return false;
+    // iOS PWA workaround: nếu performance.now() > 10s tức là resume từ background, bỏ qua splash
+    if (typeof performance !== 'undefined' && performance.now() > 10000) return false;
+    return true;
   });
 
   const handleSplashComplete = React.useCallback(() => {
@@ -985,7 +999,7 @@ export default function App() {
   }, []);
 
   if (showSplash) {
-    return <SplashScreen onComplete={handleSplashComplete} duration={3500} />;
+    return <SplashScreen onComplete={handleSplashComplete} duration={2000} />;
   }
 
 
