@@ -205,25 +205,95 @@ export default function NotificationEngine({ project }: Props) {
   const [isSending, setIsSending]     = useState(false);
   const [sendResult, setSendResult]   = useState<{success:boolean;sent:number;failed:number}|null>(null);
 
+  const { ok: notifOk, err: notifErr, info: notifInfo } = useNotification();
   const toggleRule = (id: string) => setRules(p => p.map(r => r.id===id ? {...r, active:!r.active} : r));
 
   const sendMessage = useCallback(async () => {
     if (!gemText || !composeData.to) return;
     setIsSending(true); setSendResult(null);
-    const recipients: ZaloRecipient[] = composeData.to.split(',').map(name => ({
-      name: name.trim(),
-      // In prod: map name → user_id from profiles table
-      user_id: name.trim() === 'GĐ DA' ? undefined : undefined,
-    }));
-    const result = await ZaloService.sendAlert({
-      title: `Thông báo từ GEM PM Pro`,
-      body:  gemText,
-      recipients,
-      emoji: composeData.channel === 'zalo' ? '📢' : undefined,
-    });
-    setSendResult(result);
+    let sent = 0; let failed = 0;
+
+    try {
+      if (composeData.channel === 'zalo') {
+        // ── Zalo OA ──────────────────────────────────────────────────────────
+        if (!ZaloService.isEnabled()) {
+          // Chưa cấu hình OA token → báo lỗi rõ ràng
+          setSendResult({ success: false, sent: 0, failed: 1 });
+          notifErr('Zalo OA chưa cấu hình. Kiểm tra VITE_ZALO_OA_ID trong .env');
+          setIsSending(false); return;
+        }
+        const recipients: ZaloRecipient[] = composeData.to.split(',').map(name => ({ name: name.trim() }));
+        const result = await ZaloService.sendAlert({
+          title: 'Thông báo từ GEM PM Pro',
+          body:  gemText,
+          recipients,
+          emoji: '📢',
+        });
+        sent   = result.sent;
+        failed = result.failed;
+
+      } else if (composeData.channel === 'email') {
+        // ── Email qua Supabase Edge Function (send-email) ────────────────────
+        const { getSupabase } = await import('./supabase');
+        const sb = getSupabase();
+        if (!sb) { failed = 1; throw new Error('Không kết nối được Supabase'); }
+        const toAddresses = composeData.to.split(',').map(s => s.trim()).filter(Boolean);
+        const { error } = await sb.functions.invoke('send-email', {
+          body: {
+            to:      toAddresses,
+            subject: composeData.subject || 'Thông báo từ GEM PM Pro',
+            html:    `<div style="font-family:sans-serif;max-width:600px;margin:0 auto">
+                        <h2 style="color:#1a8a7a">GEM & CLAUDE PM Pro</h2>
+                        <p>${gemText.replace(/\n/g, '<br/>')}</p>
+                        <hr style="border:none;border-top:1px solid #eee;margin:20px 0"/>
+                        <p style="color:#999;font-size:12px">Thông báo tự động từ GEM PM Pro · gemclaudepm.com</p>
+                      </div>`,
+            text:    gemText,
+          },
+        });
+        if (error) { failed = toAddresses.length; throw error; }
+        sent = toAddresses.length;
+
+      } else if (composeData.channel === 'inapp') {
+        // ── In-App notification — dispatch toast + lưu log ───────────────────
+        notifInfo(gemText);
+        // Lưu vào notif_log để hiện trong Lịch sử
+        const newLog: NotifLog = {
+          id:       `l${Date.now()}`,
+          ruleId:   'manual',
+          ruleName: 'Gửi thủ công',
+          channel:  'inapp',
+          recipient: composeData.to,
+          message:  gemText,
+          status:   'sent',
+          sentAt:   new Date().toLocaleString('vi-VN'),
+        };
+        setLogs(prev => [newLog, ...prev]);
+        sent = 1;
+      }
+
+      setSendResult({ success: failed === 0, sent, failed });
+      if (sent > 0) {
+        notifOk(`Đã gửi ${sent} thông báo qua ${CHANNEL_CFG[composeData.channel].label}`);
+        // Lưu log
+        const newLog: NotifLog = {
+          id:       `l${Date.now()}`,
+          ruleId:   'manual',
+          ruleName: 'Gửi thủ công',
+          channel:  composeData.channel,
+          recipient: composeData.to,
+          message:  gemText,
+          status:   'sent',
+          sentAt:   new Date().toLocaleString('vi-VN'),
+        };
+        if (composeData.channel !== 'inapp') setLogs(prev => [newLog, ...prev]);
+      }
+    } catch (e: any) {
+      setSendResult({ success: false, sent, failed: failed || 1 });
+      notifErr(`Gửi thất bại: ${e?.message ?? 'Lỗi không xác định'}`);
+    }
     setIsSending(false);
-  }, [gemText, composeData]);
+  }, [gemText, composeData, notifOk, notifErr, notifInfo]);
 
   const sendCount = logs.filter(l=>l.status==='sent').length;
   const activeRules = rules.filter(r=>r.active).length;
@@ -316,8 +386,8 @@ export default function NotificationEngine({ project }: Props) {
               <div key={rule.id} className={`bg-white border rounded-2xl shadow-sm overflow-hidden ${rule.active?'border-slate-200':'border-slate-100 opacity-60'}`}>
                 <div className="p-4 flex items-center gap-3 cursor-pointer hover:bg-slate-50" onClick={()=>setExpandedRule(isExp?null:rule.id)}>
                   <button onClick={e=>{e.stopPropagation();toggleRule(rule.id);}}
-                    className={`shrink-0 w-9 h-5 rounded-full transition-colors ${rule.active?'bg-violet-600':'bg-slate-200'} relative`}>
-                    <span className={`absolute top-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform ${rule.active?'translate-x-[18px]':'translate-x-0.5'}`}/>
+                    className={`shrink-0 w-11 h-6 rounded-full transition-colors relative ${rule.active?'bg-violet-600':'bg-slate-200'}`}>
+                    <span className={`absolute top-1 left-1 w-4 h-4 bg-white rounded-full shadow transition-transform duration-200 ${rule.active?'translate-x-5':'translate-x-0'}`}/>
                   </button>
                   <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${rule.active?'bg-violet-100':'bg-slate-100'}`}>
                     {CAT_ICON[rule.category]||<Bell size={14} className="text-slate-400"/>}
