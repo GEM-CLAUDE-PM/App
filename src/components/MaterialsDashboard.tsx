@@ -82,66 +82,8 @@ const fmtVND = (n: number) => new Intl.NumberFormat('vi-VN').format(n);
 const fmtMil = (n: number) => `${(n / 1_000_000).toFixed(1)}M`;
 
 // ── Seed data ────────────────────────────────────────────────────────────────
-const SEED_MATERIALS: MaterialItem[] = [
-  { id: 'm1', code: 'VT-001', name: 'Thép CB300-V', unit: 'Tấn',      tonKho: 50,  threshold: 60,  maxStock: 250, donGia: 15_000_000, nhaCungCap: 'Thép Hòa Phát',    viTri: 'Kho A-1', ngayNhapCuoi: '05/03/2026', ngayXuatCuoi: '07/03/2026' },
-  { id: 'm2', code: 'VT-002', name: 'Xi măng PC40', unit: 'Tấn',      tonKho: 200, threshold: 100, maxStock: 500, donGia: 1_800_000,  nhaCungCap: 'Xi măng Hà Tiên',  viTri: 'Kho A-2', ngayNhapCuoi: '06/03/2026', ngayXuatCuoi: '07/03/2026' },
-  { id: 'm3', code: 'VT-003', name: 'Cát vàng',     unit: 'm³',       tonKho: 150, threshold: 100, maxStock: 400, donGia: 350_000,    nhaCungCap: 'Cát Sông Đồng Nai',viTri: 'Bãi B-1', ngayNhapCuoi: '04/03/2026', ngayXuatCuoi: '06/03/2026' },
-  { id: 'm4', code: 'VT-004', name: 'Gạch đặc 6x9', unit: '1000v',   tonKho: 80,  threshold: 50,  maxStock: 300, donGia: 1_200_000,  nhaCungCap: 'Gạch Đồng Tâm',    viTri: 'Bãi B-2', ngayNhapCuoi: '03/03/2026', ngayXuatCuoi: '05/03/2026' },
-  { id: 'm5', code: 'VT-005', name: 'Đá 1×2',       unit: 'm³',       tonKho: 120, threshold: 80,  maxStock: 350, donGia: 450_000,    nhaCungCap: 'Đá Biên Hòa',      viTri: 'Bãi B-3', ngayNhapCuoi: '06/03/2026', ngayXuatCuoi: '07/03/2026' },
-  { id: 'm6', code: 'VT-006', name: 'Sơn nước nội', unit: 'Thùng',   tonKho: 15,  threshold: 20,  maxStock: 100, donGia: 850_000,    nhaCungCap: 'Sơn 4 Mùa',        viTri: 'Kho C-1', ngayNhapCuoi: '01/03/2026', ngayXuatCuoi: '02/03/2026' },
-  { id: 'm7', code: 'VT-007', name: 'Ống PVC Φ90',  unit: 'Cây',      tonKho: 200, threshold: 50,  maxStock: 300, donGia: 95_000,     nhaCungCap: 'Nhựa Bình Minh',   viTri: 'Kho C-2', ngayNhapCuoi: '28/02/2026', ngayXuatCuoi: '28/02/2026' },
-];
 
-const SEED_VOUCHERS: Voucher[] = [
-  {
-    id: 'v1', type: 'PN', code: 'PN-2026-001', ngay: '05/03/2026',
-    nguoiLap: 'Hoàng Thị E', nguoiDuyet: 'Trần Văn B', status: 'approved',
-    ghiChu: 'Nhập thép đợt 3 theo HĐ 2026/HP-001', nhaCungCap: 'Thép Hòa Phát',
-    butToan: 'Nợ TK152 / Có TK331', totalAmount: 750_000_000,
-    items: [{ matHang: 'Thép CB300-V', donVi: 'Tấn', soLuong: 50, donGia: 15_000_000, thanhTien: 750_000_000 }],
-  },
-  {
-    id: 'v2', type: 'PX', code: 'PX-2026-012', ngay: '07/03/2026',
-    nguoiLap: 'Hoàng Thị E', nguoiDuyet: '', status: 'pending',
-    ghiChu: 'Xuất thép thi công dầm tầng 3 trục A-D', nhaCungCap: '',
-    butToan: 'Nợ TK621 / Có TK152', totalAmount: 300_000_000,
-    items: [{ matHang: 'Thép CB300-V', donVi: 'Tấn', soLuong: 20, donGia: 15_000_000, thanhTien: 300_000_000 }],
-  },
-  {
-    id: 'v3', type: 'VAT', code: 'HĐ-0001234', ngay: '05/03/2026',
-    nguoiLap: 'Hoàng Thị E', nguoiDuyet: '', status: 'pending',
-    ghiChu: 'Hóa đơn VAT mua thép đợt 3', nhaCungCap: 'Thép Hòa Phát',
-    hoaDonVAT: '0001234', butToan: 'Nợ TK133 / Có TK331', totalAmount: 75_000_000,
-    items: [{ matHang: 'VAT 10% — Thép CB300-V', donVi: 'VNĐ', soLuong: 1, donGia: 75_000_000, thanhTien: 75_000_000 }],
-  },
-  {
-    id: 'v4', type: 'PN', code: 'PN-2026-002', ngay: '06/03/2026',
-    nguoiLap: 'Hoàng Thị E', nguoiDuyet: 'Trần Văn B', status: 'approved',
-    ghiChu: 'Nhập xi măng đợt 5', nhaCungCap: 'Xi măng Hà Tiên',
-    butToan: 'Nợ TK152 / Có TK331', totalAmount: 360_000_000,
-    items: [{ matHang: 'Xi măng PC40', donVi: 'Tấn', soLuong: 200, donGia: 1_800_000, thanhTien: 360_000_000 }],
-  },
-  {
-    id: 'v5', type: 'PX', code: 'PX-2026-013', ngay: '07/03/2026',
-    nguoiLap: 'Hoàng Thị E', nguoiDuyet: '', status: 'draft',
-    ghiChu: 'Xuất cát cho hạng mục trát tường tầng 2', nhaCungCap: '',
-    butToan: 'Nợ TK621 / Có TK152', totalAmount: 17_500_000,
-    items: [{ matHang: 'Cát vàng', donVi: 'm³', soLuong: 50, donGia: 350_000, thanhTien: 17_500_000 }],
-  },
-];
 
-const SEED_KIEMKE: KiemKe[] = [
-  {
-    id: 'kk1', ngay: '01/03/2026', nguoiKiemKe: 'Hoàng Thị E', nguoiDuyet: 'Trần Văn B',
-    status: 'approved', ghiChu: 'Kiểm kê đầu tháng 3/2026',
-    items: [
-      { matHangId: 'm1', tenMatHang: 'Thép CB300-V',   donVi: 'Tấn',   soSach: 52,  thucTe: 50,  chenhLech: -2,  ghiChu: 'Sai lệch nhỏ, đã điều chỉnh' },
-      { matHangId: 'm2', tenMatHang: 'Xi măng PC40',   donVi: 'Tấn',   soSach: 200, thucTe: 200, chenhLech: 0,   ghiChu: '' },
-      { matHangId: 'm3', tenMatHang: 'Cát vàng',       donVi: 'm³',    soSach: 152, thucTe: 150, chenhLech: -2,  ghiChu: 'Bay hao tự nhiên' },
-      { matHangId: 'm6', tenMatHang: 'Sơn nước nội',   donVi: 'Thùng', soSach: 15,  thucTe: 15,  chenhLech: 0,   ghiChu: '' },
-    ],
-  },
-];
 
 // ── Component ─────────────────────────────────────────────────────────────────
 export default function MaterialsDashboard({ project, onAlert, currentRole = 'chi_huy_truong' }: Props) {
@@ -174,7 +116,7 @@ export default function MaterialsDashboard({ project, onAlert, currentRole = 'ch
   const matRoleId = legacyRoleMap[currentRole] || currentRole || 'operator';
   const matLevel  = APPROVE_LEVEL_MAP[matRoleId] ?? 1;
   const canApproveVoucher = matLevel >= 2; // L1 (thủ kho) KHÔNG được duyệt
-  const pid = project?.id ?? 'p1';
+  const pid = project?.id ?? '';
   const projectName = project?.name ?? 'Dự án';
 
   // ── State — ALL hooks first ──────────────────────────────────────────────
@@ -184,9 +126,9 @@ export default function MaterialsDashboard({ project, onAlert, currentRole = 'ch
     if (saved && (valid as string[]).includes(saved)) { sessionStorage.removeItem('gem_action_subtab'); return saved as MatTab; }
     return 'kho';
   });
-  const [materials, setMaterials]   = useState<MaterialItem[]>(SEED_MATERIALS);
-  const [vouchers, setVouchers]     = useState<Voucher[]>(SEED_VOUCHERS);
-  const [kiemKes, setKiemKes]       = useState<KiemKe[]>(SEED_KIEMKE);
+  const [materials, setMaterials]   = useState([]);
+  const [vouchers, setVouchers]     = useState([]);
+  const [kiemKes, setKiemKes]       = useState([]);
 
   // MATERIAL_REQUEST state
   const [mrList, setMrList]         = useState<MaterialRequest[]>([]);
@@ -255,9 +197,9 @@ export default function MaterialsDashboard({ project, onAlert, currentRole = 'ch
   useEffect(() => {
     (async () => {
       const [m, v, k, mr] = await Promise.all([
-        db.get('mat_items',    pid, SEED_MATERIALS),
-        db.get('mat_vouchers', pid, SEED_VOUCHERS),
-        db.get('mat_kiemke',   pid, SEED_KIEMKE),
+        db.get('mat_items', pid, []),
+        db.get('mat_vouchers', pid, []),
+        db.get('mat_kiemke', pid, []),
         db.get('mat_requests', pid, []),
       ]);
       if ((m as any[]).length) setMaterials(m as any);
@@ -271,7 +213,7 @@ export default function MaterialsDashboard({ project, onAlert, currentRole = 'ch
         PN: 'WAREHOUSE_ENTRY', PX: 'WAREHOUSE_EXIT',
         VAT: 'FINANCIAL_VOUCHER', KK: 'FINANCIAL_VOUCHER',
       };
-      const loadedVouchers = (v as any[]).length ? v as any[] : SEED_VOUCHERS;
+      const loadedVouchers = (v as any[]).length ? v as any[] : [];
       const seedInputs: SeedVoucherInput[] = loadedVouchers.map((voucher: any) => ({
         voucherId:    voucher.id,
         voucherCode:  voucher.code,

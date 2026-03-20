@@ -72,73 +72,9 @@ const GEM_OFFICE_SYS = `Bạn là Nàng GEM Siêu Việt — chuyên gia hành c
 const inputCls = "w-full px-3 py-2 text-sm border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-violet-300";
 
 // ─── Mock data ────────────────────────────────────────────────────────────────
-const MOCK_CVS: CongVan[] = [
-  { id:'cv1', so_cv:'CV-2026/001-GĐDA', trich_yeu:'Phê duyệt phương án kỹ thuật xử lý nền đất yếu khu C4-D6',
-    noi_dung:'Kính gửi Chỉ huy trưởng công trình Villa PAT. Căn cứ kết quả khảo sát địa chất bổ sung ngày 05/02/2026 và đề xuất phương án xử lý của Tư vấn kết cấu, Ban QLDA chấp thuận triển khai phương án cọc xi măng đất theo đề xuất. Đề nghị đơn vị thi công triển khai ngay sau khi nhận được văn bản này.',
-    direction:'outbound', category:'Kỹ thuật', status:'sent', priority:'urgent',
-    date_in:'07/03/2026', from_to:'Ban QLDA → Chỉ huy trưởng', handler:'Nguyễn Thị Lan (Thư ký)', tags:['Kỹ thuật','Nền móng'], attachments:2 },
-  { id:'cv2', so_cv:'2026/045-TVGS', trich_yeu:'Biên bản nghiệm thu cốt thép dầm tầng 3 — Đạt yêu cầu',
-    noi_dung:'Biên bản nghiệm thu công tác cốt thép dầm sàn tầng 3 block A ngày 06/03/2026. Kết quả: Đạt yêu cầu kỹ thuật theo TCVN 9115:2012. Đề nghị tiến hành đổ bê tông theo đúng kế hoạch.',
-    direction:'inbound', category:'Nghiệm thu', status:'received', priority:'normal',
-    date_in:'06/03/2026', from_to:'TVGS Alpha → Ban QLDA', handler:'Phạm Minh Quân', tags:['Nghiệm thu','Kết cấu'], attachments:1 },
-  { id:'cv3', so_cv:'CV-2026/002-CHT', trich_yeu:'Báo cáo tiến độ tháng 2/2026 — Đạt 78% kế hoạch',
-    noi_dung:'Báo cáo tiến độ thi công tháng 2/2026. Tổng tiến độ thực hiện đạt 78% so với kế hoạch tháng. Các nguyên nhân chậm: thời tiết xấu 3 ngày (ngày 12-14/02), thiếu vật tư thép D16 trong 4 ngày. Kế hoạch tháng 3: tập trung tầng 3-4 block A, hoàn thiện tầng hầm.',
-    direction:'inbound', category:'Báo cáo', status:'processing', priority:'normal',
-    date_in:'01/03/2026', deadline:'10/03/2026', from_to:'CHT Nguyễn Văn Anh → GĐ DA', handler:'Trần Thị Mai (Thư ký)', tags:['Báo cáo','Tiến độ'], attachments:3 },
-  { id:'cv4', so_cv:'CV-2026/003-GĐDA', trich_yeu:'Chấp thuận điều chỉnh vật tư sơn chống thấm mái (RFI-004)',
-    noi_dung:'Trả lời RFI-004 ngày 06/03/2026 của CHT. Ban QLDA chấp thuận sử dụng sơn chống thấm Polyglass thay thế Sika theo đề xuất. Yêu cầu cung cấp đầy đủ hồ sơ chứng nhận chất lượng trước khi thi công.',
-    direction:'outbound', category:'Vật tư', status:'sent', priority:'normal',
-    date_in:'07/03/2026', from_to:'GĐ DA → CHT Nguyễn Văn Anh', handler:'Nguyễn Thị Lan', tags:['Vật tư','Chống thấm'], attachments:0, reply_to:'RFI-004' },
-  { id:'cv5', so_cv:'2026/018-CĐT', trich_yeu:'Yêu cầu đẩy nhanh tiến độ tầng hầm B2 — Hoàn thành trước 30/04',
-    noi_dung:'Căn cứ kế hoạch tổng thể dự án, Chủ đầu tư yêu cầu Nhà thầu thi công hoàn thành toàn bộ công tác tầng hầm B2 trước ngày 30/04/2026. Đề nghị lập phương án tăng ca và bổ sung thiết bị báo cáo trước 15/03/2026.',
-    direction:'inbound', category:'Chỉ đạo', status:'processing', priority:'express',
-    date_in:'05/03/2026', deadline:'15/03/2026', from_to:'CĐT Hoàng Long → Ban QLDA', handler:'Nguyễn Thị Lan', tags:['Tiến độ','Tầng hầm'], attachments:1 },
-];
-
-const MOCK_MEETINGS: Meeting[] = [
-  { id:'m1', title:'Họp giao ban tuần 10/2026', date:'09/03/2026', time_start:'08:00', time_end:'09:30',
-    location:'Phòng họp tại công trường', status:'scheduled', organizer:'GĐ DA Trần Văn Bình',
-    attendees:['GĐ DA','CHT Nguyễn Văn Anh','TVGS Alpha','KS Giám sát Hoàng','QS Minh Tuấn'],
-    agenda:['Báo cáo tiến độ tuần 9','Giải quyết vướng mắc kỹ thuật','Kế hoạch tuần 10','Các vấn đề khác'],
-    notes:'', minute_id:undefined },
-  { id:'m2', title:'Họp kỹ thuật xử lý nền đất yếu khu C', date:'06/03/2026', time_start:'14:00', time_end:'16:00',
-    location:'Văn phòng Ban QLDA', status:'done', organizer:'CHT Nguyễn Văn Anh',
-    attendees:['CHT','TVGS KC','TK Kết cấu','KS Giám sát'],
-    agenda:['Báo cáo kết quả khảo sát','Đề xuất phương án','Thống nhất triển khai'],
-    notes:'Đã thống nhất phương án cọc xi măng đất. GĐ DA phê duyệt phương án qua CV-2026/001.', minute_id:'min1' },
-  { id:'m3', title:'Họp nghiệm thu cốt thép dầm tầng 3', date:'06/03/2026', time_start:'09:00', time_end:'10:00',
-    location:'Tại công trường — Tầng 3', status:'done', organizer:'KS Giám sát Hoàng',
-    attendees:['KS Giám sát','Đội trưởng KC','TVGS Alpha','QC Thảo'],
-    agenda:['Kiểm tra cốt thép theo bản vẽ','Đánh giá kết quả','Ký nghiệm thu'],
-    notes:'Đạt yêu cầu. Cho phép đổ bê tông.', minute_id:'min2' },
-  { id:'m4', title:'Họp CĐT — Tiến độ tầng hầm B2', date:'12/03/2026', time_start:'10:00', time_end:'11:30',
-    location:'Văn phòng CĐT — Tầng 12 Landmark', status:'scheduled', organizer:'CĐT Hoàng Long',
-    attendees:['CĐT','GĐ DA','CHT','QS Minh Tuấn'],
-    agenda:['Báo cáo hiện trạng tầng hầm','Phương án đẩy nhanh tiến độ','Phê duyệt VO acceleration'],
-    notes:'', minute_id:undefined },
-];
 
 
-const MOCK_MINUTES: MeetingMinute[] = [
-  { id:'min1', meeting_id:'m2', meeting_title:'Họp kỹ thuật xử lý nền đất yếu khu C', date:'06/03/2026',
-    location:'Văn phòng Ban QLDA', status:'confirmed', prepared_by:'Nguyễn Thị Lan',
-    attendees:['CHT Nguyễn Văn Anh','TVGS KC Alpha','TK Kết cấu Hùng','KS Giám sát Hoàng'],
-    content:'Cuộc họp xem xét kết quả khảo sát địa chất bổ sung và quyết định phương án xử lý nền đất yếu tại khu vực C4-D6, tầng B1. Đại diện TK Kết cấu trình bày kết quả khảo sát: phát hiện lớp bùn sét mềm yếu dày 3.5m. Đề xuất phương án cọc xi măng đất D600.',
-    decisions:['Thống nhất phương án cọc xi măng đất D600 — 480 cọc','GĐ DA phê duyệt phương án qua văn bản chính thức','Triển khai ngay sau khi có văn bản phê duyệt','TK Kết cấu hoàn thiện bản vẽ thi công trong 3 ngày'],
-    action_items:[
-      { task:'Phát hành bản vẽ chi tiết cọc xi măng đất', assignee:'TK Kết cấu Hùng', deadline:'09/03/2026', done:false },
-      { task:'Lập dự toán chi phí phương án', assignee:'QS Minh Tuấn', deadline:'09/03/2026', done:true },
-      { task:'Chuẩn bị trang thiết bị thi công', assignee:'CHT Nguyễn Văn Anh', deadline:'12/03/2026', done:false },
-    ] },
-  { id:'min2', meeting_id:'m3', meeting_title:'Họp nghiệm thu cốt thép dầm tầng 3', date:'06/03/2026',
-    location:'Tại công trường — Tầng 3', status:'confirmed', prepared_by:'Phạm Minh Quân',
-    attendees:['KS Giám sát Hoàng','Đội trưởng KC Thanh','TVGS Alpha Dũng','QC Thảo'],
-    content:'Nghiệm thu công tác cốt thép dầm sàn tầng 3 block A theo TCVN 9115:2012.',
-    decisions:['Công tác cốt thép đạt yêu cầu kỹ thuật','Cho phép tiến hành đổ bê tông'],
-    action_items:[
-      { task:'Lập kế hoạch đổ bê tông tầng 3', assignee:'CHT Nguyễn Văn Anh', deadline:'08/03/2026', done:true },
-    ] },
-];
+
 
 // ─── Sub-tab: Công văn ────────────────────────────────────────────────────────
 function TabCongVan({ cvs, setCvs, pid }: { cvs: CongVan[]; setCvs: React.Dispatch<React.SetStateAction<CongVan[]>>; pid: string }) {
@@ -858,16 +794,16 @@ export default function OfficeDashboard({ project, projectId: projectIdProp }: P
   const [tab, setTab] = useState<'congvan'|'lichhop'|'kyduyet'|'bienban'>('congvan');
   const [showApprovalPanel, setShowApprovalPanel] = useState(false);
 
-  const pid = projectIdProp ?? project?.id ?? 'p1';
+  const pid = projectIdProp ?? project?.id ?? '';
   const currentMember = getCurrentMember(pid);
   const ctx: UserContext = React.useMemo(() => buildCtxFromMember(currentMember), [currentMember]);
   const dbLoaded = React.useRef(false);
 
   // ── Lifted data state ──────────────────────────────────────────────────────
-  const [cvs,      setCvs]      = useState<CongVan[]>(MOCK_CVS);
-  const [meetings, setMeetings] = useState<Meeting[]>(MOCK_MEETINGS);
+  const [cvs,      setCvs]      = useState([]);
+  const [meetings, setMeetings] = useState([]);
   const [officeDocs, setOfficeDocs] = useState<ApprovalDoc[]>(() => getAllDocs(pid, ctx));
-  const [minutes,  setMinutes]  = useState<MeetingMinute[]>(MOCK_MINUTES);
+  const [minutes,  setMinutes]  = useState([]);
 
   // ── Load from db on mount ──────────────────────────────────────────────────
   React.useEffect(() => {
@@ -875,10 +811,10 @@ export default function OfficeDashboard({ project, projectId: projectIdProp }: P
     (async () => {
       try {
         const [savedCvs, savedMtgs, savedDocs, savedMins] = await Promise.all([
-          db.get<CongVan[]>('office_congvan',   pid, MOCK_CVS),
-          db.get<Meeting[]>('office_meetings',  pid, MOCK_MEETINGS),
+          db.get<CongVan[]>('office_congvan', pid, []),
+          db.get<Meeting[]>('office_meetings', pid, []),
           getAllDocs(pid, ctx),
-          db.get<MeetingMinute[]>('office_minutes', pid, MOCK_MINUTES),
+          db.get<MeetingMinute[]>('office_minutes', pid, []),
         ]);
         setCvs(savedCvs);
         setMeetings(savedMtgs);
@@ -895,10 +831,10 @@ export default function OfficeDashboard({ project, projectId: projectIdProp }: P
   // ── Realtime sync ──────────────────────────────────────────────────────────
   useRealtimeSync(pid, ['office_congvan','office_meetings','office_approvals','office_minutes'], async () => {
     const [savedCvs, savedMtgs, savedDocs, savedMins] = await Promise.all([
-      db.get<CongVan[]>('office_congvan',   pid, MOCK_CVS),
-      db.get<Meeting[]>('office_meetings',  pid, MOCK_MEETINGS),
+      db.get<CongVan[]>('office_congvan', pid, []),
+      db.get<Meeting[]>('office_meetings', pid, []),
       getAllDocs(pid, ctx),
-      db.get<MeetingMinute[]>('office_minutes', pid, MOCK_MINUTES),
+      db.get<MeetingMinute[]>('office_minutes', pid, []),
     ]);
     setCvs(savedCvs); setMeetings(savedMtgs); setOfficeDocs(savedDocs); setMinutes(savedMins);
   });

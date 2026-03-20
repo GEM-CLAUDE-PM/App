@@ -15,36 +15,16 @@ import PortfolioAnalytics from './PortfolioAnalytics';
 
 // ── Gemini init ───────────────────────────────────────────────────────────────
 
-// ── Mock data ─────────────────────────────────────────────────────────────────
-
-const RISK_ITEMS = [
-  { id:'r1', icon: XCircle,     color:'rose',   label:'NCR đang mở',            value:4, unit:'phiếu', urgent:true,  projectId:'p1', subTab:'qa-qc'    },
-  { id:'r2', icon: CreditCard,  color:'amber',  label:'NTP chưa thanh toán',    value:3, unit:'HĐ',    urgent:true,  projectId:'p2', subTab:'qs'       },
-  { id:'r3', icon: ShieldAlert, color:'rose',   label:'Vi phạm HSE chưa xử lý', value:1, unit:'ca',    urgent:true,  projectId:'p3', subTab:'hse'      },
-  { id:'r4', icon: Wrench,      color:'orange', label:'Thiết bị sắp hạn BH',    value:2, unit:'máy',   urgent:false, projectId:'p1', subTab:'equipment'},
-  { id:'r5', icon: Package,     color:'blue',   label:'Vật tư sắp hết tồn kho', value:3, unit:'loại',  urgent:false, projectId:'p1', subTab:'resources'},
-  { id:'r6', icon: Clock,       color:'violet', label:'Hạng mục chậm >3 ngày',  value:2, unit:'HM',    urgent:false, projectId:'p3', subTab:'progress' },
-];
-
-const ACTION_TASKS = [
-  { id:1, title:'Duyệt hồ sơ thanh toán đợt 3',    project:'KĐT Gamma', projectId:'p2', subTab:'qs',        deadline:'09:00', type:'urgent' as const,  source:'manual'   },
-  { id:2, title:'Xử lý vi phạm HSE tại Tầng 5',    project:'TN Delta',  projectId:'p3', subTab:'hse',       deadline:'10:30', type:'urgent' as const,  source:'ai'       },
-  { id:3, title:'Ký biên bản NT phần ngầm',          project:'DA Alpha',  projectId:'p1', subTab:'qa-qc',     deadline:'14:00', type:'today' as const,   source:'manual'   },
-  { id:4, title:'Họp giao ban tiến độ tuần',         project:'Chung',     projectId:'',   subTab:'',          deadline:'14:00', type:'today' as const,   source:'calendar' },
-  { id:5, title:'Phản hồi NTP thép Pomina',          project:'DA Alpha',  projectId:'p1', subTab:'qs',        deadline:'16:00', type:'today' as const,   source:'ai'       },
-  { id:6, title:'Kiểm tra nhật ký công trình',       project:'DA Alpha',  projectId:'p1', subTab:'progress',  deadline:'T6',    type:'week' as const,    source:'manual'   },
-  { id:7, title:'Gia hạn bảo hiểm máy lu Sakai',    project:'TN Delta',  projectId:'p3', subTab:'equipment', deadline:'T6',    type:'week' as const,    source:'ai'       },
-];
-
-
-const KPI_DATA = [
-  { label:'Dự án đang chạy',     value:'3',       sub:'+1 tiềm năng',      icon:HardHat,    color:'emerald', trend:'up'   },
-  { label:'Giải ngân T3',        value:'68.9 Tỷ', sub:'+18% vs tháng trước',icon:DollarSign, color:'blue',    trend:'up'   },
-  { label:'Nhân sự công trường', value:'458',      sub:'Cập nhật 07:00',    icon:Users,      color:'indigo',  trend:'flat' },
-  { label:'Tổng NCR mở',         value:'6',        sub:'↑2 tuần này',       icon:XCircle,    color:'rose',    trend:'down' },
-  { label:'HSE Score TB',         value:'96.4%',   sub:'Mục tiêu: 98%',     icon:ShieldAlert,color:'amber',   trend:'flat' },
-  { label:'NTP chờ thanh toán',  value:'3 HĐ',     sub:'~12.8 Tỷ chờ duyệt',icon:CreditCard, color:'orange', trend:'down' },
-];
+// ── Live data types ────────────────────────────────────────────────────────────
+interface RiskItem {
+  id: string; icon: React.ElementType; color: string; label: string;
+  value: number; unit: string; urgent: boolean;
+  projectId: string; projectName: string; subTab: string;
+}
+interface ActionTask {
+  id: number; title: string; project: string; projectId: string;
+  subTab: string; deadline: string; type: 'urgent'|'today'|'week'; source: string;
+}
 
 // ── Style maps ────────────────────────────────────────────────────────────────
 const C_BOX: Record<string,string> = {
@@ -105,9 +85,69 @@ export default function Dashboard({ onNavigate, projects = [] }: {
   const [loadingAI, setLoadingAI]       = useState(false);
   const [briefTime, setBriefTime]       = useState('');
   const [taskFilter, setTaskFilter]     = useState<'urgent'|'today'|'week'>('urgent');
+  const [riskItems, setRiskItems]       = useState<RiskItem[]>([]);
+  const [actionTasks, setActionTasks]   = useState<ActionTask[]>([]);
+  const [kpiLive, setKpiLive]           = useState<{label:string;value:string;sub:string;icon:React.ElementType;color:string;trend:'up'|'down'|'flat'}[]>([]);
   const loaded = useRef(false);
 
   useEffect(() => { setIsMounted(true); }, []);
+
+  // ── Load live data từ projects prop (đã fetch từ Supabase ở App.tsx) ─────────
+  useEffect(() => {
+    if (!projects || projects.length === 0) return;
+    const activeProjects = projects.filter((p: any) => p.type === 'in_progress');
+
+    // ── KPI cards: tổng hợp từ tất cả project ─────────────────────────────
+    const totalNcr     = activeProjects.reduce((s: number, p: any) => s + (p.ncr || 0), 0);
+    const totalHse     = activeProjects.reduce((s: number, p: any) => s + (p.hse || 0), 0);
+    const totalNtp     = activeProjects.reduce((s: number, p: any) => s + (p.ntp_pending || 0), 0);
+    const totalPeople  = activeProjects.reduce((s: number, p: any) => s + (p.manpower || 0), 0);
+    const avgHseScore  = activeProjects.length
+      ? (activeProjects.reduce((s: number, p: any) => s + (p.hse_score || 96), 0) / activeProjects.length).toFixed(1)
+      : '—';
+
+    setKpiLive([
+      { label:'Dự án đang chạy',     value: String(activeProjects.length),  sub:`+${projects.filter((p:any)=>p.type==='planning').length} tiềm năng`, icon:HardHat,    color:'emerald', trend:'up'   },
+      { label:'Giải ngân tháng này', value:'—',                             sub:'Xem tab Kế toán',   icon:DollarSign, color:'blue',    trend:'flat' },
+      { label:'Nhân sự công trường', value: totalPeople > 0 ? String(totalPeople) : '—', sub:'Cập nhật hôm nay', icon:Users, color:'indigo', trend:'flat' },
+      { label:'Tổng NCR mở',         value: String(totalNcr),               sub: totalNcr > 0 ? '⚠️ Cần xử lý' : '✅ Không có', icon:XCircle,    color: totalNcr>0 ? 'rose':'emerald',  trend: totalNcr>0 ? 'down':'up' },
+      { label:'HSE Score TB',         value: `${avgHseScore}%`,             sub:'Mục tiêu: 98%',     icon:ShieldAlert,color:'amber',   trend:'flat' },
+      { label:'NTP chờ thanh toán',  value: `${totalNtp} HĐ`,              sub: totalNtp>0 ? '⚠️ Cần duyệt' : '✅ Đã xử lý', icon:CreditCard, color: totalNtp>0 ? 'orange':'emerald', trend: totalNtp>0 ? 'down':'up' },
+    ]);
+
+    // ── Risk Radar: tìm project có vấn đề nhiều nhất cho mỗi loại ─────────
+    const mostNcr  = [...activeProjects].sort((a:any,b:any)=>(b.ncr||0)-(a.ncr||0))[0];
+    const mostNtp  = [...activeProjects].sort((a:any,b:any)=>(b.ntp_pending||0)-(a.ntp_pending||0))[0];
+    const mostHse  = [...activeProjects].sort((a:any,b:any)=>(b.hse||0)-(a.hse||0))[0];
+    const slowest  = [...activeProjects].sort((a:any,b:any)=>(a.spi||1)-(b.spi||1))[0];
+
+    const risks: RiskItem[] = [];
+    if (mostNcr?.ncr > 0)        risks.push({ id:'r1', icon:XCircle,     color:'rose',   label:'NCR đang mở',            value:mostNcr.ncr,         unit:'phiếu', urgent:true,  projectId:mostNcr.id,  projectName:mostNcr.name,  subTab:'qa-qc'    });
+    if (mostNtp?.ntp_pending > 0) risks.push({ id:'r2', icon:CreditCard,  color:'amber',  label:'NTP chưa thanh toán',    value:mostNtp.ntp_pending, unit:'HĐ',    urgent:true,  projectId:mostNtp.id,  projectName:mostNtp.name,  subTab:'qs'       });
+    if (mostHse?.hse > 0)         risks.push({ id:'r3', icon:ShieldAlert, color:'rose',   label:'Vi phạm HSE chưa xử lý', value:mostHse.hse,         unit:'ca',    urgent:true,  projectId:mostHse.id,  projectName:mostHse.name,  subTab:'hse'      });
+    if (slowest && (slowest.spi||1) < 0.95) risks.push({ id:'r6', icon:Clock, color:'violet', label:`Tiến độ chậm (SPI=${(slowest.spi||1).toFixed(2)})`, value: Math.round((1-(slowest.spi||1))*100), unit:'%', urgent:(slowest.spi||1)<0.85, projectId:slowest.id, projectName:slowest.name, subTab:'progress' });
+    // Thiết bị & vật tư — link đến project đầu tiên nếu không có field riêng
+    if (activeProjects[0]) {
+      risks.push({ id:'r4', icon:Wrench,  color:'orange', label:'Thiết bị — kiểm tra hạn BH', value:0, unit:'máy', urgent:false, projectId:activeProjects[0].id, projectName:activeProjects[0].name, subTab:'equipment' });
+      risks.push({ id:'r5', icon:Package, color:'blue',   label:'Vật tư — kiểm tra tồn kho',  value:0, unit:'loại',urgent:false, projectId:activeProjects[0].id, projectName:activeProjects[0].name, subTab:'resources'  });
+    }
+    setRiskItems(risks);
+
+    // ── Action tasks: tạo từ data thật ────────────────────────────────────
+    const tasks: ActionTask[] = [];
+    let taskId = 1;
+    activeProjects.forEach((p: any) => {
+      if ((p.ncr||0) > 0)        tasks.push({ id:taskId++, title:`Xử lý ${p.ncr} NCR tại ${p.name}`,           project:p.name, projectId:p.id, subTab:'qa-qc',    deadline:'urgent', type:'urgent', source:'ai'     });
+      if ((p.hse||0) > 0)        tasks.push({ id:taskId++, title:`Xử lý vi phạm HSE tại ${p.name}`,            project:p.name, projectId:p.id, subTab:'hse',      deadline:'urgent', type:'urgent', source:'ai'     });
+      if ((p.ntp_pending||0) > 0) tasks.push({ id:taskId++, title:`Duyệt ${p.ntp_pending} HĐ NTP tại ${p.name}`,project:p.name, projectId:p.id, subTab:'qs',       deadline:'today',  type:'today',  source:'manual' });
+      if ((p.spi||1) < 0.85)     tasks.push({ id:taskId++, title:`Cập nhật tiến độ ${p.name} (SPI thấp)`,      project:p.name, projectId:p.id, subTab:'progress', deadline:'today',  type:'today',  source:'ai'     });
+    });
+    // Fallback nếu không có gì urgent
+    if (tasks.length === 0 && activeProjects[0]) {
+      tasks.push({ id:1, title:'Kiểm tra tiến độ tổng hợp', project:'Tất cả DA', projectId:activeProjects[0].id, subTab:'progress', deadline:'today', type:'today', source:'manual' });
+    }
+    setActionTasks(tasks);
+  }, [projects]);
 
   const loadBriefing = async () => {
     setLoadingAI(true);
@@ -120,10 +160,18 @@ Tóm tắt buổi sáng trong 3-4 câu ngắn: nêu điểm nóng khẩn cấp n
 KHÔNG dùng ký tự markdown. Câu ngắn. Số liệu cụ thể.`,
         generationConfig: { maxOutputTokens: 512, temperature: 0.25 },
       });
+      // Build context từ data thật
+      const activeP = (projects||[]).filter((p:any)=>p.type==='in_progress');
+      const projSummary = activeP.map((p:any) =>
+        `${p.name} ${p.progress||0}% SPI=${(p.spi||1).toFixed(2)}${p.ncr>0?` (${p.ncr} NCR)`:''}${p.hse>0?` (${p.hse} HSE)`:''}${p.ntp_pending>0?` (${p.ntp_pending} NTP chờ TT)`:''}`
+      ).join(', ') || 'Không có dự án đang thi công';
+      const totalNcr = activeP.reduce((s:number,p:any)=>s+(p.ncr||0),0);
+      const totalNtp = activeP.reduce((s:number,p:any)=>s+(p.ntp_pending||0),0);
+      const slowest  = [...activeP].sort((a:any,b:any)=>(a.spi||1)-(b.spi||1))[0];
       const ctx = `Hôm nay ${now.toLocaleDateString('vi-VN',{weekday:'long',day:'2-digit',month:'2-digit',year:'numeric'})}. 
-Portfolio: DA Alpha 35% SPI=0.94 (4 NCR, 1 HSE), KĐT Gamma 88% SPI=0.97 (3 NTP chờ TT), TN Delta 20% SPI=0.71 CHẬM NGUY HIỂM (2 NCR, 1 HSE). 
-Nhân sự: 458 người. Giải ngân T3: 68.9 Tỷ. Việc khẩn: TT đợt 3 Gamma 09:00, HSE Delta 10:30, NT Alpha 14:00. 
-Rủi ro: 6 NCR mở, 3 HĐ NTP chưa TT ~12.8 Tỷ, 2 thiết bị sắp hạn bảo hiểm.`;
+Portfolio: ${projSummary}. 
+Tổng: ${activeP.length} dự án đang chạy, ${totalNcr} NCR mở, ${totalNtp} HĐ NTP chờ thanh toán.
+${slowest && (slowest.spi||1)<0.9 ? `Dự án chậm nhất: ${slowest.name} SPI=${(slowest.spi||1).toFixed(2)}.` : ''}`;
       const res = await model.generateContent(`Briefing sáng: ${ctx}`);
       setBriefing(res.response.text());
       setBriefTime(now.toLocaleTimeString('vi-VN',{hour:'2-digit',minute:'2-digit'}));
@@ -138,7 +186,7 @@ Rủi ro: 6 NCR mở, 3 HĐ NTP chưa TT ~12.8 Tỷ, 2 thiết bị sắp hạn 
     if (!loaded.current) { loaded.current = true; loadBriefing(); }
   }, []);
 
-  const filtered = ACTION_TASKS.filter(t => t.type === taskFilter);
+  const filtered = actionTasks.filter(t => t.type === taskFilter);
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-100 space-y-6 pb-10"
@@ -222,7 +270,7 @@ Rủi ro: 6 NCR mở, 3 HĐ NTP chưa TT ~12.8 Tỷ, 2 thiết bị sắp hạn 
       <div>
         <Divider label="Chỉ số tổng hợp portfolio"/>
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3 mt-4">
-          {KPI_DATA.map(kpi => {
+          {kpiLive.map(kpi => {
             const Icon = kpi.icon;
             return (
               <Card key={kpi.label} className="p-3.5">
@@ -342,9 +390,9 @@ Rủi ro: 6 NCR mở, 3 HĐ NTP chưa TT ~12.8 Tỷ, 2 thiết bị sắp hạn 
           {/* Filter bar */}
           <div className="flex border-b border-slate-100">
             {([
-              {key:'urgent',label:'🔴 Khẩn cấp', count:ACTION_TASKS.filter(t=>t.type==='urgent').length},
-              {key:'today', label:'🟡 Hôm nay',  count:ACTION_TASKS.filter(t=>t.type==='today').length},
-              {key:'week',  label:'📋 Tuần này', count:ACTION_TASKS.filter(t=>t.type==='week').length},
+              {key:'urgent',label:'🔴 Khẩn cấp', count:actionTasks.filter(t=>t.type==='urgent').length},
+              {key:'today', label:'🟡 Hôm nay',  count:actionTasks.filter(t=>t.type==='today').length},
+              {key:'week',  label:'📋 Tuần này', count:actionTasks.filter(t=>t.type==='week').length},
             ] as const).map(tab => (
               <button key={tab.key} onClick={()=>setTaskFilter(tab.key)}
                 className={`flex-1 py-3 text-[11px] font-bold transition-all border-b-2 ${
@@ -488,7 +536,12 @@ Rủi ro: 6 NCR mở, 3 HĐ NTP chưa TT ~12.8 Tỷ, 2 thiết bị sắp hạn 
         <div className="lg:col-span-2">
           <Divider label="Radar nguy cơ"/>
           <Card className="mt-4 divide-y divide-slate-800/50 flex flex-col">
-            {RISK_ITEMS.map(item => {
+            {riskItems.length === 0 ? (
+              <div className="px-4 py-8 text-center text-slate-400 text-sm">
+                <CheckCircle2 size={24} className="mx-auto mb-2 text-emerald-400"/>
+                Không có nguy cơ nào — portfolio đang ổn định 👍
+              </div>
+            ) : riskItems.map(item => {
               const Icon = item.icon;
               return (
                 <div key={item.id}
@@ -499,13 +552,11 @@ Rủi ro: 6 NCR mở, 3 HĐ NTP chưa TT ~12.8 Tỷ, 2 thiết bị sắp hạn 
                     <Icon size={12}/>
                   </div>
                   <div className="flex-1 min-w-0">
-                    <p className="text-xs font-semibold text-slate-500 truncate"
-                      >
-                      {item.label}
-                    </p>
+                    <p className="text-xs font-semibold text-slate-700 truncate">{item.label}</p>
+                    <p className="text-[10px] text-slate-400 truncate">{item.projectName}</p>
                   </div>
                   <div className="flex items-baseline gap-1 shrink-0">
-                    <span className={`text-base font-bold ${C_TEXT[item.color]}`}>{item.value}</span>
+                    <span className={`text-base font-bold ${C_TEXT[item.color]}`}>{item.value > 0 ? item.value : '—'}</span>
                     <span className="text-[10px] text-slate-400">{item.unit}</span>
                   </div>
                   {item.urgent && (
@@ -519,10 +570,12 @@ Rủi ro: 6 NCR mở, 3 HĐ NTP chưa TT ~12.8 Tỷ, 2 thiết bị sắp hạn 
             <div className="px-4 py-3 bg-emerald-50 mt-auto">
               <div className="flex items-start gap-2">
                 <Sparkles size={10} className="text-emerald-600 shrink-0 mt-0.5"/>
-                <p className="text-[10px] text-slate-500 leading-relaxed"
-                  >
+                <p className="text-[10px] text-slate-500 leading-relaxed">
                   <span className="text-emerald-600 font-bold">GEM: </span>
-                  Tòa nhà Delta SPI=0.71 — rủi ro cao nhất portfolio. Em khuyến nghị anh ưu tiên xử lý HSE và tiến độ ngay hôm nay nghen.
+                  {riskItems.filter(r=>r.urgent).length === 0
+                    ? 'Portfolio đang ổn định nghen anh! Em không thấy nguy cơ khẩn cấp nào cả 🎉'
+                    : `Có ${riskItems.filter(r=>r.urgent).length} nguy cơ khẩn cấp cần xử lý. Click vào từng dòng để vào đúng module nghen anh!`
+                  }
                 </p>
               </div>
             </div>

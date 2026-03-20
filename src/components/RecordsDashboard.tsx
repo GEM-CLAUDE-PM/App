@@ -64,98 +64,8 @@ interface RFIItem {
   linked_ncr?: string;
 }
 
-// ─── Mock Data ────────────────────────────────────────────────────────────────
-const MOCK_DRAWINGS: DrawingRevision[] = [
-  {
-    id:'D001', drawing_no:'A-001', title:'Mặt bằng tầng 1 — Block A', discipline:'Kiến trúc', current_rev:'C',
-    rfi_linked:['RFI-003'],
-    revisions:[
-      { rev:'A', date:'15/09/2025', author:'KTS Minh Tuấn', description:'Phát hành lần đầu', file:'A-001_RevA.pdf', status:'superseded' },
-      { rev:'B', date:'10/11/2025', author:'KTS Minh Tuấn', description:'Điều chỉnh vị trí cầu thang bộ theo yêu cầu PCCC', file:'A-001_RevB.pdf', status:'superseded' },
-      { rev:'C', date:'18/01/2026', author:'KTS Minh Tuấn', description:'Cập nhật kích thước sảnh tầng 1 — xem VO-001', file:'A-001_RevC.pdf', status:'current' },
-    ],
-  },
-  {
-    id:'D002', drawing_no:'KC-015', title:'Chi tiết cốt thép móng băng trục A-B', discipline:'Kết cấu', current_rev:'B',
-    rfi_linked:['RFI-001'],
-    revisions:[
-      { rev:'0', date:'20/09/2025', author:'KSC Hùng', description:'Bản phát hành thi công', file:'KC-015_Rev0.pdf', status:'superseded' },
-      { rev:'A', date:'05/12/2025', author:'KSC Hùng', description:'Sửa đổi chi tiết nối cốt thép theo RFI-001', file:'KC-015_RevA.pdf', status:'superseded' },
-      { rev:'B', date:'25/01/2026', author:'KSC Hùng', description:'Cập nhật chiều dày bê tông lót 100mm → 150mm', file:'KC-015_RevB.pdf', status:'current' },
-    ],
-  },
-  {
-    id:'D003', drawing_no:'M-008', title:'Sơ đồ hệ thống cấp nước tầng hầm B1-B2', discipline:'MEP', current_rev:'A',
-    rfi_linked:['RFI-002'],
-    revisions:[
-      { rev:'0', date:'01/10/2025', author:'KS Phúc', description:'Phát hành lần đầu', file:'M-008_Rev0.pdf', status:'superseded' },
-      { rev:'A', date:'14/02/2026', author:'KS Phúc', description:'Điều chỉnh tuyến ống chính D150 — tránh xung đột kết cấu', file:'M-008_RevA.pdf', status:'current' },
-    ],
-    note:'Đang chờ phản hồi RFI-002 về vị trí van xả',
-  },
-  {
-    id:'D004', drawing_no:'A-045', title:'Mặt đứng chính Block B — hướng Nam', discipline:'Kiến trúc', current_rev:'D',
-    rfi_linked:[],
-    note:'⚠️ Một số NTP đang dùng Rev B — cần thông báo cập nhật Rev D',
-    revisions:[
-      { rev:'A', date:'10/09/2025', author:'KTS Lan Anh', description:'Phát hành', file:'A-045_RevA.pdf', status:'superseded' },
-      { rev:'B', date:'15/10/2025', author:'KTS Lan Anh', description:'Cập nhật hệ lam che nắng', file:'A-045_RevB.pdf', status:'superseded' },
-      { rev:'C', date:'20/12/2025', author:'KTS Lan Anh', description:'Thêm chi tiết kính mặt đứng theo VO-001', file:'A-045_RevC.pdf', status:'superseded' },
-      { rev:'D', date:'05/02/2026', author:'KTS Lan Anh', description:'Hoàn thiện chi tiết joint kính + khung nhôm', file:'A-045_RevD.pdf', status:'current' },
-    ],
-  },
-  {
-    id:'D005', drawing_no:'E-022', title:'Sơ đồ nguyên lý tủ điện tầng 5', discipline:'MEP', current_rev:'0',
-    rfi_linked:['RFI-004'],
-    revisions:[
-      { rev:'0', date:'12/01/2026', author:'KS Điện Đức', description:'Phát hành thi công', file:'E-022_Rev0.pdf', status:'draft' },
-    ],
-  },
-];
-
-const MOCK_RFIS: RFIItem[] = [
-  {
-    id:'rfi1', rfi_no:'RFI-001', title:'Làm rõ chi tiết nối cốt thép móng tại vị trí giao nhau trục A-3',
-    discipline:'Kết cấu', status:'closed', priority:'urgent',
-    date_issued:'01/12/2025', date_required:'08/12/2025', date_answered:'05/12/2025',
-    submitted_by:'KS Giám sát Hoàng', assigned_to:'TVGS — Công ty TKS',
-    description:'Bản vẽ KC-015 Rev0 không thể hiện rõ cách nối cốt thép D22 tại nút giao móng băng — móng đơn trục A-3. Đề nghị TVGS làm rõ hoặc cung cấp bản vẽ chi tiết.',
-    drawing_ref:'KC-015', response:'Xem chi tiết bổ sung đính kèm. Nối chồng L=40d, đai tăng cường 3Ø8 mỗi nút.', attachments:2,
-  },
-  {
-    id:'rfi2', rfi_no:'RFI-002', title:'Xác nhận cao độ đặt van xả đáy hệ thống cấp nước tầng hầm',
-    discipline:'MEP', status:'open', priority:'normal',
-    date_issued:'10/02/2026', date_required:'17/02/2026',
-    submitted_by:'NTP Cơ điện Á Đông', assigned_to:'TVGS MEP — KS Minh',
-    description:'Bản vẽ M-008 Rev0 chỉ ghi "đặt theo hiện trường" — không có cao độ cụ thể cho van xả đáy D80. Yêu cầu xác nhận cao độ +0.500 hay +0.300 so với sàn B1 để tránh xung đột với tuyến ống thoát nước.',
-    drawing_ref:'M-008', attachments:1,
-  },
-  {
-    id:'rfi3', rfi_no:'RFI-003', title:'Kích thước hành lang thoát nạn tầng 1 — chưa đủ 1.5m theo QCVN',
-    discipline:'Kiến trúc', status:'answered', priority:'urgent',
-    date_issued:'20/01/2026', date_required:'27/01/2026', date_answered:'25/01/2026',
-    submitted_by:'KS Giám sát Hoàng', assigned_to:'TVGS — KTS Minh Tuấn',
-    description:'Bản vẽ A-001 Rev B: Chiều rộng hành lang thoát nạn tại trục 3-4 đo được 1.35m, không đạt QCVN 06:2022/BXD yêu cầu tối thiểu 1.5m. Yêu cầu làm rõ hoặc điều chỉnh thiết kế.',
-    drawing_ref:'A-001', response:'Đã điều chỉnh trong Rev C — hành lang mở rộng đạt 1.6m. Tham chiếu A-001_RevC.pdf đính kèm.', attachments:3, linked_ncr:'NCR-012',
-  },
-  {
-    id:'rfi4', rfi_no:'RFI-004', title:'Xác nhận chủng loại MCB cho tủ điện tầng 5 — ABB hay Schneider',
-    discipline:'MEP', status:'open', priority:'normal',
-    date_issued:'25/02/2026', date_required:'04/03/2026',
-    submitted_by:'NTP Cơ điện Á Đông', assigned_to:'TVGS MEP — KS Minh',
-    description:'Bản vẽ E-022 Rev0 ghi "MCB 3P 63A — theo chỉ định CĐT" nhưng spec chưa xác định hãng. NTP cần xác nhận để đặt hàng sớm (thời gian giao hàng 4-6 tuần).',
-    drawing_ref:'E-022', attachments:0,
-  },
-  {
-    id:'rfi5', rfi_no:'RFI-005', title:'Yêu cầu bổ sung bản vẽ chi tiết gờ dầm tại tầng kỹ thuật',
-    discipline:'Kết cấu', status:'overdue', priority:'urgent',
-    date_issued:'15/02/2026', date_required:'22/02/2026',
-    submitted_by:'KS Giám sát Hoàng', assigned_to:'TVGS — KSC Hùng',
-    description:'Tầng kỹ thuật (tầng 7) có nhiều gờ dầm đặc biệt cho lắp đặt thiết bị nhưng chưa có bản vẽ chi tiết. Không thể thi công nếu thiếu bản vẽ này.',
-    drawing_ref:'', attachments:0,
-    note:'Đã gửi nhắc nhở 2 lần — quá hạn 13 ngày!',
-  },
-];
+// ─── db.ts import ─────────────────────────────────────────────────────────────
+import { db } from './db';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 const DISC_CLS: Record<string, string> = {
@@ -345,9 +255,23 @@ function TabHoSo({ project, isConnectedOneDrive, isConnectedGoogleDrive }: Props
 }
 
 // ─── Tab: Revision History ────────────────────────────────────────────────────
-function TabRevision({ onTriggerApproval }: { onTriggerApproval?: (title: string) => void }) {
+function TabRevision({ onTriggerApproval, projectId }: { onTriggerApproval?: (title: string) => void; projectId: string }) {
   const { ok: notifOk, info: notifInfo } = useNotification();
-  const [drawings, setDrawings] = useState<DrawingRevision[]>(MOCK_DRAWINGS);
+  const [drawings, setDrawings] = useState<DrawingRevision[]>([]);
+  const dbLoaded = React.useRef(false);
+
+  // Load từ db.ts (Supabase), fallback [] khi chưa có data
+  React.useEffect(() => {
+    if (dbLoaded.current) return;
+    dbLoaded.current = true;
+    db.get<DrawingRevision[]>('rd_drawings', projectId, []).then(setDrawings);
+  }, [projectId]);
+
+  // Auto-save khi drawings thay đổi
+  React.useEffect(() => {
+    if (!dbLoaded.current || drawings.length === 0) return;
+    db.set('rd_drawings', projectId, drawings);
+  }, [drawings, projectId]);
   const [filterDisc, setFilterDisc] = useState('Tất cả');
   const [search, setSearch] = useState('');
   const [expandedId, setExpandedId] = useState<string|null>(null);
@@ -567,9 +491,23 @@ function TabRevision({ onTriggerApproval }: { onTriggerApproval?: (title: string
 }
 
 // ─── Tab: RFI Tracker ─────────────────────────────────────────────────────────
-function TabRFI({ onTriggerApproval }: { onTriggerApproval?: (title: string) => void }) {
+function TabRFI({ onTriggerApproval, projectId }: { onTriggerApproval?: (title: string) => void; projectId: string }) {
   const { ok: notifOk, info: notifInfo } = useNotification();
-  const [rfis, setRfis] = useState<RFIItem[]>(MOCK_RFIS);
+  const [rfis, setRfis] = useState<RFIItem[]>([]);
+  const dbLoaded = React.useRef(false);
+
+  // Load từ db.ts (Supabase), fallback [] khi chưa có data
+  React.useEffect(() => {
+    if (dbLoaded.current) return;
+    dbLoaded.current = true;
+    db.get<RFIItem[]>('rd_rfis', projectId, []).then(setRfis);
+  }, [projectId]);
+
+  // Auto-save khi rfis thay đổi
+  React.useEffect(() => {
+    if (!dbLoaded.current || rfis.length === 0) return;
+    db.set('rd_rfis', projectId, rfis);
+  }, [rfis, projectId]);
   const [filterStatus, setFilterStatus] = useState('all');
   const [filterDisc, setFilterDisc] = useState('Tất cả');
   const [expandedId, setExpandedId] = useState<string|null>(null);
@@ -852,7 +790,7 @@ export default function RecordsDashboard({ project: selectedProject, isConnected
   const [mainTab, setMainTab] = useState<'docs'|'revision'|'rfi'>('docs');
   const [showApprovalPanel, setShowApprovalPanel] = useState(false);
 
-  const pid = selectedProject?.id || 'p1';
+  const pid = selectedProject?.id ?? '';
   const ctx: UserContext = getCurrentCtx(pid);
 
   const [rdQueue, setRdQueue] = useState<ApprovalDoc[]>(() => getApprovalQueue(pid, ctx));
@@ -898,8 +836,8 @@ export default function RecordsDashboard({ project: selectedProject, isConnected
       </div>
 
       {mainTab==='docs'     && <TabHoSo project={selectedProject} projectId={pid} isConnectedOneDrive={isConnectedOneDrive} isConnectedGoogleDrive={isConnectedGoogleDrive}/>}
-      {mainTab==='revision' && <TabRevision onTriggerApproval={(title: string) => triggerRdDoc(title, 'DRAWING_REVISION')} />}
-      {mainTab==='rfi'      && <TabRFI onTriggerApproval={(title: string) => triggerRdDoc(title, 'RFI')} />}
+      {mainTab==='revision' && <TabRevision projectId={pid} onTriggerApproval={(title: string) => triggerRdDoc(title, 'DRAWING_REVISION')} />}
+      {mainTab==='rfi'      && <TabRFI projectId={pid} onTriggerApproval={(title: string) => triggerRdDoc(title, 'RFI')} />}
 
       {/* Approval Queue Drawer */}
       {showApprovalPanel && (

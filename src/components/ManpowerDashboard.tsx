@@ -100,68 +100,6 @@ interface WorkerPeriodPayroll {
 // SEED DATA
 // ─────────────────────────────────────────────────────────────────────────────
 
-const SEED_PEOPLE: Person[] = [
-  { id:'p1', type:'staff', name:'Trần Văn Bình', jobTitle:'Chỉ huy trưởng', team:'Ban Chỉ huy', contractor:'Nội bộ',
-    phone:'0901234567', cccd:'079012345678', dob:'20/08/1980', address:'12 Lê Lợi, Q1, TP.HCM',
-    joinDate:'01/01/2024', contractType:'khong_xac_dinh', contractNo:'HĐLĐ-2024-001', contractExpiry:'',
-    bhxh:'BH-001-2024', bhyt:'YT-001-2024', salaryBase:35000, allowance:3000,
-    status:'active', isKeyPersonnel:true, bidCommitment:'CHT full-time 100% thời gian dự án',
-    atlCert:'', atlExpiry:'', reportsTo:'' },
-  { id:'p2', type:'staff', name:'Lê Thị Thu', jobTitle:'Kỹ sư QA/QC', team:'Ban Chỉ huy', contractor:'Nội bộ',
-    phone:'0912345678', cccd:'079023456789', dob:'10/12/1990', address:'45 Nguyễn Huệ, Q1, TP.HCM',
-    joinDate:'01/01/2024', contractType:'xac_dinh', contractNo:'HĐLĐ-2024-002', contractExpiry:'31/12/2026',
-    bhxh:'BH-002-2024', bhyt:'YT-002-2024', salaryBase:25000, allowance:2000,
-    status:'active', isKeyPersonnel:true, bidCommitment:'KS QA/QC cấp 1',
-    atlCert:'', atlExpiry:'', reportsTo:'p1' },
-  { id:'p3', type:'staff', name:'Phạm Minh Quân', jobTitle:'Kỹ sư Giám sát', team:'Ban Chỉ huy', contractor:'Nội bộ',
-    phone:'0923456789', cccd:'079034567890', dob:'05/04/1992', address:'78 Trần Hưng Đạo, Q5, TP.HCM',
-    joinDate:'15/01/2024', contractType:'xac_dinh', contractNo:'HĐLĐ-2024-003', contractExpiry:'14/01/2026',
-    bhxh:'BH-003-2024', bhyt:'YT-003-2024', salaryBase:22000, allowance:2000,
-    status:'active', isKeyPersonnel:false, bidCommitment:'',
-    atlCert:'', atlExpiry:'', reportsTo:'p1' },
-  { id:'p4', type:'staff', name:'Hoàng Thị Mai', jobTitle:'Kế toán dự án', team:'Ban Chỉ huy', contractor:'Nội bộ',
-    phone:'0934567890', cccd:'079045678901', dob:'22/11/1988', address:'99 Nguyễn Trãi, Q5, TP.HCM',
-    joinDate:'01/01/2024', contractType:'khong_xac_dinh', contractNo:'HĐLĐ-2024-004', contractExpiry:'',
-    bhxh:'BH-004-2024', bhyt:'YT-004-2024', salaryBase:20000, allowance:1500,
-    status:'active', isKeyPersonnel:false, bidCommitment:'',
-    atlCert:'', atlExpiry:'', reportsTo:'p1' },
-  { id:'w1', type:'worker', name:'Nguyễn Văn Công', jobTitle:'Tổ trưởng Cốp pha', team:'Đội Cốp pha', contractor:'Phúc Thành',
-    phone:'0945678901', cccd:'079056789012', dob:'15/03/1985', address:'Bình Dương',
-    joinDate:'05/01/2024', contractType:'nhan_cong', contractNo:'HĐNC-2024-PT-001', contractExpiry:'31/12/2026',
-    bhxh:'', bhyt:'', salaryBase:480, allowance:50,
-    status:'active', isKeyPersonnel:false, bidCommitment:'',
-    atlCert:'An toàn lao động Nhóm 3', atlExpiry:'15/01/2026', reportsTo:'p1' },
-  { id:'w2', type:'worker', name:'Lê Minh Dũng', jobTitle:'Thợ cốp pha', team:'Đội Cốp pha', contractor:'Phúc Thành',
-    phone:'0956789012', cccd:'079067890123', dob:'20/07/1990', address:'Đồng Nai',
-    joinDate:'05/01/2024', contractType:'nhan_cong', contractNo:'HĐNC-2024-PT-002', contractExpiry:'31/12/2026',
-    bhxh:'', bhyt:'', salaryBase:380, allowance:30,
-    status:'active', isKeyPersonnel:false, bidCommitment:'',
-    atlCert:'An toàn lao động Nhóm 3', atlExpiry:'20/08/2026', reportsTo:'w1' },
-  { id:'w3', type:'worker', name:'Trần Văn Hùng', jobTitle:'Thợ nề', team:'Đội Hoàn thiện', contractor:'Phúc Thành',
-    phone:'0967890123', cccd:'079078901234', dob:'12/05/1988', address:'Long An',
-    joinDate:'10/01/2024', contractType:'nhan_cong', contractNo:'HĐNC-2024-PT-003', contractExpiry:'31/08/2026',
-    bhxh:'', bhyt:'', salaryBase:360, allowance:30,
-    status:'active', isKeyPersonnel:false, bidCommitment:'',
-    atlCert:'An toàn lao động Nhóm 2', atlExpiry:'12/05/2025', reportsTo:'p1' },
-  { id:'w4', type:'worker', name:'Phan Văn Đức', jobTitle:'Tổ trưởng Sắt', team:'Đội Sắt', contractor:'Thiên Long',
-    phone:'0978901234', cccd:'079089012345', dob:'08/09/1983', address:'Tiền Giang',
-    joinDate:'03/01/2024', contractType:'nhan_cong', contractNo:'HĐNC-2024-TL-001', contractExpiry:'31/12/2026',
-    bhxh:'', bhyt:'', salaryBase:500, allowance:50,
-    status:'active', isKeyPersonnel:false, bidCommitment:'',
-    atlCert:'An toàn lao động Nhóm 3', atlExpiry:'08/09/2026', reportsTo:'p1' },
-  { id:'w5', type:'worker', name:'Hoàng Minh Tuấn', jobTitle:'Thợ sắt', team:'Đội Sắt', contractor:'Thiên Long',
-    phone:'0989012345', cccd:'079090123456', dob:'14/02/1994', address:'An Giang',
-    joinDate:'03/01/2024', contractType:'nhan_cong', contractNo:'HĐNC-2024-TL-002', contractExpiry:'28/03/2026',
-    bhxh:'', bhyt:'', salaryBase:400, allowance:30,
-    status:'active', isKeyPersonnel:false, bidCommitment:'',
-    atlCert:'Vận hành máy xây dựng', atlExpiry:'28/03/2026', reportsTo:'w4' },
-  { id:'w6', type:'worker', name:'Lê Văn Đạt', jobTitle:'Thợ điện', team:'Đội MEP', contractor:'Thiên Long',
-    phone:'0990123456', cccd:'079001234567', dob:'30/01/1992', address:'Cần Thơ',
-    joinDate:'08/01/2024', contractType:'nhan_cong', contractNo:'HĐNC-2024-TL-003', contractExpiry:'31/12/2026',
-    bhxh:'', bhyt:'', salaryBase:420, allowance:40,
-    status:'active', isKeyPersonnel:false, bidCommitment:'',
-    atlCert:'Điện công trường', atlExpiry:'10/01/2025', reportsTo:'p1' },
-];
 
 const COLORS = ['#3b82f6','#f59e0b','#10b981','#8b5cf6','#ef4444','#06b6d4'];
 const CONTRACT_LABELS: Record<ContractType,string> = {
@@ -436,7 +374,7 @@ export default function ManpowerDashboard({ project, initialTab }:Props) {
 
   const TAB_TO_VIEW: Record<string, View> = { site: 'site', people: 'people', month: 'month', staff: 'people', shift: 'shift' };
   const [view, setView] = useState<View>(() => (initialTab && TAB_TO_VIEW[initialTab]) ? TAB_TO_VIEW[initialTab] : 'site');
-  const [people, setPeople]         = useState<Person[]>(SEED_PEOPLE);
+  const [people, setPeople]         = useState([]);
   const [attendance, setAttendance] = useState<DailyAttendance[]>([]);
   const [dbLoaded, setDbLoaded]     = useState(false);
 
@@ -444,13 +382,12 @@ export default function ManpowerDashboard({ project, initialTab }:Props) {
   useEffect(() => {
     setDbLoaded(false);
     Promise.all([
-      db.get<Person[]>('mp_people', pid, SEED_PEOPLE),
+      db.get<Person[]>('mp_people', pid, []),
       db.get<DailyAttendance[]>('mp_attendance', pid, []),
     ]).then(([ppl, saved]) => {
       setPeople(ppl);
       if (!saved.find((a: DailyAttendance) => a.date === TODAY)) {
-        const seed = SEED_PEOPLE.map(p=>({ personId:p.id, date:TODAY, status:(p.id==='w3'?'absent':p.id==='w5'?'leave':'present') as AttendanceStatus, otHours:['p1','w1','w4'].includes(p.id)?2:0, otType:'weekday' as OtType, note:'' }));
-        setAttendance([...saved, ...seed]);
+setAttendance([...saved, ...seed]);
       } else {
         setAttendance(saved);
       }
@@ -494,7 +431,7 @@ useEffect(()=>{ if (dbLoaded) db.set('mp_people', pid, people); },[people, pid])
   // ── Realtime sync ──────────────────────────────────────────────────────────
   useRealtimeSync(pid, ['mp_people', 'mp_attendance'], async () => {
     const [ppl, att] = await Promise.all([
-      db.get<Person[]>('mp_people', pid, SEED_PEOPLE),
+      db.get<Person[]>('mp_people', pid, []),
       db.get<DailyAttendance[]>('mp_attendance', pid, []),
     ]);
     setPeople(ppl);

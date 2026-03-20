@@ -72,70 +72,6 @@ export default function HSEWorkspace({ project: selectedProject, projectId: proj
   }
 
   // ── Seed data ──────────────────────────────────────────────────
-  const SEED_INCIDENTS:Incident[] = [
-    { id:'i1', date:'03/03/2026', time:'08:15', location:'Zone 2 — Tầng 3',
-      description:'Công nhân thầu phụ Phúc Thành ngã giàn giáo, trầy xước tay phải',
-      level:'minor', injured:'Nguyễn Văn Cường',
-      root_cause:'Không đeo dây an toàn khi làm việc trên cao > 2m',
-      action:'Sơ cứu tại chỗ, nghỉ 1 ngày, nhắc nhở toàn đội', status:'closed', reporter:'Trần Minh Hải' },
-    { id:'i2', date:'15/02/2026', time:'14:30', location:'Kho vật tư — Cổng B',
-      description:'Xe nâng suýt va vào công nhân đi bộ do khu vực thiếu vạch phân làn',
-      level:'near_miss', root_cause:'Không có vạch phân làn người và xe trong kho',
-      action:'Vẽ vạch phân làn, cắm biển cảnh báo, họp an toàn toàn công trường', status:'closed', reporter:'Lê Thanh Tùng' },
-    { id:'i3', date:'20/01/2026', time:'10:00', location:'Khu vực đổ bê tông — Trục A',
-      description:'Máy bơm bê tông rò rỉ dầu thủy lực ra nền đất',
-      level:'medium', root_cause:'Ống thủy lực lão hóa chưa được thay thế đúng hạn',
-      action:'Dừng máy, thay ống, thu gom dầu, báo cáo môi trường', status:'closed', reporter:'Trần Minh Hải' },
-  ];
-  const SEED_TRAININGS:Training[] = [
-    { id:'t1', title:'An toàn làm việc trên cao', type:'Bắt buộc',
-      scheduled_date:'10/03/2026', duration_hours:8, trainer:'KS Nguyễn Tuấn Anh',
-      participants:[], max_participants:30, status:'scheduled', pass_count:0,
-      certificate_expiry_months:12, notes:'Bắt buộc với tất cả công nhân làm việc > 2m' },
-    { id:'t2', title:'Phòng chống cháy nổ & PCCC', type:'Bắt buộc',
-      scheduled_date:'20/02/2026', duration_hours:4, trainer:'Phòng PCCC Quận 7',
-      participants:['Nguyễn Văn A','Trần Thị B','Lê Văn C'], max_participants:50,
-      status:'completed', pass_count:48, certificate_expiry_months:24, notes:'Đã hoàn thành — 48/50 đạt' },
-    { id:'t3', title:'Sử dụng thiết bị bảo hộ cá nhân (PPE)', type:'Định kỳ',
-      scheduled_date:'05/01/2026', duration_hours:2, trainer:'HSE Officer nội bộ',
-      participants:[], max_participants:100, status:'completed', pass_count:95,
-      certificate_expiry_months:6, notes:'95/100 đạt, 5 người cần tái đào tạo' },
-    { id:'t4', title:'An toàn điện công trường', type:'Bắt buộc',
-      scheduled_date:'01/02/2026', duration_hours:4, trainer:'Điện lực khu vực',
-      participants:[], max_participants:20, status:'overdue', pass_count:0,
-      certificate_expiry_months:12, notes:'Bị hoãn do thời tiết — cần sắp xếp lại' },
-  ];
-  const SEED_VIOLATIONS:Violation[] = [
-    { id:'v1', date:'04/03/2026', worker:'Trần Văn Bình', contractor:'Phúc Thành',
-      description:'Không đội mũ bảo hiểm khi làm việc trong khu vực thi công',
-      level:'trung', photo_note:'Có ảnh chụp camera Zone 2', action:'Nhắc nhở lần 1, ký biên bản',
-      fine_amount:500, status:'resolved', recurrence:false },
-    { id:'v2', date:'02/03/2026', worker:'Lê Minh Quân', contractor:'Phúc Thành',
-      description:'Hút thuốc lá trong kho vật tư dễ cháy',
-      level:'nghiem_trong', photo_note:'Bảo vệ bắt gặp', action:'Đình chỉ 3 ngày, phạt tiền, báo cáo NTP',
-      fine_amount:2000, status:'resolved', recurrence:true },
-    { id:'v3', date:'28/02/2026', worker:'Nguyễn Thị Hoa', contractor:'Minh Khoa',
-      description:'Không mặc áo phản quang khi làm việc ban đêm',
-      level:'nhe', photo_note:'', action:'Nhắc nhở, phát áo phản quang',
-      fine_amount:0, status:'resolved', recurrence:false },
-    { id:'v4', date:'01/03/2026', worker:'Phan Văn Đức', contractor:'Thiên Long',
-      description:'Vận hành cẩu tháp không đúng vùng an toàn',
-      level:'nghiem_trong', photo_note:'Camera ghi lại', action:'Đang điều tra, tạm dừng vận hành',
-      fine_amount:0, status:'open', recurrence:false },
-  ];
-  const SEED_INSPECTIONS:Inspection[] = [
-    { id:'ins1', date:'05/03/2026', inspector:'Lê Thanh Tùng', area:'Toàn công trường',
-      checklist_items:[
-        { item:'Biển cảnh báo an toàn đầy đủ', result:'pass', note:'' },
-        { item:'Giàn giáo có lan can bảo vệ', result:'pass', note:'' },
-        { item:'Khu vực điện có rào chắn', result:'fail', note:'Zone 3 thiếu rào chắn tủ điện' },
-        { item:'Lối thoát hiểm thông thoáng', result:'pass', note:'' },
-        { item:'Bình chữa cháy đúng vị trí & còn hạn', result:'conditional', note:'2 bình tại kho B sắp hết hạn 31/03' },
-        { item:'Công nhân đủ PPE theo vị trí', result:'pass', note:'' },
-        { item:'Vệ sinh công trường đạt chuẩn', result:'pass', note:'' },
-      ],
-      overall:'conditional', follow_up:'Khắc phục tủ điện Zone 3 & gia hạn bình chữa cháy', next_date:'12/03/2026' },
-  ];
 
   // ── Local state ────────────────────────────────────────────────
   // ── Approval wiring ──────────────────────────────────────────────────────
@@ -222,30 +158,8 @@ export default function HSEWorkspace({ project: selectedProject, projectId: proj
   // PTW checklist state
   const [ptwChecklist, setPtwChecklist] = React.useState<Record<string, boolean>>({});
 
-  const SEED_PTWS: PTW[] = [
-    { id:'ptw1', type:'hot_work', title:'Hàn kết cấu thép tầng 3', requester:'Trần Văn B',
-      contractor:'Phúc Thành', area:'Zone 2 — Tầng 3', work_description:'Hàn nối cột thép trục A-C',
-      hazards:'Tia lửa hàn, khói độc, cháy nổ vật liệu lân cận', controls:'Màn chắn lửa, bình CO2, khu vực dọn sạch 5m',
-      start_date:'16/03/2026', end_date:'17/03/2026', status:'active',
-      approved_by:'HSE Hải', approved_at:'15/03/2026 16:00', created_at:'15/03/2026' },
-    { id:'ptw2', type:'working_at_height', title:'Lắp đặt giàn giáo tầng 5', requester:'Lê Thị C',
-      contractor:'Nội bộ', area:'Zone 1 — Tầng 5',
-      work_description:'Dựng giàn giáo khung thép cho mặt ngoài tầng 5',
-      hazards:'Té ngã từ cao, rơi vật dụng', controls:'Dây an toàn, lưới chống rơi, khu vực cách ly bên dưới',
-      start_date:'17/03/2026', end_date:'18/03/2026', status:'pending',
-      created_at:'16/03/2026' },
-  ];
-  const SEED_TOOLBOX: ToolboxTalk[] = [
-    { id:'tb1', date:'16/03/2026', topic:'An toàn khi hàn điện — phòng cháy nổ', conducted_by:'HSE Hải',
-      area:'Zone 2', attendees_count: 18, key_points:'Kiểm tra bình CO2 trước khi hàn; Màn chắn lửa bắt buộc; Không để vật liệu dễ cháy trong 5m',
-      created_at:'16/03/2026' },
-    { id:'tb2', date:'10/03/2026', topic:'Sử dụng đúng PPE khi làm việc trên cao', conducted_by:'CHT Anh',
-      area:'Toàn công trình', attendees_count: 42, key_points:'Dây an toàn móc 2 điểm; Mũ bảo hộ đúng cỡ; Giày chống trượt',
-      created_at:'10/03/2026' },
-  ];
-
-  const [ptws, setPtws]           = React.useState<PTW[]>(SEED_PTWS);
-  const [toolboxTalks, setToolboxTalks] = React.useState<ToolboxTalk[]>(SEED_TOOLBOX);
+  const [ptws, setPtws]           = React.useState([]);
+  const [toolboxTalks, setToolboxTalks] = React.useState([]);
   const [showPTWForm, setShowPTWForm]   = React.useState(false);
   const [showToolboxForm, setShowToolboxForm] = React.useState(false);
   const [ptwForm, setPtwForm] = React.useState<Partial<PTW>>({
@@ -266,33 +180,26 @@ export default function HSEWorkspace({ project: selectedProject, projectId: proj
     cert_type:string; cert_no:string;
     issued:string; expiry:string; issued_by:string;
   }
-  const SEED_CERTS:WorkerCert[] = [
-    { id:'wc1', worker_name:'Nguyễn Văn Công', contractor:'Phúc Thành', cert_type:'An toàn lao động Nhóm 3', cert_no:'AT-2024-1023', issued:'15/01/2024', expiry:'15/01/2026', issued_by:'Sở LĐTBXH TP.HCM' },
-    { id:'wc2', worker_name:'Trần Thị Bé', contractor:'Minh Khoa', cert_type:'An toàn lao động Nhóm 4', cert_no:'AT-2024-2045', issued:'20/02/2024', expiry:'20/08/2026', issued_by:'Sở LĐTBXH TP.HCM' },
-    { id:'wc3', worker_name:'Lê Văn Đạt', contractor:'Thiên Long', cert_type:'Điện công trường', cert_no:'ĐC-2023-0891', issued:'10/01/2023', expiry:'10/01/2025', issued_by:'Cục ATLĐ' },
-    { id:'wc4', worker_name:'Phan Văn Đức', contractor:'Phúc Thành', cert_type:'Làm việc trên cao', cert_no:'TC-2025-0312', issued:'05/03/2025', expiry:'05/03/2027', issued_by:'Sở LĐTBXH TP.HCM' },
-    { id:'wc5', worker_name:'Hoàng Minh Tuấn', contractor:'Thiên Long', cert_type:'Vận hành máy xây dựng', cert_no:'MX-2024-0567', issued:'12/06/2024', expiry:'28/03/2026', issued_by:'Trường TC Kỹ thuật' },
-  ];
-  const [workerCerts, setWorkerCerts]   = React.useState<WorkerCert[]>(SEED_CERTS);
+  const [workerCerts, setWorkerCerts]   = React.useState([]);
   const [showCertForm, setShowCertForm] = React.useState(false);
   const [certForm, setCertForm]         = React.useState<Partial<WorkerCert>>({});
   const [certSearch, setCertSearch]     = React.useState('');
   const [certFilter, setCertFilter]     = React.useState<'all'|'valid'|'expiring'|'expired'>('all');
-  const [incidents, setIncidents]     = React.useState<Incident[]>(SEED_INCIDENTS);
-  const [trainings, setTrainings]     = React.useState<Training[]>(SEED_TRAININGS);
-  const [violations, setViolations]   = React.useState<Violation[]>(SEED_VIOLATIONS);
-  const [inspections, setInspections] = React.useState<Inspection[]>(SEED_INSPECTIONS);
+  const [incidents, setIncidents]     = React.useState([]);
+  const [trainings, setTrainings]     = React.useState([]);
+  const [violations, setViolations]   = React.useState([]);
+  const [inspections, setInspections] = React.useState([]);
 
   // ── Load from db on mount ──────────────────────────────────────
   React.useEffect(() => {
     const pid = selectedProject?.id || projectId || 'default';
-    db.get<Incident[]>('hse_incidents', pid, SEED_INCIDENTS).then(setIncidents);
-    db.get<Training[]>('hse_trainings', pid, SEED_TRAININGS).then(setTrainings);
-    db.get<Violation[]>('hse_violations', pid, SEED_VIOLATIONS).then(setViolations);
-    db.get<Inspection[]>('hse_inspections', pid, SEED_INSPECTIONS).then(setInspections);
-    db.get<WorkerCert[]>('hse_worker_certs', pid, SEED_CERTS).then(setWorkerCerts);
-    db.get<PTW[]>('hse_ptws', pid, SEED_PTWS).then(setPtws);
-    db.get<ToolboxTalk[]>('hse_toolbox', pid, SEED_TOOLBOX).then(setToolboxTalks);
+    db.get<Incident[]>('hse_incidents', pid, []).then(setIncidents);
+    db.get<Training[]>('hse_trainings', pid, []).then(setTrainings);
+    db.get<Violation[]>('hse_violations', pid, []).then(setViolations);
+    db.get<Inspection[]>('hse_inspections', pid, []).then(setInspections);
+    db.get<WorkerCert[]>('hse_worker_certs', pid, []).then(setWorkerCerts);
+    db.get<PTW[]>('hse_ptws', pid, []).then(setPtws);
+    db.get<ToolboxTalk[]>('hse_toolbox', pid, []).then(setToolboxTalks);
   }, [selectedProject?.id, projectId]);
 
   // ── Realtime sync ──────────────────────────────────────────────────────────
@@ -300,13 +207,13 @@ export default function HSEWorkspace({ project: selectedProject, projectId: proj
   useRealtimeSync(_hse_pid, ['hse_incidents', 'hse_trainings', 'hse_violations', 'hse_inspections', 'hse_worker_certs', 'hse_ptws', 'hse_toolbox'], async () => {
     const pid = selectedProject?.id || projectId || 'default';
     const [inc, trn, vio, ins, crt, pw, tb] = await Promise.all([
-      db.get<Incident[]>('hse_incidents', pid, SEED_INCIDENTS),
-      db.get<Training[]>('hse_trainings', pid, SEED_TRAININGS),
-      db.get<Violation[]>('hse_violations', pid, SEED_VIOLATIONS),
-      db.get<Inspection[]>('hse_inspections', pid, SEED_INSPECTIONS),
-      db.get<WorkerCert[]>('hse_worker_certs', pid, SEED_CERTS),
-      db.get<PTW[]>('hse_ptws', pid, SEED_PTWS),
-      db.get<ToolboxTalk[]>('hse_toolbox', pid, SEED_TOOLBOX),
+      db.get<Incident[]>('hse_incidents', pid, []),
+      db.get<Training[]>('hse_trainings', pid, []),
+      db.get<Violation[]>('hse_violations', pid, []),
+      db.get<Inspection[]>('hse_inspections', pid, []),
+      db.get<WorkerCert[]>('hse_worker_certs', pid, []),
+      db.get<PTW[]>('hse_ptws', pid, []),
+      db.get<ToolboxTalk[]>('hse_toolbox', pid, []),
     ]);
     setIncidents(inc); setTrainings(trn); setViolations(vio);
     setInspections(ins); setWorkerCerts(crt);

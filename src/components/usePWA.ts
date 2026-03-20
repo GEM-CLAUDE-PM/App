@@ -35,7 +35,10 @@ export interface PWAState {
 }
 
 export function usePWA(): PWAState {
-  const [isOnline, setIsOnline]           = useState(navigator.onLine);
+  // iOS Safari fix: navigator.onLine trả false khi JS parse lần đầu trên iOS
+  // → OfflineIndicator render z-[9999] che toàn màn hình → user thấy màn trắng
+  // Fix: default true, để useEffect online/offline event cập nhật sau
+  const [isOnline, setIsOnline]           = useState(true);
   const [isInstalled, setIsInstalled]     = useState(false);
   const [isInstallable, setIsInstallable] = useState(false);
   const [updateAvailable, setUpdateAvailable] = useState(false);

@@ -35,15 +35,6 @@ const EVENT_TYPES: { value: EventType; label: string; color: string; bg: string;
   { value: 'other',        label: 'Khác',          color: 'text-slate-700',  bg: 'bg-slate-50 border-slate-200', dot: 'bg-slate-400'   },
 ];
 
-const DEFAULT_EVENTS: CalEvent[] = [
-  { id:'e1', date: getTodayStr(), time:'07:30', endTime:'08:30', title:'Họp giao ban công trường',         type:'meeting',      status:'completed',  location:'VP Ban QLDA',  projectId:'p1' },
-  { id:'e2', date: getTodayStr(), time:'09:00', endTime:'11:00', title:'Nghiệm thu cốt thép móng M1-M5',  type:'inspection',   status:'in-progress',location:'Khu A',        projectId:'p1', attendees: true } as any,
-  { id:'e3', date: getTodayStr(), time:'13:30', endTime:'17:30', title:'Đổ bê tông móng khối lớn',        type:'construction', status:'upcoming',   location:'Khu A',        projectId:'p1', alert:'Cần theo dõi thời tiết chiều nay' },
-  { id:'e4', date: getTodayStr(), time:'16:00', endTime:'17:30', title:'Chốt khối lượng tuần với thầu phụ',type:'meeting',     status:'upcoming',   location:'Phòng họp 2',  projectId:'p2' },
-  { id:'e5', date: getOffsetDay(1), time:'08:00', endTime:'09:00', title:'Duyệt hồ sơ thanh toán đợt 3', type:'payment',      status:'upcoming',   location:'Văn phòng',    projectId:'p2' },
-  { id:'e6', date: getOffsetDay(2), time:'10:00', endTime:'12:00', title:'Kiểm tra tiến độ TN Delta',     type:'inspection',   status:'upcoming',   location:'Tầng 5',       projectId:'p3' },
-  { id:'e7', date: getOffsetDay(-1), time:'14:00', endTime:'15:30', title:'Ký biên bản nghiệm thu phần ngầm', type:'inspection', status:'completed', location:'Khu B',       projectId:'p1' },
-];
 
 function getTodayStr() {
   return new Date().toISOString().slice(0, 10);
@@ -262,7 +253,7 @@ export default function CalendarSchedule({ projects = [] }: { projects?: any[] }
 
   // ── Load / save via db.ts ─────────────────────────────────────────────────
   useEffect(() => {
-    db.get<CalEvent[]>('calendar_events', 'global', DEFAULT_EVENTS).then(setEvents);
+    db.get<CalEvent[]>('calendar_events', 'global', []).then(setEvents);
   }, []);
 
   useEffect(() => {

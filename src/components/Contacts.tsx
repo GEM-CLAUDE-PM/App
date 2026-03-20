@@ -52,59 +52,6 @@ const TYPE_META: Record<ContactType, { label: string; color: string; bg: string;
   other:      { label: 'Khác',          color: 'text-slate-700',  bg: 'bg-slate-50 border-slate-200',    dot: 'bg-slate-400'   },
 };
 
-const DEFAULT_CONTACTS: Contact[] = [
-  {
-    id: 'c1', company: 'Tập đoàn Đầu tư BĐS Alpha', type: 'client',
-    role: 'Chủ đầu tư', contactPerson: 'Phạm Thị D', position: 'Giám đốc Ban QLDA',
-    phone: '0933445566', email: 'ptd@alphagroup.vn',
-    address: '789 Lê Lợi, Q.1, TP.HCM', website: 'https://alphagroup.vn',
-    projectIds: ['p1', 'p2'],
-    bank: { bankName: 'Vietcombank', accountNo: '1234567890', accountName: 'TAP DOAN DAU TU BDS ALPHA' },
-    note: 'Ưu tiên liên hệ qua email. Họp định kỳ thứ Sáu hàng tuần.',
-    interactions: [
-      { id: 'i1', date: '2026-03-05', note: 'Họp triển khai gói thầu móng DA Alpha.' },
-      { id: 'i2', date: '2026-03-01', note: 'Gửi hồ sơ thanh toán đợt 2.' },
-    ],
-    createdAt: '2026-01-01',
-  },
-  {
-    id: 'c2', company: 'Công ty CP Xây dựng Hòa Bình', type: 'contractor',
-    role: 'Tổng thầu thi công', contactPerson: 'Nguyễn Văn A', position: 'Chỉ huy trưởng',
-    phone: '0901234567', email: 'nva@hoabinh.com',
-    address: '123 Nguyễn Đình Chiểu, Q.3, TP.HCM', website: 'https://hbcorp.vn',
-    projectIds: ['p1'],
-    bank: { bankName: 'BIDV', accountNo: '9876543210', accountName: 'CONG TY CP XAY DUNG HOA BINH' },
-    note: 'Nhà thầu chính DA Alpha. Hiện đang thi công móng.',
-    interactions: [
-      { id: 'i3', date: '2026-03-06', note: 'Xử lý vi phạm HSE tại tầng 5.' },
-    ],
-    createdAt: '2026-01-01',
-  },
-  {
-    id: 'c3', company: 'Công ty TNHH Thép Việt', type: 'supplier',
-    role: 'Nhà cung cấp Thép CB300', contactPerson: 'Trần Thị B', position: 'GĐ Kinh doanh',
-    phone: '0987654321', email: 'ttb@thepviet.vn',
-    address: 'KCN Phú Mỹ 1, BR-VT', website: '',
-    projectIds: ['p1', 'p3'],
-    bank: { bankName: 'Techcombank', accountNo: '1122334455', accountName: 'CONG TY TNHH THEP VIET' },
-    note: 'Thép CB300 — giao trong 5 ngày sau đặt hàng. Chiết khấu 2% nếu TT sớm.',
-    interactions: [],
-    createdAt: '2026-01-15',
-  },
-  {
-    id: 'c4', company: 'Công ty Tư vấn Thiết kế KT X', type: 'consultant',
-    role: 'Tư vấn giám sát', contactPerson: 'Lê Văn C', position: 'Trưởng đoàn TVGS',
-    phone: '0912345678', email: 'lvc@tuvanx.com',
-    address: '456 Điện Biên Phủ, Q.Bình Thạnh, TP.HCM', website: 'https://tuvanx.com',
-    projectIds: ['p2'],
-    bank: undefined,
-    note: '',
-    interactions: [
-      { id: 'i4', date: '2026-03-04', note: 'Ký biên bản nghiệm thu hoàn thiện nội thất tầng 3-5.' },
-    ],
-    createdAt: '2026-01-20',
-  },
-];
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 function uid() { return `c${Date.now()}_${Math.random().toString(36).slice(2, 7)}`; }
@@ -603,7 +550,7 @@ export default function Contacts({ projects = [] }: { projects?: any[] }) {
 
   // ── Load / save via db.ts ─────────────────────────────────────────────────
   useEffect(() => {
-    db.get<Contact[]>('contacts', 'global', DEFAULT_CONTACTS).then(setContacts);
+    db.get<Contact[]>('contacts', 'global', []).then(setContacts);
   }, []);
 
   useEffect(() => {

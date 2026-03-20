@@ -25,7 +25,7 @@ type Props = DashboardProps & {
 
 export default function ContractDashboard({ project: selectedProject, currentRole, canSeeFullValues, contractUnlocked, writeAuditLog, onManualLock, onNavigate, onRequestPin, SESSION_KEY }: Props) {
   const ROLE_LABELS: Record<string,string> = { giam_doc:'Giám đốc DA', ke_toan:'Kế toán', chi_huy_truong:'Chỉ huy trưởng', giam_sat:'Giám sát QA/QC' };
-  const pid         = selectedProject?.id ?? 'p1';
+  const pid         = selectedProject?.id ?? '';
   const projectName = selectedProject?.name ?? 'Dự án';
   const ctx         = getCurrentCtx(pid);
   const { ok: notifOk, err: notifErr, warn: notifWarn, info: notifInfo } = useNotification();
@@ -108,114 +108,8 @@ export default function ContractDashboard({ project: selectedProject, currentRol
       }
 
       // ── Mock contracts ─────────────────────────────────────────────────────
-      const MOCK_CONTRACTS:Contract[] = [
-        {
-          id:'c1', type:'main', code:'HĐ-2026-001', name:'Hợp đồng Tổng thầu EPC',
-          party:'CĐT Nguyễn Văn An', party_type:'Chủ đầu tư',
-          value:120000, signed_date:'01/01/2026', start_date:'01/01/2026', end_date:'31/12/2026',
-          payment_terms:'Theo tiến độ: 30% khởi công, 40% khi đạt 50% KL, 30% nghiệm thu',
-          paid_amount:42000, retention_pct:5, progress:35,
-          guarantees:[
-            { type:'performance', value:6000, expiry:'31/01/2027' },
-            { type:'advance',     value:3600, expiry:'30/06/2026' },
-          ],
-          payment_schedule:[
-            { milestone:'Tạm ứng khởi công (30%)', pct:30, amount:36000, status:'paid',    date:'05/01/2026' },
-            { milestone:'Đợt 1 — hoàn thành móng', pct:20, amount:24000, status:'paid',    date:'15/02/2026' },
-            { milestone:'Đợt 2 — thân nhà 50%',    pct:20, amount:24000, status:'pending', date:'30/04/2026' },
-            { milestone:'Đợt 3 — hoàn thiện',      pct:20, amount:24000, status:'pending', date:'30/09/2026' },
-            { milestone:'Nghiệm thu bàn giao (5%+ bảo lưu)', pct:10, amount:12000, status:'pending', date:'31/12/2026' },
-          ],
-          linked_module:'qs', status:'active',
-          gem_risk:'Bảo lãnh tạm ứng hết hạn 30/06/2026 — cần gia hạn hoặc hoàn ứng trước thời điểm này.',
-          docs:['HĐ-2026-001.pdf','PL01-Đơn giá.pdf','BL-Thực hiện.pdf'],
-        },
-        {
-          id:'c2', type:'subcontractor', code:'HĐ-NTP-001', name:'HĐ NTP Sắt thép & Ván khuôn',
-          party:'Công ty Phúc Thành', party_type:'Nhà thầu phụ',
-          value:8500, signed_date:'10/01/2026', start_date:'15/01/2026', end_date:'30/09/2026',
-          payment_terms:'Khoán gọn theo hạng mục — nghiệm thu khối lượng từng đợt',
-          paid_amount:3200, retention_pct:5, progress:38,
-          guarantees:[{ type:'performance', value:850, expiry:'30/10/2026' }],
-          payment_schedule:[
-            { milestone:'Tạm ứng (20%)',        pct:20, amount:1700, status:'paid',    date:'20/01/2026' },
-            { milestone:'Đợt 1 — móng hoàn thành', pct:30, amount:2550, status:'paid', date:'28/02/2026' },
-            { milestone:'Đợt 2 — thân nhà T1-3',   pct:30, amount:2550, status:'pending', date:'30/05/2026' },
-            { milestone:'Hoàn công + bảo lưu',      pct:20, amount:1700, status:'pending', date:'30/09/2026' },
-          ],
-          linked_module:'qs', linked_id:'sub-pt', status:'active',
-          gem_risk:'Tiến độ NTP chậm ~2 tuần so với lịch. Cần xác nhận nhân lực tổ sắt tuần tới.',
-          docs:['HĐ-NTP-001.pdf','BB-Khởi công.pdf'],
-        },
-        {
-          id:'c3', type:'subcontractor', code:'HĐ-NTP-002', name:'HĐ NTP Hệ thống M&E',
-          party:'Công ty Điện Lạnh Minh Khoa', party_type:'Nhà thầu phụ',
-          value:6200, signed_date:'05/02/2026', start_date:'01/03/2026', end_date:'30/11/2026',
-          payment_terms:'Theo tiến độ thực tế — nghiệm thu từng hạng mục',
-          paid_amount:620, retention_pct:5, progress:10,
-          guarantees:[{ type:'performance', value:620, expiry:'31/12/2026' }],
-          payment_schedule:[
-            { milestone:'Tạm ứng (10%)',    pct:10, amount:620,  status:'paid',    date:'05/03/2026' },
-            { milestone:'Đợt 1 — Hạ tầng', pct:40, amount:2480, status:'pending', date:'30/06/2026' },
-            { milestone:'Đợt 2 — Hoàn thiện', pct:40, amount:2480, status:'pending', date:'30/10/2026' },
-            { milestone:'Bảo hành + bảo lưu', pct:10, amount:620, status:'pending', date:'30/11/2026' },
-          ],
-          linked_module:'qs', linked_id:'sub-mk', status:'active',
-          docs:['HĐ-NTP-002.pdf'],
-        },
-        {
-          id:'c4', type:'supplier', code:'HĐ-CC-001', name:'HĐ Cung cấp Thép Xây dựng',
-          party:'Công ty Thép Hòa Phát', party_type:'Nhà cung cấp',
-          value:4200, signed_date:'15/01/2026', start_date:'20/01/2026', end_date:'30/06/2026',
-          payment_terms:'Thanh toán 30 ngày sau giao hàng, chiết khấu 2% nếu thanh toán trong 10 ngày',
-          paid_amount:2800, retention_pct:0, progress:67,
-          guarantees:[],
-          payment_schedule:[
-            { milestone:'Đợt 1 — 50 tấn thép cuộn',   pct:33, amount:1386, status:'paid',    date:'25/01/2026' },
-            { milestone:'Đợt 2 — 80 tấn thép vằn',    pct:40, amount:1680, status:'paid',    date:'20/02/2026' },
-            { milestone:'Đợt 3 — 30 tấn thép hình',   pct:27, amount:1134, status:'pending', date:'15/04/2026' },
-          ],
-          linked_module:'resources', status:'active',
-          docs:['HĐ-CC-001.pdf','PL-Đơn giá-thép.xlsx'],
-        },
-        {
-          id:'c5', type:'equipment', code:'HĐ-TB-001', name:'HĐ Thuê Cẩu tháp Liebherr 180EC',
-          party:'Công ty Cho thuê TB Thiên Long', party_type:'Nhà cung cấp',
-          value:1800, signed_date:'01/01/2026', start_date:'05/01/2026', end_date:'31/08/2026',
-          payment_terms:'180 Triệu/tháng — thanh toán trước ngày 5 mỗi tháng',
-          paid_amount:540, retention_pct:0, progress:30,
-          guarantees:[],
-          payment_schedule:[
-            { milestone:'T1/2026', pct:17, amount:180, status:'paid',    date:'05/01/2026' },
-            { milestone:'T2/2026', pct:17, amount:180, status:'paid',    date:'05/02/2026' },
-            { milestone:'T3/2026', pct:17, amount:180, status:'paid',    date:'05/03/2026' },
-            { milestone:'T4/2026', pct:17, amount:180, status:'pending', date:'05/04/2026' },
-            { milestone:'T5-8/2026', pct:33, amount:720, status:'pending', date:'05/08/2026' },
-          ],
-          linked_module:'equipment', status:'active',
-          gem_risk:'HĐ hết hạn 31/08 — cần xác nhận có gia hạn không trước 31/07 để tránh gián đoạn thi công.',
-          docs:['HĐ-TB-001.pdf'],
-        },
-        {
-          id:'c6', type:'consultant', code:'HĐ-TVGS-001', name:'HĐ Tư vấn Giám sát',
-          party:'Công ty TVXD Alpha', party_type:'Tư vấn',
-          value:480, signed_date:'01/01/2026', start_date:'01/01/2026', end_date:'31/01/2027',
-          payment_terms:'40 Triệu/tháng — thanh toán cuối tháng',
-          paid_amount:120, retention_pct:10, progress:25,
-          guarantees:[],
-          payment_schedule:[
-            { milestone:'Q1/2026 (3 tháng)', pct:25, amount:120, status:'paid',    date:'31/03/2026' },
-            { milestone:'Q2/2026 (3 tháng)', pct:25, amount:120, status:'pending', date:'30/06/2026' },
-            { milestone:'Q3/2026 (3 tháng)', pct:25, amount:120, status:'pending', date:'30/09/2026' },
-            { milestone:'Q4/2026 + bảo lưu', pct:25, amount:120, status:'pending', date:'31/01/2027' },
-          ],
-          linked_module:'qa-qc', status:'active',
-          docs:['HĐ-TVGS-001.pdf'],
-        },
-      ];
-
       // ── Local state ────────────────────────────────────────────────────────
-      const [contracts, setContracts] = React.useState<Contract[]>(MOCK_CONTRACTS);
+      const [contracts, setContracts] = React.useState([]);
       const [filterType, setFilterType] = React.useState<ContractType|'all'>('all');
       const [filterStatus, setFilterStatus] = React.useState<ContractStatus|'all'>('all');
       const [searchQ, setSearchQ] = React.useState('');
