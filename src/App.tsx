@@ -984,6 +984,27 @@ export default function App() {
     return <SplashScreen onComplete={handleSplashComplete} duration={3500} />;
   }
 
+  // DEBUG — xóa sau khi tìm ra bug iOS
+  if (typeof window !== 'undefined' && /iPhone|iPad/i.test(navigator.userAgent)) {
+    const debugTap = () => {
+      const cx = window.innerWidth / 2;
+      const cy = window.innerHeight / 2;
+      const el = document.elementFromPoint(cx, cy);
+      const info = el ? `tag:${el.tagName} class:${el.className.slice(0,80)} id:${el.id}` : 'null';
+      alert(`W:${window.innerWidth} H:${window.innerHeight}\nscroll:${window.scrollY}\nel@center: ${info}`);
+    };
+    // Nút debug góc dưới phải
+    setTimeout(() => {
+      if (document.getElementById('gem-debug-btn')) return;
+      const btn = document.createElement('button');
+      btn.id = 'gem-debug-btn';
+      btn.textContent = '🔍';
+      btn.style.cssText = 'position:fixed;bottom:80px;right:12px;z-index:99999;background:#ef4444;color:#fff;border:none;border-radius:50%;width:40px;height:40px;font-size:18px;cursor:pointer;';
+      btn.onclick = debugTap;
+      document.body.appendChild(btn);
+    }, 4000);
+  }
+
   return (
     <NotificationProvider>
       <AuthProvider>
