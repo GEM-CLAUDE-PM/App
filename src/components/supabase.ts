@@ -123,6 +123,7 @@ export interface UserProfile {
   plan_id: PlanId;              // copy từ tenants.plan_id để tránh join ở client
   trial_ends_at: string | null; // copy từ tenants.trial_ends_at
   userName?: string;            // display name alias
+  tenant_name?: string;         // Tên công ty — copy từ tenants.name
 }
 
 export interface AuthSession {
@@ -246,7 +247,7 @@ export const AuthService = {
     if (error) return { user: null, error: error.message };
     const { data: profile } = await sb
       .from('profiles')
-      .select('*, tenants(plan, trial_ends_at, is_locked)')
+      .select('*, tenants(name, plan, trial_ends_at, is_locked)')
       .eq('id', data.user.id)
       .single();
     if (profile) {
@@ -255,7 +256,9 @@ export const AuthService = {
         ...profile,
         plan_id:       profile.tenants?.plan ?? profile.plan_id        ?? 'trial',
         trial_ends_at: profile.tenants?.trial_ends_at ?? profile.trial_ends_at ?? null,
+        tenant_name:   profile.tenants?.name ?? undefined,
       };
+      if (merged.tenant_name) localStorage.setItem('gem_company_name', merged.tenant_name);
       AuthService.persistSession(merged);
       return { user: merged, error: null };
     }
@@ -341,7 +344,7 @@ export const AuthService = {
     if (!data.session) return null;
     const { data: profile } = await sb
       .from('profiles')
-      .select('*, tenants(plan, trial_ends_at, is_locked)')
+      .select('*, tenants(name, plan, trial_ends_at, is_locked)')
       .eq('id', data.session.user.id)
       .single();
     if (profile) {
@@ -349,7 +352,9 @@ export const AuthService = {
         ...profile,
         plan_id:       profile.tenants?.plan ?? profile.plan_id       ?? 'trial',
         trial_ends_at: profile.tenants?.trial_ends_at ?? profile.trial_ends_at ?? null,
+        tenant_name:   profile.tenants?.name ?? undefined,
       };
+      if (merged.tenant_name) localStorage.setItem('gem_company_name', merged.tenant_name);
       AuthService.persistSession(merged);
       return merged;
     }
@@ -393,7 +398,7 @@ export const AuthService = {
     if (error || !data.user) return { user: null, error: error?.message ?? 'OTP không đúng hoặc đã hết hạn.' };
     const { data: profile } = await sb
       .from('profiles')
-      .select('*, tenants(plan, trial_ends_at, is_locked)')
+      .select('*, tenants(name, plan, trial_ends_at, is_locked)')
       .eq('id', data.user.id)
       .single();
     if (!profile) return { user: null, error: 'Không tìm thấy profile.' };

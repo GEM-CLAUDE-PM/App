@@ -48,9 +48,10 @@ export default function TrialBanner({ user, onUpgrade }: TrialBannerProps) {
     ? 'bg-amber-500 text-white'
     : 'bg-emerald-600 text-white';
 
+  const companyName = typeof localStorage !== 'undefined' ? localStorage.getItem('gem_company_name') : null;
   const message = isExpired
-    ? 'Tài khoản dùng thử đã hết hạn. Vui lòng nâng cấp để tiếp tục.'
-    : `Còn ${daysLeft} ngày dùng thử — nâng cấp để không bị gián đoạn.`;
+    ? `${companyName ? companyName + ' — ' : ''}Tài khoản dùng thử đã hết hạn. Vui lòng nâng cấp để tiếp tục.`
+    : `${companyName ? '🏢 ' + companyName + ' · ' : ''}Còn ${daysLeft} ngày dùng thử — nâng cấp để không bị gián đoạn.`;
 
   return (
     <div className={`flex items-center gap-3 px-4 py-2 text-xs font-medium ${colorCls} relative z-50`}>

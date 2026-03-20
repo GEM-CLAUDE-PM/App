@@ -429,6 +429,11 @@ function AppInner() {
           <div className="leading-tight">
             <p className="text-[11px] font-black text-slate-800 tracking-tight leading-none">GEM & CLAUDE</p>
             <p className="text-[9px] font-bold leading-none mt-0.5" style={{ color: "#1a8a7a" }}>PM Pro</p>
+            {(user?.tenant_name || localStorage.getItem('gem_company_name')) && (
+              <p className="text-[9px] font-semibold leading-none mt-0.5 text-slate-500 truncate max-w-[120px]">
+                {user?.tenant_name || localStorage.getItem('gem_company_name')}
+              </p>
+            )}
           </div>
         </div>
         <div className="flex items-center gap-1">
@@ -536,6 +541,13 @@ function AppInner() {
               <p className="text-[10px] text-slate-400 mt-3 font-medium leading-relaxed">
                 Quản lý dự án chuyên nghiệp<br/>Kiểm soát QA/QC/QS & Dòng tiền
               </p>
+              {(user?.tenant_name || localStorage.getItem('gem_company_name')) && (
+                <div className="mt-2 px-2 py-1 bg-teal-50 rounded-lg border border-teal-100">
+                  <p className="text-[10px] font-bold text-teal-700 truncate">
+                    🏢 {user?.tenant_name || localStorage.getItem('gem_company_name')}
+                  </p>
+                </div>
+              )}
             </div>
           )}
         </div>

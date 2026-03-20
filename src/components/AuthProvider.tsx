@@ -468,6 +468,12 @@ export function UserMenu({ onNavigate }: { onNavigate?: (tab: string) => void } 
               <Building2 size={12} className="text-slate-400 shrink-0" />
               {user.project_ids.length} dự án liên kết
             </div>
+            {typeof localStorage !== 'undefined' && localStorage.getItem('gem_company_name') && (
+              <div className="flex items-center gap-2 text-xs font-semibold text-teal-700">
+                <Building2 size={12} className="text-teal-500 shrink-0" />
+                {localStorage.getItem('gem_company_name')}
+              </div>
+            )}
           </div>
 
           {/* Permissions summary */}
