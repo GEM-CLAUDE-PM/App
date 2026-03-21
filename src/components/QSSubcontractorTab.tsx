@@ -587,7 +587,7 @@ export default function SubcontractorTab({ projectId, boqItems, acceptanceLots, 
                 width="xl"
                 footer={<>
                   <BtnCancel onClick={() => setShowNewSubPay(false)}/>
-                  <BtnSubmit label="Lưu phiếu thanh toán" onClick={saveNewSubPay}/>
+                  <BtnSubmit label="Lưu phiếu thanh toán" onClick={saveNewSubPayment}/>
                 </>}
               >
                 <div className="space-y-4">
