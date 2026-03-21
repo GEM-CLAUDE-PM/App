@@ -862,71 +862,101 @@ export function GanttChart({
         </div>
       </div>
 
-      {/* S32.5 — Context menu: click phải vào task name để thêm liên kết */}
-      {ctxMenu !== null && (
-        <div
-          className="fixed z-50 bg-white border border-slate-200 rounded-xl shadow-xl py-1 min-w-[180px]"
-          style={{ top: ctxMenu.y, left: ctxMenu.x }}
-          onMouseLeave={() => setCtxMenu(null)}
-        >
-          <div className="px-3 py-1.5 text-[10px] font-bold text-slate-400 uppercase tracking-wide border-b border-slate-100">
-            {items[ctxMenu.taskIdx]?.name?.slice(0, 25)}
-          </div>
-          {linkingFrom === null ? (
-            <button
-              className="w-full text-left px-3 py-2 text-xs text-slate-700 hover:bg-orange-50 hover:text-orange-700 flex items-center gap-2"
-              onClick={() => { setLinkingFrom(ctxMenu.taskIdx); setCtxMenu(null); }}
-            >
-              <GitMerge size={12}/> Thêm liên kết từ đây…
-            </button>
-          ) : (
-            <>
-              <div className="px-3 py-1.5 text-[11px] text-orange-600 bg-orange-50">
-                → Chọn task kế tiếp (phụ thuộc vào <b>{items[linkingFrom]?.name?.slice(0,20)}</b>)
-              </div>
-              <button
-                className="w-full text-left px-3 py-2 text-xs text-emerald-700 hover:bg-emerald-50 flex items-center gap-2"
-                onClick={() => {
-                  addDependency(linkingFrom, ctxMenu.taskIdx);
-                  setLinkingFrom(null); setCtxMenu(null);
-                }}
-              >
-                ✓ Đặt "{items[ctxMenu.taskIdx]?.name?.slice(0,20)}" phụ thuộc
-              </button>
-              <button
-                className="w-full text-left px-3 py-2 text-xs text-slate-500 hover:bg-slate-50"
-                onClick={() => { setLinkingFrom(null); setCtxMenu(null); }}
-              >
-                Huỷ
-              </button>
-            </>
-          )}
-          {items[ctxMenu.taskIdx]?.depends_on?.length ? (
-            <>
-              <div className="border-t border-slate-100 mt-1 px-3 py-1.5 text-[10px] text-slate-400">Phụ thuộc vào:</div>
-              {items[ctxMenu.taskIdx].depends_on!.map(wid => {
-                const pred = items.find(t => t.wbsId === wid);
-                return (
-                  <div key={wid} className="px-3 py-1 flex items-center justify-between text-xs text-slate-600">
-                    <span>← {pred?.name?.slice(0,22) ?? wid}</span>
-                    <button
-                      className="text-rose-400 hover:text-rose-600 ml-2"
-                      onClick={() => {
-                        const next = items.map((t, i) =>
-                          i === ctxMenu.taskIdx ? { ...t, depends_on: t.depends_on?.filter(d => d !== wid) } : t
-                        );
-                        setItems(next);
-                        onUpdateTask?.({ ...next[ctxMenu.taskIdx] });
-                        onReorder(next);
-                        setCtxMenu(null);
-                      }}
-                    >✕</button>
-                  </div>
-                );
-              })}
-            </>
-          ) : null}
+      {/* S32.5 — Context menu + linking state banner */}
+
+      {/* Banner khi đang ở bước 2: nhắc user chọn task đích */}
+      {linkingFrom !== null && (
+        <div className="mx-4 mb-2 px-3 py-2 bg-orange-50 border border-orange-200 rounded-xl flex items-center justify-between text-xs">
+          <span className="text-orange-700 font-semibold flex items-center gap-2">
+            <GitMerge size={12}/>
+            Đang liên kết từ <b className="mx-1">"{items[linkingFrom]?.name?.slice(0,25)}"</b>
+            → Right-click task đích để hoàn thành
+          </span>
+          <button onClick={() => setLinkingFrom(null)}
+            className="text-orange-400 hover:text-orange-600 ml-3 font-bold">✕ Huỷ</button>
         </div>
+      )}
+
+      {ctxMenu !== null && (
+        <>
+          {/* Overlay trong suốt để click ngoài đóng menu */}
+          <div className="fixed inset-0 z-40" onClick={() => setCtxMenu(null)}/>
+          <div
+            className="fixed z-50 bg-white border border-slate-200 rounded-xl shadow-xl py-1 min-w-[200px]"
+            style={{ top: ctxMenu.y, left: ctxMenu.x }}
+          >
+            <div className="px-3 py-1.5 text-[10px] font-bold text-slate-400 uppercase tracking-wide border-b border-slate-100">
+              {items[ctxMenu.taskIdx]?.name?.slice(0, 28)}
+            </div>
+
+            {linkingFrom === null ? (
+              /* Bước 1: chọn task nguồn */
+              <button
+                className="w-full text-left px-3 py-2.5 text-xs text-slate-700 hover:bg-orange-50 hover:text-orange-700 flex items-center gap-2"
+                onClick={() => { setLinkingFrom(ctxMenu.taskIdx); setCtxMenu(null); }}
+              >
+                <GitMerge size={12} className="text-orange-500"/> Thêm liên kết từ task này…
+              </button>
+            ) : linkingFrom === ctxMenu.taskIdx ? (
+              /* Right-click vào chính task nguồn */
+              <div className="px-3 py-2 text-xs text-slate-400 italic">Chọn task khác làm đích</div>
+            ) : (
+              /* Bước 2: xác nhận task đích */
+              <>
+                <div className="px-3 py-1.5 text-[11px] text-orange-600 bg-orange-50 border-b border-orange-100">
+                  <GitMerge size={10} className="inline mr-1"/>
+                  <b>{items[linkingFrom]?.name?.slice(0,20)}</b> → <b>{items[ctxMenu.taskIdx]?.name?.slice(0,20)}</b>
+                </div>
+                <button
+                  className="w-full text-left px-3 py-2.5 text-xs text-emerald-700 hover:bg-emerald-50 flex items-center gap-2 font-semibold"
+                  onClick={() => { addDependency(linkingFrom, ctxMenu.taskIdx); setLinkingFrom(null); setCtxMenu(null); }}
+                >
+                  ✓ Xác nhận liên kết (Finish-to-Start)
+                </button>
+                <button
+                  className="w-full text-left px-3 py-2 text-xs text-slate-500 hover:bg-slate-50 flex items-center gap-2"
+                  onClick={() => { setLinkingFrom(null); setCtxMenu(null); }}
+                >
+                  ✕ Huỷ
+                </button>
+              </>
+            )}
+
+            {/* Danh sách liên kết hiện có + nút xoá */}
+            {items[ctxMenu.taskIdx]?.depends_on?.length ? (
+              <>
+                <div className="border-t border-slate-100 mt-1 px-3 py-1.5 text-[10px] font-semibold text-slate-400 uppercase tracking-wide">
+                  Phụ thuộc vào:
+                </div>
+                {items[ctxMenu.taskIdx].depends_on!.map(wid => {
+                  const pred = items.find(t => t.wbsId === wid);
+                  return (
+                    <div key={wid} className="px-3 py-1.5 flex items-center justify-between text-xs text-slate-600 hover:bg-slate-50">
+                      <span className="flex items-center gap-1.5">
+                        <span className="text-slate-300">←</span>
+                        {pred?.name?.slice(0,24) ?? wid}
+                      </span>
+                      <button
+                        className="text-rose-400 hover:text-rose-600 ml-2 text-[11px] font-bold"
+                        onClick={() => {
+                          const next = items.map((t, i) =>
+                            i === ctxMenu.taskIdx
+                              ? { ...t, depends_on: t.depends_on?.filter(d => d !== wid) }
+                              : t
+                          );
+                          setItems(next);
+                          onUpdateTask?.({ ...next[ctxMenu.taskIdx] });
+                          onReorder(next);
+                          setCtxMenu(null);
+                        }}
+                      >✕ Xoá</button>
+                    </div>
+                  );
+                })}
+              </>
+            ) : null}
+          </div>
+        </>
       )}
     </div>
   );

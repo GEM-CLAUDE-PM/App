@@ -89,6 +89,8 @@ function lsRemove(collection: string, projectId: string): void {
  */
 // S24: Optimistic locking — cache server updated_at để detect conflict
 const _serverVersions: Map<string, string> = new Map();
+// Track thời gian write gần nhất để skip realtime self-echo (tránh false conflict)
+const _lastWriteTime: Map<string, number> = new Map();
 
 function _versionKey(collection: string, projectId: string) {
   return `${projectId}::${collection}`;
@@ -165,7 +167,8 @@ async function sbSet<T>(collection: string, projectId: string, payload: T, userI
 
   const nowIso = new Date().toISOString();
   try {
-    const { error } = await sb.from('project_data').upsert(
+    // select('updated_at') để lấy timestamp THỰC từ server — tránh client/server clock skew
+    const { data: written, error } = await sb.from('project_data').upsert(
       {
         project_id: projectId,
         collection,
@@ -175,12 +178,16 @@ async function sbSet<T>(collection: string, projectId: string, payload: T, userI
         updated_by: userId ?? null,
       },
       { onConflict: 'project_id,collection' }
-    );
+    ).select('updated_at').maybeSingle();
+
     if (error) {
       console.warn('[db] Supabase write error:', error.message);
     } else {
-      // Update known version after successful write
-      _serverVersions.set(vKey, nowIso);
+      // Dùng updated_at từ SERVER response — không dùng nowIso client vì Supabase now() khác vài ms
+      const serverTs = written?.updated_at ?? nowIso;
+      _serverVersions.set(vKey, serverTs);
+      // Mark thời gian write để skip realtime self-echo trong 2 giây
+      _lastWriteTime.set(vKey, Date.now());
     }
   } catch {
     console.warn('[db] Supabase unreachable, data saved to localStorage only');
@@ -392,6 +399,10 @@ export function useRealtimeSync(
       }, (payload: any) => {
         const col = payload.new?.collection ?? payload.old?.collection;
         if (collections.length && !collections.includes(col)) return;
+        // Skip self-echo: nếu chính client vừa write collection này trong 2 giây qua
+        const vKey = _versionKey(col, projectId);
+        const lastWrite = _lastWriteTime.get(vKey) ?? 0;
+        if (Date.now() - lastWrite < 2000) return; // self-echo — bỏ qua
         clearTimeout(timer);
         timer = setTimeout(onRefresh, 300);
       })
