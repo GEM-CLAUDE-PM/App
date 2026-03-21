@@ -447,6 +447,7 @@ export function GanttChart({
 
   // ── Bar drag — dời start ──────────────────────────────────────────────────
   const onBarPointerDown = (e: React.PointerEvent, taskId: number) => {
+    if (e.button !== 0) return; // chỉ left-click mới drag — right-click mở context menu
     e.stopPropagation();
     e.currentTarget.setPointerCapture(e.pointerId);
     const task = items.find(t => t.id === taskId)!;
@@ -456,6 +457,7 @@ export function GanttChart({
 
   // ── Resize handle — kéo cuối bar để thay đổi duration ────────────────────
   const onResizePointerDown = (e: React.PointerEvent, taskId: number) => {
+    if (e.button !== 0) return; // chỉ left-click mới resize
     e.stopPropagation();
     e.currentTarget.setPointerCapture(e.pointerId);
     const task = items.find(t => t.id === taskId)!;
@@ -670,7 +672,8 @@ export function GanttChart({
                 <div ref={idx === 0 ? timelineRef : undefined}
                      className="flex-1 px-3 py-3 relative flex items-center"
                      onPointerMove={onTimelinePointerMove}
-                     onPointerUp={onTimelinePointerUp}>
+                     onPointerUp={onTimelinePointerUp}
+                     onContextMenu={e => { e.preventDefault(); setCtxMenu({ taskIdx: idx, x: e.clientX, y: e.clientY }); }}>
                   {/* Grid lines — theo tick marks */}
                   {headerTicks.map((tick, gi) => (
                     <div key={gi} className="absolute top-0 bottom-0 border-l border-slate-100"
