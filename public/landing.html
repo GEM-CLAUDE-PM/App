@@ -1,0 +1,425 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>GEM & CLAUDE PM Pro — Phần mềm Quản lý Dự án Xây dựng AI</title>
+<meta name="description" content="Phần mềm quản lý dự án xây dựng thông minh tích hợp AI Gemini. BOQ, Tiến độ, HSE, QA/QC, Nhân sự, Tài chính trong 1 nền tảng."/>
+<meta property="og:title" content="GEM & CLAUDE PM Pro — PM Xây dựng × AI"/>
+<meta property="og:description" content="Quản lý toàn bộ dự án xây dựng trong 1 nền tảng. BOQ · Tiến độ · HSE · QA/QC · Tài chính · AI Briefing."/>
+<meta property="og:url" content="https://gemclaudepm.com"/>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;500;600;700;800&family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;1,9..40,300&display=swap" rel="stylesheet"/>
+<style>
+:root{--bg:#0a0f0d;--bg2:#0f1612;--teal:#00c49a;--teal2:#00a07e;--teal3:#004d3d;--rust:#e8794a;--text:#e8ede8;--muted:#7a8f7a;--border:rgba(0,196,154,.15);--card:rgba(255,255,255,.03);--r:16px}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+html{scroll-behavior:smooth}
+body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);line-height:1.6;overflow-x:hidden}
+body::before{content:'';position:fixed;inset:0;background-image:repeating-linear-gradient(0deg,transparent,transparent 39px,rgba(0,196,154,.04) 40px),repeating-linear-gradient(90deg,transparent,transparent 39px,rgba(0,196,154,.04) 40px);pointer-events:none;z-index:0}
+
+nav{position:fixed;top:0;left:0;right:0;z-index:100;display:flex;align-items:center;justify-content:space-between;padding:0 40px;height:64px;background:rgba(10,15,13,.9);backdrop-filter:blur(20px);border-bottom:1px solid var(--border)}
+.nav-logo{display:flex;align-items:center;gap:10px;font-family:'Syne',sans-serif;font-weight:800;font-size:17px;color:var(--text);text-decoration:none}
+.nav-dot{width:9px;height:9px;border-radius:50%;background:var(--teal);box-shadow:0 0 12px var(--teal);animation:pulse 2s ease-in-out infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
+.nav-links{display:flex;align-items:center;gap:32px}
+.nav-links a{font-size:14px;font-weight:500;color:var(--muted);text-decoration:none;transition:color .2s}
+.nav-links a:hover{color:var(--teal)}
+.btn-cta{padding:10px 22px;background:var(--teal);color:#0a0f0d;border-radius:10px;font-weight:700;font-size:14px;text-decoration:none;transition:.2s}
+.btn-cta:hover{background:#00e8b5;transform:translateY(-1px)}
+.btn-outline{padding:10px 22px;background:transparent;color:var(--text);border:1.5px solid rgba(255,255,255,.15);border-radius:10px;font-weight:600;font-size:14px;text-decoration:none;transition:.2s}
+.btn-outline:hover{border-color:var(--teal);color:var(--teal)}
+
+.hero{position:relative;z-index:1;min-height:100vh;display:flex;align-items:center;justify-content:center;padding:120px 40px 80px;text-align:center}
+.hero-glow{position:absolute;top:15%;left:50%;transform:translateX(-50%);width:700px;height:500px;background:radial-gradient(ellipse,rgba(0,196,154,.16) 0%,transparent 70%);pointer-events:none}
+.hero-badge{display:inline-flex;align-items:center;gap:8px;padding:6px 16px;border:1px solid var(--border);border-radius:100px;font-size:12px;font-weight:600;color:var(--teal);background:rgba(0,196,154,.06);margin-bottom:28px;animation:fadeUp .6s ease both}
+.hero-badge i{width:6px;height:6px;border-radius:50%;background:var(--teal);display:block}
+.hero h1{font-family:'Syne',sans-serif;font-size:clamp(40px,7vw,76px);font-weight:800;line-height:1.05;letter-spacing:-2px;margin-bottom:24px;animation:fadeUp .7s .1s ease both}
+.hero h1 em{font-style:normal;color:var(--teal)}
+.hero-sub{font-size:clamp(16px,2.5vw,20px);color:var(--muted);max-width:580px;margin:0 auto 40px;font-weight:300;line-height:1.7;animation:fadeUp .7s .2s ease both}
+.hero-btns{display:flex;align-items:center;justify-content:center;gap:14px;flex-wrap:wrap;animation:fadeUp .7s .3s ease both}
+.btn-primary{padding:14px 32px;background:var(--teal);color:#0a0f0d;border-radius:12px;font-weight:700;font-size:15px;text-decoration:none;transition:.2s;display:inline-flex;align-items:center;gap:8px;box-shadow:0 0 40px rgba(0,196,154,.25)}
+.btn-primary:hover{background:#00e8b5;transform:translateY(-2px);box-shadow:0 0 60px rgba(0,196,154,.35)}
+.btn-secondary{padding:14px 32px;background:transparent;color:var(--text);border:1.5px solid rgba(255,255,255,.15);border-radius:12px;font-weight:600;font-size:15px;text-decoration:none;transition:.2s}
+.btn-secondary:hover{border-color:var(--teal);color:var(--teal)}
+.hero-note{font-size:12px;color:var(--muted);margin-top:16px;animation:fadeUp .7s .4s ease both}
+
+.stats-bar{position:relative;z-index:1;display:grid;grid-template-columns:repeat(4,1fr);border-top:1px solid var(--border);border-bottom:1px solid var(--border);background:var(--bg2)}
+.stat-item{padding:32px 24px;border-right:1px solid var(--border);text-align:center}
+.stat-item:last-child{border-right:none}
+.stat-num{font-family:'Syne',sans-serif;font-size:46px;font-weight:800;color:var(--teal);line-height:1;margin-bottom:6px}
+.stat-label{font-size:13px;color:var(--muted);font-weight:500}
+
+section{position:relative;z-index:1}
+.section-inner{max-width:1200px;margin:0 auto;padding:100px 40px}
+.section-tag{display:inline-flex;align-items:center;gap:8px;font-size:11px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--teal);margin-bottom:16px}
+.section-tag::before{content:'';display:block;width:20px;height:1.5px;background:var(--teal)}
+.section-h2{font-family:'Syne',sans-serif;font-size:clamp(28px,4vw,48px);font-weight:800;line-height:1.1;letter-spacing:-1px;margin-bottom:16px}
+.section-sub{font-size:17px;color:var(--muted);max-width:560px;font-weight:300;line-height:1.7}
+
+.modules-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:1px;background:var(--border);border:1px solid var(--border);border-radius:var(--r);overflow:hidden;margin-top:56px}
+.module-card{background:var(--bg2);padding:28px;transition:.2s}
+.module-card:hover{background:rgba(0,196,154,.04)}
+.module-icon{width:48px;height:48px;border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:22px;margin-bottom:16px;border:1px solid var(--border);background:rgba(0,196,154,.06)}
+.module-name{font-family:'Syne',sans-serif;font-size:16px;font-weight:700;margin-bottom:6px}
+.module-desc{font-size:13px;color:var(--muted);line-height:1.6}
+.module-tags{display:flex;gap:6px;flex-wrap:wrap;margin-top:12px}
+.module-tag{font-size:10px;font-weight:600;padding:2px 8px;border-radius:20px;background:var(--teal3);color:var(--teal);border:1px solid rgba(0,196,154,.2)}
+
+.ai-section{background:var(--bg2)}
+.ai-inner{max-width:1200px;margin:0 auto;padding:100px 40px;display:grid;grid-template-columns:1fr 1fr;gap:80px;align-items:center}
+.ai-features{display:flex;flex-direction:column;gap:16px;margin-top:36px}
+.ai-feat{display:flex;gap:16px;align-items:flex-start;padding:20px;border:1px solid var(--border);border-radius:14px;background:var(--card);transition:.2s}
+.ai-feat:hover{border-color:rgba(0,196,154,.3);background:rgba(0,196,154,.04)}
+.ai-feat-icon{width:40px;height:40px;border-radius:10px;background:linear-gradient(135deg,var(--teal3),rgba(0,196,154,.1));border:1px solid var(--border);display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0}
+.ai-feat h4{font-size:14px;font-weight:700;margin-bottom:4px}
+.ai-feat p{font-size:13px;color:var(--muted);line-height:1.6}
+.ai-demo{background:var(--bg);border:1px solid var(--border);border-radius:20px;padding:28px;position:relative;overflow:hidden}
+.ai-demo-header{display:flex;align-items:center;gap:8px;padding-bottom:16px;border-bottom:1px solid var(--border);margin-bottom:20px}
+.ai-demo-dot{width:8px;height:8px;border-radius:50%;background:var(--teal);animation:pulse 2s ease-in-out infinite}
+.ai-demo-title{font-size:12px;font-weight:700;color:var(--teal);text-transform:uppercase;letter-spacing:.1em}
+.ai-chat{display:flex;flex-direction:column;gap:14px}
+.ai-msg{padding:12px 16px;border-radius:12px;font-size:13px;line-height:1.7}
+.ai-msg.user{background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.08);align-self:flex-end;max-width:85%;color:var(--muted)}
+.ai-msg.gem{background:rgba(0,196,154,.08);border:1px solid rgba(0,196,154,.2)}
+.ai-msg.gem strong{color:var(--teal)}
+.cursor{display:inline-block;width:2px;height:13px;background:var(--teal);animation:blink .8s step-end infinite;vertical-align:middle;margin-left:2px}
+@keyframes blink{0%,100%{opacity:1}50%{opacity:0}}
+
+.pricing-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:20px;margin-top:56px}
+.plan-card{padding:32px;border:1px solid var(--border);border-radius:20px;background:var(--card);position:relative;transition:.2s}
+.plan-card:hover{border-color:rgba(0,196,154,.3);transform:translateY(-4px)}
+.plan-card.featured{border-color:var(--teal);background:linear-gradient(135deg,rgba(0,196,154,.08),rgba(0,196,154,.02));box-shadow:0 0 60px rgba(0,196,154,.1)}
+.plan-badge{position:absolute;top:-12px;left:50%;transform:translateX(-50%);background:var(--teal);color:#0a0f0d;padding:4px 16px;border-radius:100px;font-size:11px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;white-space:nowrap}
+.plan-name{font-family:'Syne',sans-serif;font-size:13px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.1em;margin-bottom:12px}
+.plan-price{font-family:'Syne',sans-serif;font-size:40px;font-weight:800;line-height:1;margin-bottom:4px}
+.plan-price sup{font-size:18px;color:var(--muted)}
+.plan-price span{font-size:16px;color:var(--muted);font-weight:400}
+.plan-cycle{font-size:13px;color:var(--muted);margin-bottom:24px}
+.plan-divider{height:1px;background:var(--border);margin-bottom:24px}
+.plan-feats{display:flex;flex-direction:column;gap:10px;margin-bottom:28px}
+.plan-feat{display:flex;align-items:flex-start;gap:10px;font-size:13px;color:var(--muted)}
+.plan-feat::before{content:'✓';color:var(--teal);font-weight:800;flex-shrink:0;margin-top:1px}
+.plan-feat.dim{color:rgba(122,143,122,.4)}
+.plan-feat.dim::before{content:'–';color:rgba(122,143,122,.3)}
+.plan-btn{display:block;text-align:center;padding:13px;border-radius:12px;font-weight:700;font-size:14px;text-decoration:none;transition:.2s;margin-top:auto}
+.plan-btn.p{background:var(--teal);color:#0a0f0d}
+.plan-btn.p:hover{background:#00e8b5}
+.plan-btn.o{border:1.5px solid var(--border);color:var(--text);background:transparent}
+.plan-btn.o:hover{border-color:var(--teal);color:var(--teal)}
+.plan-trial{text-align:center;font-size:12px;color:var(--muted);margin-top:12px}
+
+.testi-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:20px;margin-top:56px}
+.testi-card{padding:28px;border:1px solid var(--border);border-radius:16px;background:var(--card)}
+.testi-stars{color:#fbbf24;font-size:14px;margin-bottom:16px;letter-spacing:2px}
+.testi-text{font-size:14px;color:var(--muted);line-height:1.8;font-style:italic;margin-bottom:20px}
+.testi-author{display:flex;align-items:center;gap:12px}
+.testi-avatar{width:40px;height:40px;border-radius:50%;background:linear-gradient(135deg,var(--teal3),var(--teal2));display:flex;align-items:center;justify-content:center;font-family:'Syne',sans-serif;font-size:14px;font-weight:800;color:var(--teal);border:1px solid var(--border);flex-shrink:0}
+.testi-name{font-size:14px;font-weight:700}
+.testi-role{font-size:12px;color:var(--muted)}
+
+.cta-section{background:linear-gradient(135deg,rgba(0,196,154,.08),rgba(0,77,61,.15));border-top:1px solid var(--border);border-bottom:1px solid var(--border)}
+.cta-inner{max-width:700px;margin:0 auto;padding:100px 40px;text-align:center}
+.cta-inner h2{font-family:'Syne',sans-serif;font-size:clamp(28px,4vw,48px);font-weight:800;letter-spacing:-1px;margin-bottom:20px;line-height:1.1}
+.cta-inner p{font-size:17px;color:var(--muted);margin-bottom:40px;font-weight:300}
+
+footer{position:relative;z-index:1;border-top:1px solid var(--border);padding:48px 40px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:20px}
+.footer-logo{font-family:'Syne',sans-serif;font-weight:800;font-size:16px;color:var(--text);text-decoration:none}
+.footer-links{display:flex;gap:24px;flex-wrap:wrap}
+.footer-links a{font-size:13px;color:var(--muted);text-decoration:none;transition:color .2s}
+.footer-links a:hover{color:var(--teal)}
+.footer-copy{font-size:12px;color:var(--muted)}
+
+@keyframes fadeUp{from{opacity:0;transform:translateY(20px)}to{opacity:1;transform:translateY(0)}}
+.reveal{opacity:0;transform:translateY(24px);transition:opacity .6s ease,transform .6s ease}
+.reveal.visible{opacity:1;transform:none}
+.d1{transition-delay:.1s}.d2{transition-delay:.2s}.d3{transition-delay:.3s}.d4{transition-delay:.4s}
+
+@media(max-width:900px){
+  nav{padding:0 20px}
+  .nav-links{display:none}
+  .hero{padding:100px 20px 60px}
+  .stats-bar{grid-template-columns:repeat(2,1fr)}
+  .stat-item{border-right:none;border-bottom:1px solid var(--border)}
+  .stat-item:nth-child(odd){border-right:1px solid var(--border)}
+  .stat-item:nth-last-child(-n+2){border-bottom:none}
+  .section-inner{padding:60px 20px}
+  .ai-inner{grid-template-columns:1fr;gap:40px;padding:60px 20px}
+  .pricing-grid{grid-template-columns:1fr}
+  .testi-grid{grid-template-columns:1fr}
+  footer{flex-direction:column;align-items:flex-start;padding:32px 20px}
+}
+@media(max-width:600px){
+  .modules-grid{grid-template-columns:1fr}
+  .hero-btns{flex-direction:column;align-items:stretch}
+  .btn-primary,.btn-secondary{text-align:center;justify-content:center}
+}
+</style>
+</head>
+<body>
+
+<!-- Nav -->
+<nav>
+  <a href="/" class="nav-logo"><div class="nav-dot"></div>GEM &amp; CLAUDE PM</a>
+  <div class="nav-links">
+    <a href="#modules">Tính năng</a>
+    <a href="#ai">AI</a>
+    <a href="#pricing">Bảng giá</a>
+    <a href="mailto:support@gemclaudepm.com">Liên hệ</a>
+  </div>
+  <div style="display:flex;align-items:center;gap:10px">
+    <a href="https://gemclaudepm.com" class="btn-outline">Đăng nhập</a>
+    <a href="https://gemclaudepm.com" class="btn-cta">Dùng thử miễn phí</a>
+  </div>
+</nav>
+
+<!-- Hero -->
+<section class="hero">
+  <div class="hero-glow"></div>
+  <div style="position:relative;z-index:1;max-width:880px">
+    <div class="hero-badge"><i></i>Tích hợp AI Gemini — Made in Vietnam</div>
+    <h1>Quản lý dự án xây dựng<br/><em>thông minh hơn</em></h1>
+    <p class="hero-sub">Từ BOQ đến bàn giao — toàn bộ trong 1 nền tảng.<br/>AI phân tích rủi ro, nhắc việc, báo cáo tức thời.</p>
+    <div class="hero-btns">
+      <a href="https://gemclaudepm.com" class="btn-primary">
+        Dùng thử 30 ngày miễn phí
+        <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+      </a>
+      <a href="#modules" class="btn-secondary">Xem tính năng ↓</a>
+    </div>
+    <p class="hero-note">Không cần thẻ tín dụng · Không cần cài đặt · Chạy trên điện thoại &amp; máy tính</p>
+  </div>
+</section>
+
+<!-- Stats -->
+<div class="stats-bar">
+  <div class="stat-item reveal"><div class="stat-num" data-target="18">0</div><div class="stat-label">Module quản lý tích hợp</div></div>
+  <div class="stat-item reveal d1"><div class="stat-num" data-target="30">0</div><div class="stat-label">Ngày trial miễn phí</div></div>
+  <div class="stat-item reveal d2"><div class="stat-num" data-target="100" data-suffix="%">0</div><div class="stat-label">Dữ liệu real-time</div></div>
+  <div class="stat-item reveal d3"><div class="stat-num" data-target="24" data-suffix="/7">0</div><div class="stat-label">AI hỗ trợ mọi lúc</div></div>
+</div>
+
+<!-- Modules -->
+<section id="modules">
+  <div class="section-inner">
+    <div class="reveal">
+      <div class="section-tag">Tính năng</div>
+      <h2 class="section-h2">Đủ module cho mọi<br/>giai đoạn dự án</h2>
+      <p class="section-sub">Mọi dữ liệu đều kết nối với nhau theo thời gian thực. Phân quyền theo vai trò tự động.</p>
+    </div>
+    <div class="modules-grid reveal">
+      <div class="module-card"><div class="module-icon">📊</div><div class="module-name">BOQ &amp; Dự toán</div><div class="module-desc">Bóc tách khối lượng, thư viện đơn giá, import Excel, tính toán tự động.</div><div class="module-tags"><span class="module-tag">TCVN</span><span class="module-tag">Excel import</span></div></div>
+      <div class="module-card"><div class="module-icon">📈</div><div class="module-name">Tiến độ &amp; Gantt</div><div class="module-desc">Gantt chart kéo thả, milestone tracking, EVM (SPI/CPI), cảnh báo chậm.</div><div class="module-tags"><span class="module-tag">EVM</span><span class="module-tag">S-Curve</span><span class="module-tag">Gantt</span></div></div>
+      <div class="module-card"><div class="module-icon">💰</div><div class="module-name">QS &amp; Thanh toán</div><div class="module-desc">Nghiệm thu khối lượng, đề nghị thanh toán, quản lý nhà thầu phụ.</div><div class="module-tags"><span class="module-tag">Nhà thầu phụ</span><span class="module-tag">Bảo lưu</span></div></div>
+      <div class="module-card"><div class="module-icon">🦺</div><div class="module-name">HSE &amp; An toàn</div><div class="module-desc">Báo cáo sự cố, vi phạm, đào tạo ATLĐ, PTW, Toolbox Talk, chứng chỉ.</div><div class="module-tags"><span class="module-tag">PTW</span><span class="module-tag">Toolbox</span><span class="module-tag">NCR</span></div></div>
+      <div class="module-card"><div class="module-icon">✅</div><div class="module-name">QA/QC &amp; Nghiệm thu</div><div class="module-desc">ITP checklist, NCR tracker, biên bản nghiệm thu, phản hồi CĐT/TVGS.</div><div class="module-tags"><span class="module-tag">ITP</span><span class="module-tag">NCR</span><span class="module-tag">TVGS</span></div></div>
+      <div class="module-card"><div class="module-icon">👥</div><div class="module-name">Nhân sự &amp; Lương</div><div class="module-desc">Chấm công, lương BHXH/BHYT/PIT 2024, ca 3 shift, hợp đồng lao động.</div><div class="module-tags"><span class="module-tag">BHXH</span><span class="module-tag">Lương NET</span></div></div>
+      <div class="module-card"><div class="module-icon">🏗️</div><div class="module-name">Thiết bị &amp; Vật tư</div><div class="module-desc">Nhật ký thiết bị, bảo dưỡng định kỳ, xuất/nhập kho, kiểm kê tồn.</div><div class="module-tags"><span class="module-tag">OEE</span><span class="module-tag">Kho</span></div></div>
+      <div class="module-card"><div class="module-icon">📋</div><div class="module-name">Hồ sơ &amp; Bản vẽ</div><div class="module-desc">Revision control, RFI, phiên bản thi công, liên kết NCR.</div><div class="module-tags"><span class="module-tag">RFI</span><span class="module-tag">Rev control</span></div></div>
+      <div class="module-card"><div class="module-icon">🏛️</div><div class="module-name">Cổng CĐT &amp; NTP</div><div class="module-desc">Portal riêng cho Chủ đầu tư &amp; Nhà thầu phụ — xem tiến độ, duyệt thanh toán.</div><div class="module-tags"><span class="module-tag">Multi-tenant</span><span class="module-tag">Phân quyền</span></div></div>
+    </div>
+  </div>
+</section>
+
+<!-- AI -->
+<section class="ai-section" id="ai">
+  <div class="ai-inner">
+    <div>
+      <div class="section-tag reveal">Trí tuệ nhân tạo</div>
+      <h2 class="section-h2 reveal">GEM AI —<br/>trợ lý PM<br/>không ngủ</h2>
+      <p class="section-sub reveal">Powered by Gemini — đọc toàn bộ dữ liệu dự án, phân tích rủi ro, đề xuất hành động tức thì.</p>
+      <div class="ai-features">
+        <div class="ai-feat reveal"><div class="ai-feat-icon">🧠</div><div><h4>GEM Daily Briefing</h4><p>Mỗi sáng AI tổng hợp tình trạng tất cả dự án — rủi ro, deadline, NCR tồn đọng.</p></div></div>
+        <div class="ai-feat reveal d1"><div class="ai-feat-icon">⚠️</div><div><h4>Early Warning Indicators</h4><p>Phát hiện dự án SPI &lt; 0.85, NCR tăng đột biến, chứng chỉ ATLĐ sắp hết hạn.</p></div></div>
+        <div class="ai-feat reveal d2"><div class="ai-feat-icon">📝</div><div><h4>Soạn văn bản tự động</h4><p>AI soạn biên bản họp, báo cáo tiến độ, thư gửi CĐT từ dữ liệu thực của dự án.</p></div></div>
+        <div class="ai-feat reveal d3"><div class="ai-feat-icon">🎙️</div><div><h4>Nhập liệu bằng giọng nói</h4><p>Nói tiếng Việt tại công trường — AI hiểu và điền vào form tự động.</p></div></div>
+      </div>
+    </div>
+    <div class="reveal">
+      <div class="ai-demo">
+        <div class="ai-demo-header"><div class="ai-demo-dot"></div><div class="ai-demo-title">GEM AI Assistant</div></div>
+        <div class="ai-chat">
+          <div class="ai-msg user">Tình trạng dự án Villa PAT hôm nay thế nào?</div>
+          <div class="ai-msg gem">
+            <strong>📊 Villa PAT — Báo cáo 21/03/2026</strong><br/><br/>
+            🔴 <strong>SPI = 0.83</strong> — Tiến độ chậm hơn kế hoạch 17%<br/>
+            ⚠️ Tầng hầm B1 trễ <strong>12 ngày</strong> so với baseline<br/>
+            🦺 <strong>4 vi phạm HSE</strong> chưa đóng — cần xử lý trước 25/03<br/>
+            💰 TT-003 (<strong>5.4 tỷ</strong>) đang chờ CĐT duyệt<br/><br/>
+            <strong>→ Đề xuất:</strong> Họp gấp với NTP tổ sắt, tăng ca cuối tuần để bù 5 ngày.
+          </div>
+          <div class="ai-msg user">Soạn thư báo cáo tiến độ gửi CĐT</div>
+          <div class="ai-msg gem">
+            <strong>Kính gửi Ban QLDA Hoàng Long,</strong><br/><br/>
+            Báo cáo tiến độ tầng hầm B1 tính đến 21/03: hiện chậm 12 ngày do địa chất phức tạp. Chúng tôi đã triển khai tăng ca và dự kiến hoàn thành trước 15/04...<span class="cursor"></span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- Pricing -->
+<section id="pricing">
+  <div class="section-inner">
+    <div class="reveal" style="text-align:center">
+      <div class="section-tag" style="justify-content:center">Bảng giá</div>
+      <h2 class="section-h2">Minh bạch, không ràng buộc</h2>
+      <p class="section-sub" style="margin:0 auto">Trial 30 ngày miễn phí toàn bộ tính năng. Nâng cấp bất cứ lúc nào.</p>
+    </div>
+    <div class="pricing-grid">
+      <div class="plan-card reveal">
+        <div class="plan-name">Starter</div>
+        <div class="plan-price"><sup>₫</sup>990<span>K</span></div>
+        <div class="plan-cycle">/ tháng · tối đa 5 dự án</div>
+        <div class="plan-divider"></div>
+        <div class="plan-feats">
+          <div class="plan-feat">BOQ, QS, Tiến độ cơ bản</div>
+          <div class="plan-feat">HSE, QA/QC, Vật tư</div>
+          <div class="plan-feat">5 user accounts</div>
+          <div class="plan-feat">GEM AI Briefing</div>
+          <div class="plan-feat dim">BIM Viewer</div>
+          <div class="plan-feat dim">ClientPortal / SubconPortal</div>
+        </div>
+        <a href="https://gemclaudepm.com" class="plan-btn o">Dùng thử miễn phí</a>
+        <div class="plan-trial">30 ngày free · Không cần thẻ</div>
+      </div>
+      <div class="plan-card featured reveal d1">
+        <div class="plan-badge">Phổ biến nhất</div>
+        <div class="plan-name">Pro</div>
+        <div class="plan-price"><sup>₫</sup>2.490<span>K</span></div>
+        <div class="plan-cycle">/ tháng · không giới hạn dự án</div>
+        <div class="plan-divider"></div>
+        <div class="plan-feats">
+          <div class="plan-feat">Tất cả tính năng Starter</div>
+          <div class="plan-feat">Không giới hạn user &amp; dự án</div>
+          <div class="plan-feat">BIM Viewer (IFC)</div>
+          <div class="plan-feat">ClientPortal &amp; SubconPortal</div>
+          <div class="plan-feat">AI Voice nhập liệu giọng nói</div>
+          <div class="plan-feat">Export báo cáo PDF/Excel</div>
+        </div>
+        <a href="https://gemclaudepm.com" class="plan-btn p">Bắt đầu ngay</a>
+        <div class="plan-trial">30 ngày free · Không cần thẻ</div>
+      </div>
+      <div class="plan-card reveal d2">
+        <div class="plan-name">Enterprise</div>
+        <div class="plan-price" style="font-size:32px">Liên hệ</div>
+        <div class="plan-cycle">Theo nhu cầu doanh nghiệp</div>
+        <div class="plan-divider"></div>
+        <div class="plan-feats">
+          <div class="plan-feat">Tất cả tính năng Pro</div>
+          <div class="plan-feat">Supabase riêng (Single-tenant)</div>
+          <div class="plan-feat">Tùy chỉnh theo quy trình</div>
+          <div class="plan-feat">Onboarding &amp; đào tạo team</div>
+          <div class="plan-feat">SLA &amp; hỗ trợ ưu tiên 24/7</div>
+          <div class="plan-feat">SSO / LDAP integration</div>
+        </div>
+        <a href="mailto:sales@gemclaudepm.com" class="plan-btn o">Liên hệ tư vấn</a>
+        <div class="plan-trial">Miễn phí POC 2 tuần cho DN &gt;50 user</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- Testimonials -->
+<section style="background:var(--bg2)">
+  <div class="section-inner">
+    <div class="reveal" style="text-align:center">
+      <div class="section-tag" style="justify-content:center">Khách hàng nói gì</div>
+      <h2 class="section-h2">Được tin dùng bởi<br/>các PM thực chiến</h2>
+    </div>
+    <div class="testi-grid">
+      <div class="testi-card reveal">
+        <div class="testi-stars">★★★★★</div>
+        <p class="testi-text">"Trước đây tôi quản lý 3 dự án bằng Excel và Zalo — mất hàng giờ mỗi sáng tổng hợp báo cáo. Giờ GEM AI làm xong trong 2 phút, còn chính xác hơn."</p>
+        <div class="testi-author"><div class="testi-avatar">TV</div><div><div class="testi-name">Trần Văn Bình</div><div class="testi-role">Chỉ huy trưởng — Dự án Khu đô thị 450 tỷ</div></div></div>
+      </div>
+      <div class="testi-card reveal d1">
+        <div class="testi-stars">★★★★★</div>
+        <p class="testi-text">"Module HSE với PTW và Toolbox Talk giúp tôi kiểm soát an toàn lao động chặt chẽ hơn nhiều. Sự cố giảm 60% so với năm ngoái."</p>
+        <div class="testi-author"><div class="testi-avatar">LT</div><div><div class="testi-name">Lê Thanh Hải</div><div class="testi-role">HSE Manager — Tổng thầu EPC 200 tỷ</div></div></div>
+      </div>
+      <div class="testi-card reveal d2">
+        <div class="testi-stars">★★★★★</div>
+        <p class="testi-text">"CĐT của tôi rất ấn tượng khi thấy ClientPortal — họ tự xem tiến độ, thanh toán mà không cần hỏi tôi nữa. Chuyên nghiệp hơn hẳn."</p>
+        <div class="testi-author"><div class="testi-avatar">PM</div><div><div class="testi-name">Phạm Minh Tuấn</div><div class="testi-role">Giám đốc Dự án — Nhà thầu Top 10 HCM</div></div></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- CTA -->
+<section class="cta-section">
+  <div class="cta-inner">
+    <div class="reveal">
+      <h2>Sẵn sàng quản lý dự án<br/>thông minh hơn?</h2>
+      <p>Đăng ký ngay hôm nay — 30 ngày trial miễn phí, không cần thẻ tín dụng, không cần cài đặt.</p>
+      <div style="display:flex;gap:14px;justify-content:center;flex-wrap:wrap">
+        <a href="https://gemclaudepm.com" class="btn-primary" style="font-size:16px;padding:16px 36px">
+          Bắt đầu miễn phí
+          <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+        </a>
+        <a href="mailto:sales@gemclaudepm.com" class="btn-secondary" style="font-size:16px;padding:16px 36px">Liên hệ tư vấn</a>
+      </div>
+      <p style="font-size:13px;color:var(--muted);margin-top:20px">Hoặc gọi: <strong style="color:var(--teal)">0901 234 567</strong> · Email: <strong style="color:var(--teal)">sales@gemclaudepm.com</strong></p>
+    </div>
+  </div>
+</section>
+
+<!-- Footer -->
+<footer>
+  <a href="/" class="footer-logo">GEM &amp; CLAUDE PM Pro</a>
+  <div class="footer-links">
+    <a href="#modules">Tính năng</a>
+    <a href="#pricing">Bảng giá</a>
+    <a href="https://gemclaudepm.com">Đăng nhập</a>
+    <a href="mailto:support@gemclaudepm.com">Hỗ trợ</a>
+    <a href="mailto:sales@gemclaudepm.com">Sales</a>
+  </div>
+  <div class="footer-copy">© 2026 GEM &amp; CLAUDE PM Pro · Made in Vietnam 🇻🇳</div>
+</footer>
+
+<script>
+// Scroll reveal
+const observer = new IntersectionObserver((entries) => {
+  entries.forEach(e => { if (e.isIntersecting) e.target.classList.add('visible'); });
+}, { threshold: 0.1 });
+document.querySelectorAll('.reveal').forEach(el => observer.observe(el));
+
+// Count-up animation for stats
+function countUp(el, target, suffix='') {
+  const dur = 1600, step = 16;
+  const steps = dur / step;
+  let cur = 0;
+  const inc = target / steps;
+  const timer = setInterval(() => {
+    cur = Math.min(cur + inc, target);
+    el.textContent = Math.round(cur) + suffix;
+    if (cur >= target) clearInterval(timer);
+  }, step);
+}
+
+const statsObserver = new IntersectionObserver((entries) => {
+  entries.forEach(e => {
+    if (e.isIntersecting) {
+      const el = e.target;
+      const target = parseInt(el.dataset.target);
+      const suffix = el.dataset.suffix || '';
+      countUp(el, target, suffix);
+      statsObserver.unobserve(el);
+    }
+  });
+}, { threshold: 0.5 });
+document.querySelectorAll('.stat-num[data-target]').forEach(el => statsObserver.observe(el));
+
+// Smooth scroll for anchor links
+document.querySelectorAll('a[href^="#"]').forEach(a => {
+  a.addEventListener('click', e => {
+    e.preventDefault();
+    const id = a.getAttribute('href').slice(1);
+    const el = document.getElementById(id);
+    if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  });
+});
+</script>
+</body>
+</html>
