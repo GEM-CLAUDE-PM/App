@@ -173,6 +173,16 @@ export function GanttChart({
     startX: number; origStart: number; origDur: number;
   } | null>(null);
   const timelineRef = useRef<HTMLDivElement>(null);
+  const [timelineWidth, setTimelineWidth] = React.useState(0);
+  // Measure timeline width sau khi mount + khi resize
+  React.useEffect(() => {
+    if (!timelineRef.current) return;
+    const measure = () => setTimelineWidth(timelineRef.current?.getBoundingClientRect().width ?? 0);
+    measure();
+    const ro = new ResizeObserver(measure);
+    ro.observe(timelineRef.current);
+    return () => ro.disconnect();
+  }, [items.length]);
 
   React.useEffect(() => { setItems(tasks); }, [tasks]);
 
@@ -384,6 +394,7 @@ export function GanttChart({
   const rowsContainerRef = useRef<HTMLDivElement>(null);
 
   const onRowPointerDown = (e: React.PointerEvent, idx: number) => {
+    if (e.button !== 0) return; // chỉ left-click mới drag row
     e.preventDefault();
     setDragMode('row');
     setDraggingRow(idx);
@@ -657,7 +668,7 @@ export function GanttChart({
 
                 {/* Name */}
                 <div className="w-52 shrink-0 px-4 py-3"
-                  onContextMenu={e => { e.preventDefault(); setCtxMenu({ taskIdx: idx, x: e.clientX, y: e.clientY }); }}>
+                  onContextMenu={e => { e.preventDefault(); e.stopPropagation(); setCtxMenu({ taskIdx: idx, x: e.clientX, y: e.clientY }); }}>
                   <p className={`text-xs truncate ${
                       linkingFrom !== null && linkingFrom !== idx ? 'text-orange-600 cursor-pointer hover:underline font-semibold'
                       : showCritical && task.wbsId && criticalPathIds.has(task.wbsId) ? 'text-rose-700 font-black'
@@ -673,7 +684,7 @@ export function GanttChart({
                      className="flex-1 px-3 py-3 relative flex items-center"
                      onPointerMove={onTimelinePointerMove}
                      onPointerUp={onTimelinePointerUp}
-                     onContextMenu={e => { e.preventDefault(); setCtxMenu({ taskIdx: idx, x: e.clientX, y: e.clientY }); }}>
+                     onContextMenu={e => { e.preventDefault(); e.stopPropagation(); setCtxMenu({ taskIdx: idx, x: e.clientX, y: e.clientY }); }}>
                   {/* Grid lines — theo tick marks */}
                   {headerTicks.map((tick, gi) => (
                     <div key={gi} className="absolute top-0 bottom-0 border-l border-slate-100"
@@ -824,41 +835,56 @@ export function GanttChart({
           </div>{/* end rowsContainerRef */}
 
           {/* S32.5 — SVG Dependency Arrows Overlay */}
-          {showDepArrows && depArrows.length > 0 && (
-            <div className="relative pointer-events-none" style={{ marginTop: -items.length * ROW_H }}>
-              <svg
-                width="100%" height={items.length * ROW_H}
-                viewBox={`0 0 100 ${items.length * ROW_H}`}
-                preserveAspectRatio="none"
-                style={{ position: 'absolute', left: NAME_W + LEFT_PAD, top: 0, overflow: 'visible', width: `calc(100% - ${NAME_W + LEFT_PAD}px)` }}
-                className="pointer-events-none"
-              >
-                <defs>
-                  <marker id="arrowOrange" markerWidth="4" markerHeight="4" refX="3.5" refY="2" orient="auto" markerUnits="userSpaceOnUse">
-                    <path d="M0,0 L0,4 L4,2 z" fill="#f97316"/>
-                  </marker>
-                  <marker id="arrowRed" markerWidth="4" markerHeight="4" refX="3.5" refY="2" orient="auto" markerUnits="userSpaceOnUse">
-                    <path d="M0,0 L0,4 L4,2 z" fill="#ef4444"/>
-                  </marker>
-                </defs>
-                {depArrows.map((a, i) => {
-                  const color = a.isViolation ? '#ef4444' : '#f97316';
-                  const markerId = a.isViolation ? 'arrowRed' : 'arrowOrange';
-                  const cx = (a.x1 + a.x2) / 2;
-                  return (
-                    <path key={i}
-                      d={`M ${a.x1} ${a.y1} C ${cx} ${a.y1}, ${cx} ${a.y2}, ${a.x2} ${a.y2}`}
-                      fill="none" stroke={color} strokeWidth="0.6"
-                      strokeOpacity="0.75"
-                      markerEnd={`url(#${markerId})`}
-                      strokeDasharray={a.isViolation ? '2 1' : undefined}
-                    />
-                  );
-                })}
-              </svg>
-              <div style={{ height: items.length * ROW_H }}/>
-            </div>
-          )}
+          {showDepArrows && depArrows.length > 0 && timelineWidth > 0 && (() => {
+            const timelineW = timelineWidth;
+            return (
+              <div className="relative pointer-events-none" style={{ marginTop: -items.length * ROW_H }}>
+                <svg
+                  style={{
+                    position: 'absolute',
+                    left: NAME_W + LEFT_PAD,
+                    top: 0,
+                    width: timelineW,
+                    height: items.length * ROW_H,
+                    overflow: 'visible',
+                  }}
+                  className="pointer-events-none"
+                >
+                  <defs>
+                    <marker id="arrowOrange" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
+                      <path d="M0,0 L0,6 L7,3 z" fill="#f97316"/>
+                    </marker>
+                    <marker id="arrowRed" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
+                      <path d="M0,0 L0,6 L7,3 z" fill="#ef4444"/>
+                    </marker>
+                  </defs>
+                  {depArrows.map((a, i) => {
+                    // a.x1, a.x2 là % (0-100) — convert sang pixel
+                    const px1 = (a.x1 / 100) * timelineW;
+                    const px2 = (a.x2 / 100) * timelineW;
+                    const py1 = a.y1;
+                    const py2 = a.y2;
+                    const color = a.isViolation ? '#ef4444' : '#f97316';
+                    const markerId = a.isViolation ? 'arrowRed' : 'arrowOrange';
+                    // Bezier control point
+                    const cx = px1 + Math.max(20, Math.abs(px2 - px1) * 0.5);
+                    return (
+                      <path key={i}
+                        d={`M ${px1} ${py1} C ${cx} ${py1}, ${cx} ${py2}, ${px2} ${py2}`}
+                        fill="none"
+                        stroke={color}
+                        strokeWidth="1.5"
+                        strokeOpacity="0.8"
+                        strokeDasharray={a.isViolation ? '4 2' : undefined}
+                        markerEnd={`url(#${markerId})`}
+                      />
+                    );
+                  })}
+                </svg>
+                <div style={{ height: items.length * ROW_H }}/>
+              </div>
+            );
+          })()}
         </div>
       </div>
 
