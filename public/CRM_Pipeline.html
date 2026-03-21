@@ -1,0 +1,613 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>GEM PM — CRM Pipeline</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet"/>
+<style>
+:root{--teal:#1a8a7a;--teal-l:#e6f4f2;--teal-d:#0f5f54;--rust:#c47a5a;--slate:#1e293b;--muted:#64748b;--border:#e2e8f0;--bg:#f8fafc;--cold:#3b82f6;--warm:#f97316;--hot:#ef4444;--won:#10b981;--lost:#94a3b8;--r:14px;--sh:0 1px 3px rgba(0,0,0,.06),0 4px 16px rgba(0,0,0,.06)}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Be Vietnam Pro',sans-serif;background:var(--bg);color:var(--slate);min-height:100vh}
+#auth-gate{position:fixed;inset:0;background:linear-gradient(135deg,#0f5f54,#1a8a7a,#c47a5a);display:flex;align-items:center;justify-content:center;z-index:999}
+.auth-box{background:white;border-radius:24px;padding:40px;width:360px;text-align:center;box-shadow:0 24px 80px rgba(0,0,0,.2)}
+.auth-logo{width:64px;height:64px;background:linear-gradient(135deg,var(--teal),var(--rust));border-radius:18px;display:flex;align-items:center;justify-content:center;margin:0 auto 16px;font-size:28px}
+.auth-box h2{font-size:20px;font-weight:800;margin-bottom:4px}
+.auth-box p{font-size:13px;color:var(--muted);margin-bottom:24px}
+.auth-input{width:100%;padding:12px 16px;border:2px solid var(--border);border-radius:12px;font-family:inherit;font-size:14px;outline:none;transition:.2s}
+.auth-input:focus{border-color:var(--teal)}
+.auth-btn{width:100%;padding:13px;background:var(--teal);color:white;border:none;border-radius:12px;font-family:inherit;font-size:14px;font-weight:700;cursor:pointer;margin-top:12px}
+.auth-btn:hover{background:var(--teal-d)}
+.auth-err{color:#ef4444;font-size:12px;margin-top:8px}
+header{background:white;border-bottom:1px solid var(--border);padding:0 24px;height:60px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:100}
+.logo{display:flex;align-items:center;gap:10px;font-weight:800;font-size:16px}
+.logo-icon{width:36px;height:36px;background:linear-gradient(135deg,var(--teal),var(--rust));border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:16px}
+.header-right{display:flex;align-items:center;gap:8px}
+.btn{padding:8px 16px;border-radius:10px;font-family:inherit;font-size:13px;font-weight:600;cursor:pointer;border:none;transition:.15s;display:inline-flex;align-items:center;gap:6px}
+.btn-primary{background:var(--teal);color:white}.btn-primary:hover{background:var(--teal-d)}
+.btn-outline{background:white;color:var(--slate);border:1.5px solid var(--border)}.btn-outline:hover{border-color:var(--teal);color:var(--teal)}
+.btn-danger{background:#fee2e2;color:#dc2626}.btn-danger:hover{background:#fecaca}
+.stats-bar{display:flex;gap:12px;padding:16px 24px;overflow-x:auto}
+.stat-card{background:white;border:1px solid var(--border);border-radius:var(--r);padding:14px 18px;min-width:140px;box-shadow:var(--sh);flex-shrink:0}
+.stat-card .val{font-size:22px;font-weight:800}
+.stat-card .lbl{font-size:11px;color:var(--muted);margin-top:2px;font-weight:500}
+.toolbar{display:flex;align-items:center;gap:10px;padding:0 24px 16px;flex-wrap:wrap}
+.search-wrap{position:relative;flex:1;min-width:200px}
+.search-wrap input{width:100%;padding:9px 12px 9px 34px;border:1.5px solid var(--border);border-radius:10px;font-family:inherit;font-size:13px;outline:none;transition:.2s}
+.search-wrap input:focus{border-color:var(--teal)}
+.search-icon{position:absolute;left:11px;top:50%;transform:translateY(-50%);color:var(--muted);font-size:13px}
+.filter-btn{padding:6px 14px;border-radius:20px;font-size:12px;font-weight:600;cursor:pointer;border:1.5px solid var(--border);background:white;color:var(--muted);transition:.15s}
+.filter-btn.active{border-color:var(--teal);color:var(--teal);background:var(--teal-l)}
+.view-toggle{display:flex;background:#f1f5f9;border-radius:10px;padding:3px}
+.view-btn{padding:6px 12px;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer;border:none;background:transparent;color:var(--muted);transition:.15s}
+.view-btn.active{background:white;color:var(--slate);box-shadow:0 1px 3px rgba(0,0,0,.1)}
+#kanban{display:grid;grid-template-columns:repeat(5,1fr);gap:12px;padding:0 24px 24px;align-items:start}
+@media(max-width:1100px){#kanban{grid-template-columns:repeat(3,1fr)}}
+@media(max-width:700px){#kanban{grid-template-columns:1fr 1fr}}
+.col{background:#f1f5f9;border-radius:var(--r);overflow:hidden;border:2px solid transparent;transition:.2s}
+.col.dragover{border-color:var(--teal);background:var(--teal-l);transform:scale(1.01)}
+.col-head{padding:12px 14px;display:flex;align-items:center;justify-content:space-between}
+.col-title{font-size:12px;font-weight:700}
+.col-badge{width:22px;height:22px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:800;color:white}
+.col-sub{font-size:10px;color:var(--muted);padding:0 14px 10px;font-weight:500}
+.col-cards{padding:0 10px 10px;display:flex;flex-direction:column;gap:8px;min-height:80px}
+.col-empty{padding:20px;text-align:center;color:#cbd5e1;font-size:12px}
+.card{background:white;border:1.5px solid var(--border);border-radius:12px;padding:12px;cursor:grab;transition:.15s;position:relative}
+.card:hover{box-shadow:0 4px 16px rgba(0,0,0,.1);border-color:#cbd5e1;transform:translateY(-1px)}
+.card.dragging{opacity:.4}
+.card-company{font-size:13px;font-weight:700;margin-bottom:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.card-code{font-size:10px;color:var(--muted);font-weight:500;margin-bottom:8px}
+.card-row{display:flex;align-items:center;gap:5px;font-size:11px;color:var(--muted);margin-bottom:3px}
+.card-tags{display:flex;gap:4px;flex-wrap:wrap;margin-top:8px}
+.tag{font-size:10px;font-weight:600;padding:2px 8px;border-radius:20px}
+.tag-src{background:#f1f5f9;color:var(--muted)}
+.tag-val{background:#ecfdf5;color:#065f46;border:1px solid #a7f3d0}
+.tag-ov{background:#fee2e2;color:#dc2626;font-weight:700}
+.tag-fu{background:#eff6ff;color:#1d4ed8}
+.card-menu{position:absolute;top:8px;right:8px;opacity:0;transition:.15s}
+.card:hover .card-menu{opacity:1}
+.menu-btn{width:22px;height:22px;border-radius:6px;border:none;background:#f1f5f9;cursor:pointer;font-size:12px;color:var(--muted)}
+.menu-btn:hover{background:var(--teal-l);color:var(--teal)}
+.menu-dd{position:absolute;right:0;top:26px;background:white;border:1px solid var(--border);border-radius:10px;box-shadow:0 8px 24px rgba(0,0,0,.12);z-index:50;min-width:160px;overflow:hidden}
+.menu-item{padding:8px 14px;font-size:12px;font-weight:600;cursor:pointer;color:var(--slate);transition:.1s;white-space:nowrap}
+.menu-item:hover{background:var(--teal-l);color:var(--teal)}
+#list{padding:0 24px 24px;display:none}
+.list-table{background:white;border:1px solid var(--border);border-radius:var(--r);overflow:hidden;box-shadow:var(--sh)}
+.list-head{display:grid;grid-template-columns:90px 1fr 1fr 90px 120px 90px 110px 50px;gap:8px;padding:10px 16px;background:#f8fafc;border-bottom:1px solid var(--border);font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.05em}
+.list-row{display:grid;grid-template-columns:90px 1fr 1fr 90px 120px 90px 110px 50px;gap:8px;padding:11px 16px;border-bottom:1px solid var(--border);font-size:12px;align-items:center;cursor:pointer}
+.list-row:hover{background:#f8fafc}
+.list-row:last-child{border-bottom:none}
+.modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:200;display:flex;align-items:center;justify-content:center;padding:16px}
+.modal{background:white;border-radius:20px;width:100%;max-width:680px;max-height:90vh;overflow-y:auto;box-shadow:0 24px 80px rgba(0,0,0,.2)}
+.modal-head{display:flex;align-items:center;justify-content:space-between;padding:20px 24px;border-bottom:1px solid var(--border);position:sticky;top:0;background:white;z-index:1}
+.modal-head h3{font-size:16px;font-weight:800}
+.modal-close{width:32px;height:32px;border:none;background:#f1f5f9;border-radius:8px;cursor:pointer;font-size:16px;color:var(--muted)}
+.modal-close:hover{background:#fee2e2;color:#dc2626}
+.modal-body{padding:24px}
+.form-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.form-group{display:flex;flex-direction:column;gap:5px}
+.form-group.full{grid-column:1/-1}
+.lbl{font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.05em}
+.fc{padding:10px 12px;border:1.5px solid var(--border);border-radius:10px;font-family:inherit;font-size:13px;outline:none;transition:.2s;width:100%}
+.fc:focus{border-color:var(--teal)}
+textarea.fc{resize:vertical;min-height:70px}
+.stage-btns{display:flex;gap:8px;flex-wrap:wrap}
+.stage-btn{padding:7px 14px;border-radius:20px;font-size:12px;font-weight:700;cursor:pointer;border:2px solid var(--border);background:white;color:var(--muted);transition:.15s}
+.stage-btn.sel-cold{border-color:var(--cold);color:var(--cold);background:#eff6ff}
+.stage-btn.sel-warm{border-color:var(--warm);color:var(--warm);background:#fff7ed}
+.stage-btn.sel-hot{border-color:var(--hot);color:var(--hot);background:#fff1f2}
+.stage-btn.sel-won{border-color:var(--won);color:var(--won);background:#f0fdf4}
+.stage-btn.sel-lost{border-color:var(--lost);color:var(--lost);background:#f8fafc}
+.hist-list{max-height:150px;overflow-y:auto;display:flex;flex-direction:column;gap:6px}
+.h-item{display:flex;gap:10px;padding:10px;background:#f8fafc;border-radius:10px;font-size:12px}
+.h-dot{width:8px;height:8px;border-radius:50%;background:var(--teal);flex-shrink:0;margin-top:3px}
+.note-row{display:flex;gap:8px;margin-bottom:10px}
+.note-row input{flex:1;padding:9px 12px;border:1.5px solid var(--border);border-radius:10px;font-family:inherit;font-size:13px;outline:none}
+.note-row input:focus{border-color:var(--teal)}
+.modal-foot{display:flex;justify-content:space-between;align-items:center;padding:16px 24px;border-top:1px solid var(--border)}
+.sec-lbl{font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;display:block;margin-bottom:8px}
+.toast{position:fixed;bottom:24px;right:24px;padding:12px 20px;border-radius:12px;font-size:13px;font-weight:600;z-index:9999;box-shadow:0 8px 24px rgba(0,0,0,.15);animation:fi .2s ease}
+.toast.ok{background:#10b981;color:white}.toast.err{background:#ef4444;color:white}
+@keyframes fi{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+</style>
+</head>
+<body>
+
+<div id="auth-gate">
+  <div class="auth-box">
+    <div class="auth-logo">💼</div>
+    <h2>GEM PM · CRM Pipeline</h2>
+    <p>Công cụ nội bộ — chỉ dành cho team GEM</p>
+    <input id="pw" class="auth-input" type="password" placeholder="Nhập mật khẩu..."/>
+    <button class="auth-btn" onclick="chkPw()">Truy cập →</button>
+    <div id="auth-err" class="auth-err"></div>
+  </div>
+</div>
+
+<div id="app" style="display:none">
+  <header>
+    <div class="logo"><div class="logo-icon">💼</div>GEM PM · CRM Pipeline</div>
+    <div class="header-right">
+      <button class="btn btn-outline" onclick="expCSV()">⬇ CSV</button>
+      <button class="btn btn-outline" onclick="expXLSX()">📊 Excel</button>
+      <button class="btn btn-primary" onclick="openModal(null)">+ Thêm KH</button>
+    </div>
+  </header>
+
+  <div class="stats-bar">
+    <div class="stat-card"><div class="val" id="s-tot">0</div><div class="lbl">Tổng KH</div></div>
+    <div class="stat-card"><div class="val" id="s-val" style="color:var(--teal)">0</div><div class="lbl">GT ước tính</div></div>
+    <div class="stat-card"><div class="val" id="s-hot" style="color:var(--hot)">0</div><div class="lbl">Hot 💎</div></div>
+    <div class="stat-card"><div class="val" id="s-won" style="color:var(--won)">0</div><div class="lbl">Đã chốt ✅</div></div>
+    <div class="stat-card"><div class="val" id="s-ov" style="color:#ef4444">0</div><div class="lbl">Quá hạn ⚠️</div></div>
+  </div>
+
+  <div class="toolbar">
+    <div class="search-wrap">
+      <span class="search-icon">🔍</span>
+      <input id="q" placeholder="Tìm công ty, tên, SĐT, mã KH..." oninput="render()"/>
+    </div>
+    <div style="display:flex;gap:6px;flex-wrap:wrap">
+      <button class="filter-btn active" onclick="sf('all',this)">Tất cả</button>
+      <button class="filter-btn" onclick="sf('cold',this)">Cold 🥶</button>
+      <button class="filter-btn" onclick="sf('warm',this)">Warm 🔥</button>
+      <button class="filter-btn" onclick="sf('hot',this)">Hot 💎</button>
+      <button class="filter-btn" onclick="sf('closed_won',this)">Đã chốt ✅</button>
+      <button class="filter-btn" onclick="sf('closed_lost',this)">Mất ❌</button>
+    </div>
+    <div class="view-toggle">
+      <button class="view-btn active" id="vk" onclick="sv('kanban')">⊞ Kanban</button>
+      <button class="view-btn" id="vl" onclick="sv('list')">≡ List</button>
+      <button class="view-btn" id="ve" onclick="sv('email')">📧 Auto</button>
+    </div>
+  </div>
+
+  <div id="kanban">
+    <div class="col" id="col-cold" ondragover="dov(event,'cold')" ondrop="dop(event,'cold')" ondragleave="dol(event)">
+      <div class="col-head"><span class="col-title" style="color:var(--cold)">Cold 🥶</span><span class="col-badge" style="background:var(--cold)" id="b-cold">0</span></div>
+      <div class="col-sub" id="v-cold"></div><div class="col-cards" id="c-cold"></div>
+    </div>
+    <div class="col" id="col-warm" ondragover="dov(event,'warm')" ondrop="dop(event,'warm')" ondragleave="dol(event)">
+      <div class="col-head"><span class="col-title" style="color:var(--warm)">Warm 🔥</span><span class="col-badge" style="background:var(--warm)" id="b-warm">0</span></div>
+      <div class="col-sub" id="v-warm"></div><div class="col-cards" id="c-warm"></div>
+    </div>
+    <div class="col" id="col-hot" ondragover="dov(event,'hot')" ondrop="dop(event,'hot')" ondragleave="dol(event)">
+      <div class="col-head"><span class="col-title" style="color:var(--hot)">Hot 💎</span><span class="col-badge" style="background:var(--hot)" id="b-hot">0</span></div>
+      <div class="col-sub" id="v-hot"></div><div class="col-cards" id="c-hot"></div>
+    </div>
+    <div class="col" id="col-closed_won" ondragover="dov(event,'closed_won')" ondrop="dop(event,'closed_won')" ondragleave="dol(event)">
+      <div class="col-head"><span class="col-title" style="color:var(--won)">Đã chốt ✅</span><span class="col-badge" style="background:var(--won)" id="b-closed_won">0</span></div>
+      <div class="col-sub" id="v-closed_won"></div><div class="col-cards" id="c-closed_won"></div>
+    </div>
+    <div class="col" id="col-closed_lost" ondragover="dov(event,'closed_lost')" ondrop="dop(event,'closed_lost')" ondragleave="dol(event)">
+      <div class="col-head"><span class="col-title" style="color:var(--lost)">Mất ❌</span><span class="col-badge" style="background:var(--lost)" id="b-closed_lost">0</span></div>
+      <div class="col-sub" id="v-closed_lost"></div><div class="col-cards" id="c-closed_lost"></div>
+    </div>
+  </div>
+
+  <div id="list">
+    <div class="list-table">
+      <div class="list-head"><span>Mã KH</span><span>Công ty</span><span>Liên hệ</span><span>Nguồn</span><span>Giai đoạn</span><span>GT HĐ</span><span>Follow-up</span><span></span></div>
+      <div id="list-body"></div>
+    </div>
+  </div>
+</div>
+
+<div id="email-panel" style="display:none;padding:0 24px 24px">
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px">
+    <!-- Rules card -->
+    <div style="background:white;border:1px solid var(--border);border-radius:var(--r);padding:20px;box-shadow:var(--sh)">
+      <h3 style="font-size:14px;font-weight:800;color:var(--slate);margin-bottom:4px">⚙️ Rules tự động</h3>
+      <p style="font-size:12px;color:var(--muted);margin-bottom:16px">Email nhắc nhở gửi lúc 8:00 AM mỗi ngày</p>
+      <div style="space-y:8px;display:flex;flex-direction:column;gap:8px">
+        <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 14px;background:#eff6ff;border-radius:10px;border:1px solid #bfdbfe">
+          <div><span style="font-size:12px;font-weight:700;color:#1d4ed8">Cold 🥶</span><span style="font-size:11px;color:#64748b;margin-left:8px">Không liên hệ</span></div>
+          <span style="font-size:13px;font-weight:800;color:#1d4ed8">≥ 7 ngày</span>
+        </div>
+        <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 14px;background:#fff7ed;border-radius:10px;border:1px solid #fed7aa">
+          <div><span style="font-size:12px;font-weight:700;color:#c2410c">Warm 🔥</span><span style="font-size:11px;color:#64748b;margin-left:8px">Không liên hệ</span></div>
+          <span style="font-size:13px;font-weight:800;color:#c2410c">≥ 3 ngày</span>
+        </div>
+        <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 14px;background:#fff1f2;border-radius:10px;border:1px solid #fecdd3">
+          <div><span style="font-size:12px;font-weight:700;color:#be123c">Hot 💎</span><span style="font-size:11px;color:#64748b;margin-left:8px">Không liên hệ</span></div>
+          <span style="font-size:13px;font-weight:800;color:#be123c">≥ 1 ngày</span>
+        </div>
+        <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 14px;background:#fef9c3;border-radius:10px;border:1px solid #fde047">
+          <div><span style="font-size:12px;font-weight:700;color:#854d0e">Follow-up date</span><span style="font-size:11px;color:#64748b;margin-left:8px">Quá hạn hoặc ngày mai</span></div>
+          <span style="font-size:13px;font-weight:800;color:#854d0e">Nhắc ngay</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Setup card -->
+    <div style="background:white;border:1px solid var(--border);border-radius:var(--r);padding:20px;box-shadow:var(--sh)">
+      <h3 style="font-size:14px;font-weight:800;color:var(--slate);margin-bottom:4px">🚀 Kích hoạt</h3>
+      <p style="font-size:12px;color:var(--muted);margin-bottom:16px">Cấu hình 1 lần — chạy tự động mỗi ngày</p>
+      <div style="display:flex;flex-direction:column;gap:10px">
+        <div style="display:flex;align-items:flex-start;gap:10px">
+          <span style="width:22px;height:22px;background:#1a8a7a;color:white;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:800;flex-shrink:0">1</span>
+          <div>
+            <p style="font-size:12px;font-weight:700;color:var(--slate);margin:0">Deploy Edge Function</p>
+            <code style="font-size:10px;background:#f1f5f9;padding:2px 6px;border-radius:4px;color:#475569">supabase functions deploy crm-followup-scheduler</code>
+          </div>
+        </div>
+        <div style="display:flex;align-items:flex-start;gap:10px">
+          <span style="width:22px;height:22px;background:#1a8a7a;color:white;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:800;flex-shrink:0">2</span>
+          <div>
+            <p style="font-size:12px;font-weight:700;color:var(--slate);margin:0">Thêm Secrets</p>
+            <code style="font-size:10px;background:#f1f5f9;padding:2px 6px;border-radius:4px;color:#475569">NOTIFY_EMAIL = email của anh</code>
+          </div>
+        </div>
+        <div style="display:flex;align-items:flex-start;gap:10px">
+          <span style="width:22px;height:22px;background:#1a8a7a;color:white;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:800;flex-shrink:0">3</span>
+          <div>
+            <p style="font-size:12px;font-weight:700;color:var(--slate);margin:0">Chạy SQL tạo cron</p>
+            <code style="font-size:10px;background:#f1f5f9;padding:2px 6px;border-radius:4px;color:#475569">crm_email_automation.sql</code>
+          </div>
+        </div>
+        <button onclick="testScheduler()" id="test-btn"
+          style="margin-top:8px;padding:10px;background:var(--teal);color:white;border:none;border-radius:10px;font-size:13px;font-weight:700;cursor:pointer;width:100%">
+          ▶ Test gửi email ngay
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Email Log -->
+  <div style="background:white;border:1px solid var(--border);border-radius:var(--r);overflow:hidden;box-shadow:var(--sh)">
+    <div style="padding:16px 20px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between">
+      <h3 style="font-size:14px;font-weight:800;color:var(--slate);margin:0">📋 Lịch sử gửi email</h3>
+      <button onclick="loadEmailLogs()" style="padding:6px 12px;border:1.5px solid var(--border);border-radius:8px;background:white;font-size:12px;font-weight:600;cursor:pointer;color:var(--muted)">
+        🔄 Tải lại
+      </button>
+    </div>
+    <div id="email-log-body">
+      <div style="padding:32px;text-align:center;color:var(--muted);font-size:13px">
+        Nhấn "Tải lại" để xem lịch sử email
+      </div>
+    </div>
+  </div>
+</div>
+
+<div id="modal" class="modal-overlay" style="display:none" onclick="if(event.target===this)closeModal()">
+  <div class="modal">
+    <div class="modal-head">
+      <h3 id="m-title">Thêm khách hàng mới</h3>
+      <button class="modal-close" onclick="closeModal()">✕</button>
+    </div>
+    <div class="modal-body">
+      <input type="hidden" id="f-id"/>
+      <div style="margin-bottom:16px">
+        <span class="sec-lbl">Giai đoạn</span>
+        <div class="stage-btns">
+          <button class="stage-btn" onclick="setSt('cold')" data-s="cold">Cold 🥶</button>
+          <button class="stage-btn" onclick="setSt('warm')" data-s="warm">Warm 🔥</button>
+          <button class="stage-btn" onclick="setSt('hot')" data-s="hot">Hot 💎</button>
+          <button class="stage-btn" onclick="setSt('closed_won')" data-s="closed_won">Đã chốt ✅</button>
+          <button class="stage-btn" onclick="setSt('closed_lost')" data-s="closed_lost">Mất ❌</button>
+        </div>
+        <input type="hidden" id="f-st" value="cold"/>
+      </div>
+      <div class="form-grid">
+        <div class="form-group full"><label class="lbl">Tên công ty *</label><input id="f-co" class="fc" placeholder="Công ty TNHH Xây dựng ABC"/></div>
+        <div class="form-group"><label class="lbl">Người liên hệ *</label><input id="f-ct" class="fc" placeholder="Nguyễn Văn A"/></div>
+        <div class="form-group"><label class="lbl">Số điện thoại *</label><input id="f-ph" class="fc" placeholder="0901 234 567"/></div>
+        <div class="form-group"><label class="lbl">Email</label><input id="f-em" class="fc" placeholder="contact@company.vn"/></div>
+        <div class="form-group">
+          <label class="lbl">Nguồn</label>
+          <select id="f-src" class="fc">
+            <option value="form">📋 Form web</option>
+            <option value="zalo">💬 Zalo</option>
+            <option value="referral">🤝 Giới thiệu</option>
+            <option value="cold_call">📞 Cold call</option>
+            <option value="other">🔗 Khác</option>
+          </select>
+        </div>
+        <div class="form-group"><label class="lbl">GT HĐ ước tính (triệu VNĐ)</label><input id="f-val" class="fc" type="number" placeholder="VD: 500"/></div>
+        <div class="form-group"><label class="lbl">Follow-up tiếp theo</label><input id="f-fu" class="fc" type="date"/></div>
+        <div class="form-group full"><label class="lbl">Ghi chú</label><textarea id="f-nt" class="fc" placeholder="Thông tin thêm..."></textarea></div>
+      </div>
+      <div style="margin-top:20px">
+        <span class="sec-lbl">Lịch sử liên hệ</span>
+        <div class="note-row">
+          <input id="new-note" placeholder="Ghi chú cuộc gọi/gặp mặt hôm nay..." onkeydown="if(event.key==='Enter')addNote()"/>
+          <button class="btn btn-primary" onclick="addNote()">+</button>
+        </div>
+        <div class="hist-list" id="hist"></div>
+      </div>
+    </div>
+    <div class="modal-foot">
+      <button id="del-btn" class="btn btn-danger" onclick="delLead()" style="display:none">🗑 Xóa KH</button>
+      <div style="display:flex;gap:8px">
+        <button class="btn btn-outline" onclick="closeModal()">Hủy</button>
+        <button class="btn btn-primary" onclick="saveLead()" id="save-btn">💾 Lưu</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+// ── CONFIG — điền trước khi deploy ───────────────────────────────────────────
+const SB_URL='REPLACE_WITH_SUPABASE_URL';
+const SB_KEY='REPLACE_WITH_SUPABASE_ANON_KEY';
+const PW='gem2026crm'; // ← đổi mật khẩu thực
+
+// ── State ────────────────────────────────────────────────────────────────────
+let sb,leads=[],fSt='all',view='kanban',dragId=null,histBuf=[];
+const SL={cold:'Cold 🥶',warm:'Warm 🔥',hot:'Hot 💎',closed_won:'Đã chốt ✅',closed_lost:'Mất ❌'};
+const SRC={form:'📋 Form',zalo:'💬 Zalo',referral:'🤝 Giới thiệu',cold_call:'📞 Cold call',other:'🔗 Khác'};
+const SC={cold:'var(--cold)',warm:'var(--warm)',hot:'var(--hot)',closed_won:'var(--won)',closed_lost:'var(--lost)'};
+
+// ── Auth ─────────────────────────────────────────────────────────────────────
+function chkPw(){
+  if(document.getElementById('pw').value===PW){
+    document.getElementById('auth-gate').style.display='none';
+    document.getElementById('app').style.display='block';
+    sb=supabase.createClient(SB_URL,SB_KEY);
+    load();
+  }else{document.getElementById('auth-err').textContent='Mật khẩu không đúng.';}
+}
+document.getElementById('pw').onkeydown=e=>{if(e.key==='Enter')chkPw();};
+
+// ── Data ─────────────────────────────────────────────────────────────────────
+async function load(){
+  const{data,error}=await sb.from('crm_leads').select('*').order('updated_at',{ascending:false});
+  if(error){toast('Lỗi: '+error.message,'err');return;}
+  leads=data||[];render();
+}
+
+function fl(){
+  const q=document.getElementById('q').value.toLowerCase();
+  return leads.filter(l=>{
+    const mq=!q||[l.company_name,l.contact_name,l.phone,l.ma_kh].some(v=>(v||'').toLowerCase().includes(q));
+    const ms=fSt==='all'||l.stage===fSt;
+    return mq&&ms;
+  });
+}
+function fd(d){return d?new Date(d).toLocaleDateString('vi-VN'):'—';}
+function fm(v){return v?v.toLocaleString('vi-VN')+'tr':'—';}
+function od(l){return l.next_followup&&new Date(l.next_followup)<new Date();}
+
+function render(){
+  const f=fl();
+  document.getElementById('s-tot').textContent=leads.length;
+  document.getElementById('s-val').textContent=fm(leads.reduce((s,l)=>s+(l.estimated_value||0),0));
+  document.getElementById('s-hot').textContent=leads.filter(l=>l.stage==='hot').length;
+  document.getElementById('s-won').textContent=leads.filter(l=>l.stage==='closed_won').length;
+  document.getElementById('s-ov').textContent=leads.filter(l=>od(l)).length;
+  if(view==='kanban')rKanban(f);else rList(f);
+}
+
+function rKanban(f){
+  ['cold','warm','hot','closed_won','closed_lost'].forEach(s=>{
+    const items=f.filter(l=>l.stage===s);
+    const sv=items.reduce((a,l)=>a+(l.estimated_value||0),0);
+    document.getElementById('b-'+s).textContent=items.length;
+    document.getElementById('v-'+s).textContent=sv?fm(sv):'';
+    const c=document.getElementById('c-'+s);
+    c.innerHTML=items.length?items.map(cardH).join(''):'<div class="col-empty">Kéo KH vào đây</div>';
+    c.querySelectorAll('.card').forEach(el=>{
+      const id=el.dataset.id;
+      el.ondragstart=e=>{dragId=id;el.classList.add('dragging');e.dataTransfer.effectAllowed='move';};
+      el.ondragend=()=>{dragId=null;el.classList.remove('dragging');};
+      el.onclick=e=>{if(!e.target.closest('.card-menu'))openModal(leads.find(l=>l.id===id));};
+    });
+  });
+}
+
+function cardH(l){
+  const ov=od(l);
+  return `<div class="card" draggable="true" data-id="${l.id}">
+    <div class="card-company">${l.company_name}</div>
+    <div class="card-code">${l.ma_kh||''}</div>
+    <div class="card-row">👤 ${l.contact_name||'—'}</div>
+    <div class="card-row">📞 ${l.phone||'—'}</div>
+    <div class="card-tags">
+      <span class="tag tag-src">${SRC[l.source]||l.source}</span>
+      ${l.estimated_value?`<span class="tag tag-val">💰 ${fm(l.estimated_value)}</span>`:''}
+      ${ov?`<span class="tag tag-ov">⚠️ Quá hạn</span>`:l.next_followup?`<span class="tag tag-fu">📅 ${fd(l.next_followup)}</span>`:''}
+    </div>
+    <div class="card-menu"><div style="position:relative">
+      <button class="menu-btn" onclick="tMenu(event,'m${l.id}')">⋮</button>
+      <div id="m${l.id}" class="menu-dd" style="display:none">
+        ${['cold','warm','hot','closed_won','closed_lost'].filter(s=>s!==l.stage).map(s=>`<div class="menu-item" onclick="qs('${l.id}','${s}')">→ ${SL[s]}</div>`).join('')}
+      </div>
+    </div></div>
+  </div>`;
+}
+
+function tMenu(e,id){
+  e.stopPropagation();
+  document.querySelectorAll('.menu-dd').forEach(m=>{if(m.id!==id)m.style.display='none';});
+  const m=document.getElementById(id);
+  m.style.display=m.style.display==='none'?'block':'none';
+}
+document.addEventListener('click',()=>document.querySelectorAll('.menu-dd').forEach(m=>m.style.display='none'));
+
+function rList(f){
+  const b=document.getElementById('list-body');
+  if(!f.length){b.innerHTML='<div style="text-align:center;padding:40px;color:var(--muted)">📭 Không có khách hàng nào</div>';return;}
+  b.innerHTML=f.map(l=>{
+    const c=SC[l.stage]||'#94a3b8';const ov=od(l);
+    return `<div class="list-row" onclick="openModal(leads.find(x=>x.id==='${l.id}'))">
+      <span style="font-size:10px;color:var(--muted);font-weight:600">${l.ma_kh||'—'}</span>
+      <span style="font-weight:700">${l.company_name}</span>
+      <span>${l.contact_name}<br/><span style="font-size:10px;color:var(--muted)">${l.phone}</span></span>
+      <span style="font-size:11px">${SRC[l.source]||l.source}</span>
+      <span><span style="font-size:11px;font-weight:700;padding:3px 10px;border-radius:20px;background:${c}22;color:${c}">${SL[l.stage]}</span></span>
+      <span style="font-weight:700;color:var(--teal)">${fm(l.estimated_value)}</span>
+      <span style="font-size:11px;font-weight:600;color:${ov?'#dc2626':'#2563eb'}">${ov?'⚠️ ':''} ${fd(l.next_followup)}</span>
+      <span><button class="btn btn-outline" style="padding:4px 10px;font-size:11px" onclick="event.stopPropagation();openModal(leads.find(x=>x.id==='${l.id}'))">✏️</button></span>
+    </div>`;
+  }).join('');
+}
+
+// ── Drag & Drop ───────────────────────────────────────────────────────────────
+function dov(e,s){e.preventDefault();document.getElementById('col-'+s).classList.add('dragover');}
+function dol(e){e.currentTarget.classList.remove('dragover');}
+async function dop(e,s){e.preventDefault();e.currentTarget.classList.remove('dragover');if(dragId)await qs(dragId,s);}
+async function qs(id,stage){
+  const{error}=await sb.from('crm_leads').update({stage,updated_at:new Date().toISOString()}).eq('id',id);
+  if(error){toast('Lỗi: '+error.message,'err');return;}
+  leads=leads.map(l=>l.id===id?{...l,stage}:l);render();
+  toast('→ '+SL[stage],'ok');
+}
+
+// ── Filter & View ─────────────────────────────────────────────────────────────
+function sf(s,btn){fSt=s;document.querySelectorAll('.filter-btn').forEach(b=>b.classList.remove('active'));btn.classList.add('active');render();}
+function sv(v){
+  view=v;
+  document.getElementById('kanban').style.display=v==='kanban'?'grid':'none';
+  document.getElementById('list').style.display=v==='list'?'block':'none';
+  document.getElementById('email-panel').style.display=v==='email'?'block':'none';
+  document.getElementById('vk').classList.toggle('active',v==='kanban');
+  document.getElementById('vl').classList.toggle('active',v==='list');
+  document.getElementById('ve').classList.toggle('active',v==='email');
+  if(v!=='email')render();
+  else loadEmailLogs();
+}
+
+// ── Modal ─────────────────────────────────────────────────────────────────────
+function openModal(l){
+  const isNew=!l;
+  document.getElementById('m-title').textContent=isNew?'Thêm khách hàng mới':l.company_name;
+  document.getElementById('del-btn').style.display=isNew?'none':'flex';
+  document.getElementById('f-id').value=l?.id||'';
+  document.getElementById('f-co').value=l?.company_name||'';
+  document.getElementById('f-ct').value=l?.contact_name||'';
+  document.getElementById('f-ph').value=l?.phone||'';
+  document.getElementById('f-em').value=l?.email||'';
+  document.getElementById('f-src').value=l?.source||'form';
+  document.getElementById('f-val').value=l?.estimated_value||'';
+  document.getElementById('f-fu').value=l?.next_followup?l.next_followup.split('T')[0]:'';
+  document.getElementById('f-nt').value=l?.notes||'';
+  histBuf=[...(l?.history||[])];
+  setSt(l?.stage||'cold');rHist();
+  document.getElementById('modal').style.display='flex';
+}
+function closeModal(){document.getElementById('modal').style.display='none';}
+
+function setSt(s){
+  document.getElementById('f-st').value=s;
+  document.querySelectorAll('.stage-btn').forEach(b=>{b.className='stage-btn'+(b.dataset.s===s?' sel-'+s:'');});
+}
+function addNote(){
+  const inp=document.getElementById('new-note');const t=inp.value.trim();if(!t)return;
+  histBuf.push({date:new Date().toISOString(),note:t,by:'Admin'});inp.value='';rHist();
+}
+function rHist(){
+  const el=document.getElementById('hist');
+  el.innerHTML=histBuf.length?[...histBuf].reverse().map(h=>`<div class="h-item"><div class="h-dot"></div><div><div style="color:var(--slate)">${h.note}</div><div style="font-size:10px;color:var(--muted);margin-top:2px">${fd(h.date)}${h.by?' · '+h.by:''}</div></div></div>`).join(''):'<div style="text-align:center;padding:12px;color:var(--muted);font-size:12px">Chưa có lịch sử</div>';
+}
+
+async function saveLead(){
+  const co=document.getElementById('f-co').value.trim();
+  const ct=document.getElementById('f-ct').value.trim();
+  const ph=document.getElementById('f-ph').value.trim();
+  if(!co){toast('Vui lòng nhập tên công ty','err');return;}
+  if(!ct){toast('Vui lòng nhập người liên hệ','err');return;}
+  if(!ph){toast('Vui lòng nhập số điện thoại','err');return;}
+  const btn=document.getElementById('save-btn');
+  btn.textContent='Đang lưu...';btn.disabled=true;
+  const p={company_name:co,contact_name:ct,phone:ph,
+    email:document.getElementById('f-em').value.trim()||null,
+    source:document.getElementById('f-src').value,
+    stage:document.getElementById('f-st').value,
+    estimated_value:parseFloat(document.getElementById('f-val').value)||null,
+    next_followup:document.getElementById('f-fu').value||null,
+    notes:document.getElementById('f-nt').value.trim()||null,
+    history:histBuf,updated_at:new Date().toISOString()};
+  const id=document.getElementById('f-id').value;
+  let error;
+  if(id){
+    ({error}=await sb.from('crm_leads').update(p).eq('id',id));
+    if(!error){leads=leads.map(l=>l.id===id?{...l,...p}:l);toast('Đã cập nhật KH','ok');}
+  }else{
+    const{data,error:e}=await sb.from('crm_leads').insert(p).select().single();
+    error=e;if(!error&&data){leads=[data,...leads];toast('Đã thêm KH mới','ok');}
+  }
+  btn.textContent='💾 Lưu';btn.disabled=false;
+  if(error){toast('Lỗi: '+error.message,'err');return;}
+  closeModal();render();
+}
+
+async function delLead(){
+  const id=document.getElementById('f-id').value;
+  if(!id||!confirm('Xác nhận xóa khách hàng này?'))return;
+  const{error}=await sb.from('crm_leads').delete().eq('id',id);
+  if(error){toast('Lỗi: '+error.message,'err');return;}
+  leads=leads.filter(l=>l.id!==id);closeModal();render();toast('Đã xóa KH','ok');
+}
+
+// ── Export ────────────────────────────────────────────────────────────────────
+function getRows(){
+  return fl().map(l=>({'Mã KH':l.ma_kh||'','Công ty':l.company_name,'Người liên hệ':l.contact_name,'SĐT':l.phone,'Email':l.email||'','Nguồn':SRC[l.source]||l.source,'Giai đoạn':SL[l.stage]||l.stage,'GT HĐ (tr.VNĐ)':l.estimated_value||'','Follow-up':fd(l.next_followup),'Ghi chú':l.notes||'','Ngày tạo':fd(l.created_at)}));
+}
+function expCSV(){
+  const r=getRows();if(!r.length){toast('Không có dữ liệu','err');return;}
+  const h=Object.keys(r[0]);
+  const csv=[h.join(','),...r.map(x=>h.map(k=>`"${String(x[k]).replace(/"/g,'""')}"`).join(','))].join('\n');
+  const a=document.createElement('a');a.href=URL.createObjectURL(new Blob(['\uFEFF'+csv],{type:'text/csv;charset=utf-8;'}));
+  a.download=`CRM_Pipeline_${new Date().toISOString().split('T')[0]}.csv`;a.click();toast('Đã xuất CSV','ok');
+}
+async function expXLSX(){
+  try{
+    const X=await import('https://cdn.sheetjs.com/xlsx-0.20.0/package/xlsx.mjs');
+    const r=getRows();if(!r.length){toast('Không có dữ liệu','err');return;}
+    const ws=X.utils.json_to_sheet(r);ws['!cols']=Object.keys(r[0]).map(()=>({wch:22}));
+    const wb=X.utils.book_new();X.utils.book_append_sheet(wb,ws,'CRM Pipeline');
+    X.writeFile(wb,`CRM_Pipeline_${new Date().toISOString().split('T')[0]}.xlsx`);
+    toast('Đã xuất Excel','ok');
+  }catch(e){toast('Lỗi Excel — thử CSV','err');}
+}
+
+function toast(msg,type='ok'){
+  const t=document.createElement('div');t.className=`toast ${type}`;t.textContent=msg;
+  document.body.appendChild(t);setTimeout(()=>t.remove(),3000);
+}
+
+// ── Email Automation ──────────────────────────────────────────────────────────
+async function loadEmailLogs(){
+  const body=document.getElementById('email-log-body');
+  body.innerHTML='<div style="padding:24px;text-align:center;color:var(--muted);font-size:13px">Đang tải...</div>';
+  const{data,error}=await sb.from('crm_email_logs').select('*').order('sent_at',{ascending:false}).limit(30);
+  if(error||!data||data.length===0){
+    body.innerHTML='<div style="padding:32px;text-align:center;color:var(--muted);font-size:13px">Chưa có lịch sử gửi email</div>';
+    return;
+  }
+  const typeLabel={overdue_summary:'⚠️ Quá hạn',reminder_summary:'📅 Nhắc nhở',hot_lead_email:'💎 Hot Lead'};
+  body.innerHTML=`
+    <div style="display:grid;grid-template-columns:120px 1fr 120px 80px 120px;gap:8px;padding:10px 20px;background:#f8fafc;font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.05em">
+      <span>Loại</span><span>Gửi đến</span><span>Số leads</span><span>Trạng thái</span><span>Thời gian</span>
+    </div>
+    ${data.map(log=>`
+    <div style="display:grid;grid-template-columns:120px 1fr 120px 80px 120px;gap:8px;padding:12px 20px;border-top:1px solid var(--border);font-size:12px;align-items:center">
+      <span style="font-weight:600">${typeLabel[log.type]||log.type}</span>
+      <span style="color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${log.to_email||'—'}</span>
+      <span style="text-align:center">${log.leads_count||1}</span>
+      <span>
+        ${log.status==='sent'
+          ?'<span style="font-size:11px;font-weight:700;color:#10b981;background:#ecfdf5;padding:2px 8px;border-radius:20px">✅ Gửi OK</span>'
+          :'<span style="font-size:11px;font-weight:700;color:#ef4444;background:#fee2e2;padding:2px 8px;border-radius:20px">❌ Lỗi</span>'}
+      </span>
+      <span style="font-size:11px;color:var(--muted)">${new Date(log.sent_at).toLocaleString('vi-VN')}</span>
+    </div>`).join('')}`;
+}
+
+async function testScheduler(){
+  const btn=document.getElementById('test-btn');
+  btn.textContent='Đang gửi...';btn.disabled=true;
+  try{
+    const{data,error}=await sb.functions.invoke('crm-followup-scheduler',{body:{}});
+    if(error)throw error;
+    toast(`✅ Đã gửi: ${data.emails_sent||0} email | ${data.overdue||0} quá hạn, ${data.reminder||0} nhắc nhở`,'ok');
+    setTimeout(loadEmailLogs,1500);
+  }catch(e){
+    toast('❌ Lỗi: '+String(e),'err');
+  }
+  btn.textContent='▶ Test gửi email ngay';btn.disabled=false;
+}
+</script>
+</body>
+</html>
