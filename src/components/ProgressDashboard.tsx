@@ -5,7 +5,8 @@ import {
   Sparkles, Loader2, FileSpreadsheet, ChevronDown, ChevronUp,
   BarChart2, Activity, Zap, Flag, Edit3, Save, X, Plus, RefreshCw,
   ArrowUp, ArrowDown, Minus, Info, Printer, GripVertical, DollarSign,
-  Camera, GitBranch, GitMerge
+  Camera, GitBranch, GitMerge, Calendar, Download,
+  CloudRain, FileText, CalendarDays, Users, Wrench
 } from 'lucide-react';
 import {
   LineChart, Line, AreaChart, Area, BarChart, Bar,
@@ -20,6 +21,8 @@ import { usePrint } from './PrintService';
 import { useNotification } from './NotificationEngine';
 
 import type { DashboardProps } from './types';
+import CalendarSchedule from './CalendarSchedule';
+import ReportsDashboard from './ReportsDashboard';
 
 type Props = DashboardProps;
 
@@ -234,6 +237,76 @@ function GanttChart({
     setShowConfirmBaseline(false);
   };
 
+  // S32.6 — Critical Path (CPM — longest path)
+  const [showCritical, setShowCritical] = React.useState(false);
+
+  const criticalPathIds = React.useMemo<Set<string>>(() => {
+    if (!showCritical) return new Set();
+    // Build adjacency: predecessors → successors
+    const idxByWbs: Record<string, number> = {};
+    items.forEach((t, i) => { if (t.wbsId) idxByWbs[t.wbsId] = i; });
+    // Early start / early finish forward pass
+    const ES: number[] = new Array(items.length).fill(0);
+    const EF: number[] = items.map((t, i) => t.dur || 1);
+    // topological sort (simple — tasks in order, assumes partial order)
+    for (let i = 0; i < items.length; i++) {
+      const preds = items[i].depends_on ?? [];
+      preds.forEach(predWbs => {
+        const pi = idxByWbs[predWbs];
+        if (pi !== undefined && EF[pi] > ES[i]) {
+          ES[i] = EF[pi];
+          EF[i] = ES[i] + (items[i].dur || 1);
+        }
+      });
+    }
+    const projectEnd = Math.max(...EF);
+    // Late finish backward pass
+    const LF: number[] = new Array(items.length).fill(projectEnd);
+    const LS: number[] = items.map((_, i) => LF[i] - (items[i].dur || 1));
+    for (let i = items.length - 1; i >= 0; i--) {
+      const preds = items[i].depends_on ?? [];
+      preds.forEach(predWbs => {
+        const pi = idxByWbs[predWbs];
+        if (pi !== undefined && ES[i] < LF[pi]) {
+          LF[pi] = ES[i];
+          LS[pi] = LF[pi] - (items[pi].dur || 1);
+        }
+      });
+    }
+    // Critical: total float = LS - ES ≈ 0
+    const critical = new Set<string>();
+    items.forEach((t, i) => {
+      if (t.wbsId && (LS[i] - ES[i]) <= 0) critical.add(t.wbsId);
+    });
+    return critical;
+  }, [items, showCritical]);
+
+  // Float tooltip per task
+  const floatDays = React.useMemo<Record<string, number>>(() => {
+    const idxByWbs: Record<string, number> = {};
+    items.forEach((t, i) => { if (t.wbsId) idxByWbs[t.wbsId] = i; });
+    const ES: number[] = new Array(items.length).fill(0);
+    const EF: number[] = items.map((t) => t.dur || 1);
+    for (let i = 0; i < items.length; i++) {
+      (items[i].depends_on ?? []).forEach(predWbs => {
+        const pi = idxByWbs[predWbs];
+        if (pi !== undefined && EF[pi] > ES[i]) { ES[i] = EF[pi]; EF[i] = ES[i] + (items[i].dur || 1); }
+      });
+    }
+    const projectEnd = Math.max(...EF);
+    const LF: number[] = new Array(items.length).fill(projectEnd);
+    const LS: number[] = items.map((_, i) => LF[i] - (items[i].dur || 1));
+    for (let i = items.length - 1; i >= 0; i--) {
+      (items[i].depends_on ?? []).forEach(predWbs => {
+        const pi = idxByWbs[predWbs];
+        if (pi !== undefined && ES[i] < LF[pi]) { LF[pi] = ES[i]; LS[pi] = LF[pi] - (items[pi].dur || 1); }
+      });
+    }
+    const result: Record<string, number> = {};
+    items.forEach((t, i) => { if (t.wbsId) result[t.wbsId] = Math.max(0, LS[i] - ES[i]); });
+    return result;
+  }, [items]);
+
   // S32.5 — Circular dependency check (DFS)
   const hasCycle = (fromWbsId: string, toWbsId: string, allItems: GanttTask[]): boolean => {
     // BFS từ toWbsId xem có đến được fromWbsId không
@@ -350,25 +423,70 @@ function GanttChart({
     return ticks;
   }, [zoom, totalDays, startMs]);
 
-  // ── Row reorder (drag handle) ─────────────────────────────────────────────
+  // ── Row reorder — document-level pointer tracking (fix: setPointerCapture blocks onPointerEnter) ──
+  const rowsContainerRef = useRef<HTMLDivElement>(null);
+
   const onRowPointerDown = (e: React.PointerEvent, idx: number) => {
-    e.currentTarget.setPointerCapture(e.pointerId);
+    e.preventDefault();
     setDragMode('row');
     setDraggingRow(idx);
+    setDragOverRow(idx);
   };
-  const onRowPointerEnter = (_e: React.PointerEvent, idx: number) => {
-    if (dragMode === 'row') setDragOverRow(idx);
-  };
-  const commitRowDrop = () => {
-    if (dragMode === 'row' && draggingRow !== null && dragOverRow !== null && draggingRow !== dragOverRow) {
-      const next = [...items];
-      const [moved] = next.splice(draggingRow, 1);
-      next.splice(dragOverRow, 0, moved);
-      setItems(next);
-      onReorder(next);
-    }
-    setDragMode(null); setDraggingRow(null); setDragOverRow(null);
-  };
+
+  // Dummy — kept for API compat; real detection done in useEffect below
+  const onRowPointerEnter = (_e: React.PointerEvent, _idx: number) => {};
+
+  React.useEffect(() => {
+    if (dragMode !== 'row' || draggingRow === null) return;
+
+    const onMove = (e: PointerEvent) => {
+      if (!rowsContainerRef.current) return;
+      const container = rowsContainerRef.current;
+      const rowEls = Array.from(container.querySelectorAll<HTMLElement>('[data-row-idx]'));
+      let target: number | null = null;
+      for (const el of rowEls) {
+        const rect = el.getBoundingClientRect();
+        const mid  = rect.top + rect.height / 2;
+        if (e.clientY <= mid) { target = Number(el.dataset.rowIdx); break; }
+      }
+      if (target === null && rowEls.length) target = Number(rowEls[rowEls.length - 1].dataset.rowIdx);
+      setDragOverRow(target);
+    };
+
+    const onUp = () => {
+      setDragMode(prev => {
+        if (prev === 'row') {
+          setDraggingRow(src => {
+            setDragOverRow(dst => {
+              if (src !== null && dst !== null && src !== dst) {
+                setItems(cur => {
+                  const next = [...cur];
+                  const [moved] = next.splice(src, 1);
+                  const insertAt = dst > src ? dst - 1 : dst;
+                  next.splice(insertAt, 0, moved);
+                  onReorder(next);
+                  return next;
+                });
+              }
+              return null;
+            });
+            return null;
+          });
+        }
+        return null;
+      });
+    };
+
+    document.addEventListener('pointermove', onMove);
+    document.addEventListener('pointerup',   onUp);
+    return () => {
+      document.removeEventListener('pointermove', onMove);
+      document.removeEventListener('pointerup',   onUp);
+    };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [dragMode, draggingRow]);
+
+  const commitRowDrop = () => {}; // no-op — handled in useEffect above
 
   // ── Bar drag — dời start ──────────────────────────────────────────────────
   const onBarPointerDown = (e: React.PointerEvent, taskId: number) => {
@@ -476,6 +594,11 @@ function GanttChart({
             className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[10px] font-bold border transition-all ${showDepArrows?'bg-orange-50 border-orange-200 text-orange-700':'bg-slate-50 border-slate-200 text-slate-500 hover:border-slate-300'}`}>
             <GitMerge size={11}/>Liên kết
           </button>
+          {/* S32.6 Critical Path toggle */}
+          <button onClick={() => setShowCritical(v => !v)}
+            className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[10px] font-bold border transition-all ${showCritical?'bg-rose-50 border-rose-200 text-rose-700':'bg-slate-50 border-slate-200 text-slate-500 hover:border-slate-300'}`}>
+            <AlertTriangle size={11}/>Đường găng
+          </button>
         </div>
       </div>
 
@@ -531,15 +654,18 @@ function GanttChart({
           </div>
 
           {/* Rows */}
+          <div ref={rowsContainerRef}>
           {items.map((task, idx) => {
             const isDraggingRow = draggingRow === idx && dragMode === 'row';
             const isTargetRow   = dragOverRow === idx && dragMode === 'row' && draggingRow !== idx;
             return (
               <div key={task.id}
+                data-row-idx={idx}
                 className={[
                   'flex border-b border-slate-100 transition-colors select-none',
-                  isDraggingRow ? 'opacity-40 bg-blue-50' : 'hover:bg-slate-50/50',
+                  isDraggingRow ? 'opacity-30 bg-blue-50 scale-[0.99]' : 'hover:bg-slate-50/50',
                   isTargetRow   ? 'border-t-2 border-t-blue-400' : '',
+                  dragMode === 'row' ? 'cursor-grabbing' : '',
                 ].join(' ')}
                 onPointerEnter={e => onRowPointerEnter(e, idx)}>
 
@@ -552,10 +678,13 @@ function GanttChart({
                 {/* Name */}
                 <div className="w-52 shrink-0 px-4 py-3"
                   onContextMenu={e => { e.preventDefault(); setCtxMenu({ taskIdx: idx, x: e.clientX, y: e.clientY }); }}>
-                  <p className={`text-xs font-semibold truncate ${linkingFrom !== null && linkingFrom !== idx ? 'text-orange-600 cursor-pointer hover:underline' : 'text-slate-700'}`}
+                  <p className={`text-xs truncate ${
+                      linkingFrom !== null && linkingFrom !== idx ? 'text-orange-600 cursor-pointer hover:underline font-semibold'
+                      : showCritical && task.wbsId && criticalPathIds.has(task.wbsId) ? 'text-rose-700 font-black'
+                      : 'text-slate-700 font-semibold'}`}
                     onClick={() => { if (linkingFrom !== null && linkingFrom !== idx) { addDependency(linkingFrom, idx); setLinkingFrom(null); }}}
-                    title={linkingFrom !== null ? 'Click để đặt task này phụ thuộc' : 'Chuột phải → Thêm liên kết'}
-                  >{task.name}</p>
+                    title={linkingFrom !== null ? 'Click để đặt task này phụ thuộc' : showCritical && task.wbsId && criticalPathIds.has(task.wbsId) ? `⚠ Đường găng — Float: ${floatDays[task.wbsId!] ?? 0} ngày` : 'Chuột phải → Thêm liên kết'}
+                  >{showCritical && task.wbsId && criticalPathIds.has(task.wbsId) ? '⚠ ' : ''}{task.name}</p>
                   <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full ${CAT_CLS[task.cat]||'bg-slate-100 text-slate-500'}`}>{task.cat}</span>
                 </div>
 
@@ -579,7 +708,9 @@ function GanttChart({
                          style={{left:`${(task.start/totalDays)*100}%`, width:`${(task.dur/totalDays)*100}%`}}/>
                     {/* Progress fill */}
                     <div className={`absolute h-full rounded-md transition-all ${
-                           task.done===100 ? 'bg-emerald-400' : task.done>0 ? 'bg-amber-400' : 'bg-transparent'
+                           showCritical && task.wbsId && criticalPathIds.has(task.wbsId)
+                             ? (task.done===100 ? 'bg-rose-400' : task.done>0 ? 'bg-rose-500' : 'bg-transparent')
+                             : (task.done===100 ? 'bg-emerald-400' : task.done>0 ? 'bg-amber-400' : 'bg-transparent')
                          }`}
                          style={{
                            left:`${(task.start/totalDays)*100}%`,
@@ -709,6 +840,7 @@ function GanttChart({
               </div>
             );
           })}
+          </div>{/* end rowsContainerRef */}
 
           {/* S32.5 — SVG Dependency Arrows Overlay */}
           {showDepArrows && depArrows.length > 0 && (
@@ -827,10 +959,12 @@ export default function ProgressDashboard({ project: selectedProject, projectId:
   // L4+ (admin/manager-finance) thấy số tiền thật, L3 chỉ thấy CPI indicator
   const canViewFinance        = ['admin','manager'].includes(user?.tier ?? '') || (user?.tier === 'manager');
   const canViewFinanceNumbers = user?.tier === 'admin';
-  const [tab, setTab] = useState<'scurve'|'evm'|'wbs'|'milestones'>('scurve');
+  const [tab, setTab] = useState<'scurve'|'evm'|'wbs'|'milestones'|'lookahead'|'calendar'|'reports'>('wbs');
   const { printComponent, printProgressReport } = usePrint();
   const dbLoaded = useRef(false);
   const [wbs, setWbs] = useState(WBS_INIT);
+  // S32.9 — load nhân lực từ mp_people để tính resource histogram
+  const [mpPeople, setMpPeople] = useState<{ id:string; name:string; status:string; team:string; type:string }[]>([]);
 
   // Milestones: ưu tiên từ template nếu project có chọn template
   const [milestones, setMilestones] = useState(() => {
@@ -857,12 +991,14 @@ export default function ProgressDashboard({ project: selectedProject, projectId:
     dbLoaded.current = false;
     (async () => {
       try {
-        const [savedWbs, savedMs] = await Promise.all([
+        const [savedWbs, savedMs, savedPeople] = await Promise.all([
           db.get<typeof WBS_INIT>('progress_wbs', pid, WBS_INIT),
           db.get<typeof MILESTONES_INIT>('progress_milestones', pid, []),
+          db.get<any[]>('mp_people', pid, []),
         ]);
         setWbs(savedWbs);
         if (savedMs.length) setMilestones(savedMs as any);
+        if (savedPeople.length) setMpPeople(savedPeople);
       } catch (e) {
         console.warn('[ProgressDashboard] load error, dùng seed data:', e);
       } finally {
@@ -951,14 +1087,28 @@ export default function ProgressDashboard({ project: selectedProject, projectId:
   }, [wbs]);
 
   const tabs = [
-    { id:'scurve'    as const, label:'S-Curve',       icon:<TrendingUp size={14}/> },
-    { id:'evm'       as const, label:'EVM Dashboard', icon:<Activity size={14}/>   },
-    { id:'wbs'       as const, label:'WBS / Tiến độ', icon:<FileSpreadsheet size={14}/> },
-    { id:'milestones'as const, label:'Cột mốc',       icon:<Flag size={14}/>       },
+    { id:'wbs'       as const, label:'Gantt & WBS',     icon:<FileSpreadsheet size={14}/> },
+    { id:'scurve'    as const, label:'Đường S-Curve',   icon:<TrendingUp size={14}/> },
+    { id:'evm'       as const, label:'Chỉ số EVM',      icon:<Activity size={14}/>   },
+    { id:'milestones'as const, label:'Cột mốc',         icon:<Flag size={14}/>       },
+    { id:'lookahead' as const, label:'Kế hoạch tới',    icon:<Calendar size={14}/>   },
+    { id:'calendar'  as const, label:'Lịch & Sự kiện', icon:<CalendarDays size={14}/> },
+    { id:'reports'   as const, label:'Báo cáo',         icon:<FileText size={14}/>   },
   ];
 
   return (
     <div className="space-y-5">
+      {/* S32.8 Print/Export CSS */}
+      <style>{`
+        @media print {
+          body > *:not(.progress-dashboard-root) { display: none !important; }
+          .progress-dashboard-root { display: block !important; }
+          .print\\:hidden { display: none !important; }
+          .hidden.print\\:block { display: block !important; }
+          .lookahead-print { page-break-inside: avoid; }
+          @page { size: A4 portrait; margin: 12mm; }
+        }
+      `}</style>
       {/* Header */}
       <div className="bg-white rounded-2xl border border-slate-200 shadow-sm px-5 py-4 flex items-center justify-between">
         <div>
@@ -969,6 +1119,24 @@ export default function ProgressDashboard({ project: selectedProject, projectId:
           <p className="text-sm text-slate-500 mt-0.5">S-Curve · Earned Value Management · WBS · Cột mốc</p>
         </div>
         <div className="flex items-center gap-2">
+          <button onClick={() => {
+              // S32.8 Export Excel — WBS table as CSV download
+              const rows = [['Code','Tên hạng mục','Bắt đầu','Kết thúc','% EV','Ngân sách (tỷ)','Phụ trách']];
+              (wbs as WBSItem[]).forEach(w => rows.push([
+                w.code, w.name,
+                w.gantt_start_date || '', w.gantt_end_date || '',
+                String(w.ev_pct), String(w.budget), w.responsible,
+              ]));
+              const csv = rows.map(r => r.map(c => `"${c}"`).join(',')).join('\n');
+              const blob = new Blob(['\uFEFF'+csv], {type:'text/csv;charset=utf-8'});
+              const url = URL.createObjectURL(blob);
+              const a = document.createElement('a'); a.href = url;
+              a.download = `WBS_${selectedProject?.name||'DuAn'}_${new Date().toISOString().slice(0,10)}.csv`;
+              a.click(); URL.revokeObjectURL(url);
+            }}
+            className="flex items-center gap-1.5 px-3 py-2.5 bg-white border border-slate-200 hover:border-emerald-300 text-slate-600 rounded-xl text-sm font-semibold shadow-sm transition-all">
+            <Download size={14}/> Excel
+          </button>
           <button onClick={() => printProgressReport({
             projectName: selectedProject?.name || 'Dự án',
             spi: SPI, cpi: CPI, eac: EAC, bac: BAC,
@@ -983,7 +1151,7 @@ export default function ProgressDashboard({ project: selectedProject, projectId:
             })),
           })}
             className="flex items-center gap-1.5 px-3 py-2.5 bg-white border border-slate-200 hover:border-emerald-300 text-slate-600 rounded-xl text-sm font-semibold shadow-sm transition-all">
-            <Printer size={14}/> Xuất PDF
+            <Printer size={14}/> PDF
           </button>
           <button onClick={callGEM} disabled={gemLoading}
             className="flex items-center gap-2 px-4 py-2.5 bg-gradient-to-r from-emerald-600 to-teal-600 text-white rounded-xl text-sm font-bold hover:opacity-90 disabled:opacity-60 shadow-sm">
@@ -1072,74 +1240,12 @@ export default function ProgressDashboard({ project: selectedProject, projectId:
               </AreaChart>
             </ResponsiveContainer>
           </div>
-
-          {/* Gantt — drag-drop bằng pointer events */}
-          <GanttChart
-            tasks={ganttTasks}
-            totalDays={totalDays}
-            today={today}
-            startMs={startMs}
-            canViewFinance={canViewFinance}
-            canViewFinanceNumbers={canViewFinanceNumbers}
-            onReorder={(reordered) => {
-              const wbsById = Object.fromEntries(wbs.map(w => [w.id, w]));
-              const nextWbs = reordered
-                .map(t => wbsById[(t as any).wbsId])
-                .filter(Boolean);
-              if (nextWbs.length === wbs.length) {
-                setWbs(() => {
-                  if (dbLoaded.current) db.set('progress_wbs', pid, nextWbs);
-                  return nextWbs;
-                });
-              }
-            }}
-            onUpdateTask={(updated) => {
-              // Sync start/dur/done về WBS + tính gantt_start_date/end_date ISO
-              setWbs(prev => {
-                const next = (prev as WBSItem[]).map(w => {
-                  if (w.id !== updated.wbsId) return w;
-                  const patch: Partial<WBSItem> = {
-                    ev_pct: updated.done,
-                    gantt_start: updated.start,
-                    gantt_dur: updated.dur,
-                  };
-                  // Nếu có project start date → tính ISO date
-                  if (startMs > 0) {
-                    const s = new Date(startMs + updated.start * 86400000);
-                    const e = new Date(startMs + (updated.start + updated.dur) * 86400000);
-                    patch.gantt_start_date = s.toISOString().slice(0, 10);
-                    patch.gantt_end_date   = e.toISOString().slice(0, 10);
-                  }
-                  return { ...w, ...patch };
-                });
-                if (dbLoaded.current) db.set('progress_wbs', pid, next);
-                return next;
-              });
-            }}
-            onFreezeBaseline={(frozenTasks) => {
-              setWbs(prev => {
-                const next = (prev as WBSItem[]).map(w => {
-                  const ft = frozenTasks.find(t => t.wbsId === w.id);
-                  if (!ft) return w;
-                  return {
-                    ...w,
-                    gantt_baseline_start: ft.gantt_baseline_start,
-                    gantt_baseline_end:   ft.gantt_baseline_end,
-                  };
-                });
-                if (dbLoaded.current) db.set('progress_wbs', pid, next);
-                return next;
-              });
-              notifOk('📸 Baseline đã được chụp', 'Mọi thay đổi tiến độ sẽ so sánh với mốc này');
-            }}
-          />
         </div>
       )}
 
-      {/* ── EVM Dashboard ────────────────────────────────────────────────────── */}
+      {/* ── Chỉ số EVM ───────────────────────────────────────────────────────── */}
       {tab==='evm' && (
         <div className="space-y-5">
-          {/* Index badges */}
           <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5">
             <h3 className="text-base font-bold text-slate-800 mb-4 flex items-center gap-2"><Activity size={16} className="text-blue-600"/>Chỉ số EVM hiện tại</h3>
             <div className="flex gap-4 flex-wrap justify-start">
@@ -1153,8 +1259,6 @@ export default function ProgressDashboard({ project: selectedProject, projectId:
               TCPI={TCPI} → Cần đạt hiệu suất {TCPI.toFixed(2)} trong phần còn lại để hoàn thành trong ngân sách — <strong>rất thách thức</strong>.
             </div>
           </div>
-
-          {/* Forecast table */}
           <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5">
             <h3 className="text-base font-bold text-slate-800 mb-4 flex items-center gap-2"><BarChart2 size={16} className="text-indigo-600"/>Dự báo hoàn thành (EAC / ETC / VAC)</h3>
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
@@ -1175,8 +1279,6 @@ export default function ProgressDashboard({ project: selectedProject, projectId:
               <strong>🚨 Cảnh báo:</strong> Nếu duy trì CPI hiện tại ({CPI}), dự án sẽ vượt ngân sách <strong>{Math.abs(VAC).toFixed(1)} tỷ VNĐ ({((Math.abs(VAC)/BAC)*100).toFixed(0)}%)</strong> so với hợp đồng.
             </div>
           </div>
-
-          {/* SPI/CPI trend bar chart */}
           <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5">
             <h3 className="text-base font-bold text-slate-800 mb-4 flex items-center gap-2"><TrendingUp size={16} className="text-emerald-600"/>Xu hướng SV & CV theo tuần (tỷ VNĐ)</h3>
             <ResponsiveContainer width="100%" height={240} minWidth={0}>
@@ -1195,120 +1297,9 @@ export default function ProgressDashboard({ project: selectedProject, projectId:
         </div>
       )}
 
-      {/* ── WBS ──────────────────────────────────────────────────────────────── */}
-      {tab==='wbs' && (
-        <div className="space-y-3">
-          <div className="flex items-center justify-between">
-            <p className="text-sm text-slate-500">Click vào hạng mục để cập nhật % EV thực tế</p>
-            <div className="flex gap-2 text-[10px] font-bold">
-              {[['bg-emerald-200','OK'],['bg-amber-200','Rủi ro'],['bg-rose-200','Critical']].map(([c,l])=>(
-                <span key={l} className="flex items-center gap-1"><span className={`w-2.5 h-2.5 rounded ${c}`}/>{l}</span>
-              ))}
-            </div>
-          </div>
-          {/* Header */}
-          <div className="grid grid-cols-12 gap-2 px-3 py-2 bg-slate-100 rounded-xl text-[10px] font-bold text-slate-500 uppercase tracking-wide">
-            <div className="col-span-4">Hạng mục</div>
-            <div className="col-span-1 text-right">Ngân sách</div>
-            <div className="col-span-2 text-center">PV%</div>
-            <div className="col-span-2 text-center">EV% (thực)</div>
-            <div className="col-span-1 text-right">AC</div>
-            <div className="col-span-2 text-center">CPI hạng mục</div>
-          </div>
-          {wbs.map(w=>{
-            const gap = w.ev_pct - w.pv_pct;
-            const wCPI = w.ac > 0 ? +((w.budget * w.ev_pct/100) / w.ac).toFixed(2) : null;
-            const rowCls = w.critical && gap < -10 ? 'bg-rose-50 border-rose-200' : gap < -5 ? 'bg-amber-50 border-amber-200' : 'bg-white border-slate-200';
-            const isEditing = editingWbs === w.id;
-            return (
-              <div key={w.id} className={`border rounded-2xl shadow-sm overflow-hidden ${rowCls}`}>
-                <div className="grid grid-cols-12 gap-2 px-3 py-3 items-center cursor-pointer hover:bg-black/[0.02]"
-                  onClick={()=>setExpandedWbs(expandedWbs===w.id?null:w.id)}>
-                  <div className="col-span-4 flex items-center gap-2 min-w-0">
-                    {w.critical && <Flag size={11} className="text-rose-500 shrink-0"/>}
-                    <div className="min-w-0">
-                      <p className="text-xs font-semibold text-slate-800 truncate">{w.code} {w.name}</p>
-                      <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full ${CAT_CLS[w.category]||''}`}>{w.category}</span>
-                    </div>
-                  </div>
-                  <div className="col-span-1 text-right text-xs font-bold text-slate-700">{w.budget}tỷ</div>
-                  <div className="col-span-2 text-center">
-                    <div className="text-xs font-bold text-blue-600">{w.pv_pct}%</div>
-                    <div className="h-1.5 bg-blue-100 rounded-full mt-1 overflow-hidden"><div className="h-full bg-blue-400 rounded-full" style={{width:`${w.pv_pct}%`}}/></div>
-                  </div>
-                  <div className="col-span-2 text-center">
-                    {isEditing ? (
-                      <div className="flex gap-1" onClick={e=>e.stopPropagation()}>
-                        <input type="number" min={0} max={100} value={editEv} onChange={e=>setEditEv(e.target.value)} className="w-14 text-xs text-center border border-emerald-300 rounded-lg px-1 py-0.5 focus:outline-none focus:ring-1 focus:ring-emerald-400"/>
-                        <button onClick={()=>{
-                          setWbs(p => {
-                            const next = p.map(x=>x.id===w.id?{...x,ev_pct:+editEv}:x);
-                            if (dbLoaded.current) db.set('progress_wbs', pid, next);
-                            return next;
-                          });
-                          setEditingWbs(null);
-                        }} className="p-1 bg-emerald-500 text-white rounded"><Save size={9}/></button>
-                        <button onClick={()=>setEditingWbs(null)} className="p-1 bg-slate-200 rounded"><X size={9}/></button>
-                      </div>
-                    ) : (
-                      <button onClick={e=>{e.stopPropagation();setEditingWbs(w.id);setEditEv(String(w.ev_pct));}} className="group/ev">
-                        <div className={`text-xs font-bold ${gap<-10?'text-rose-600':gap<-5?'text-amber-600':'text-emerald-600'}`}>{w.ev_pct}%</div>
-                        <div className="h-1.5 bg-emerald-100 rounded-full mt-1 overflow-hidden"><div className={`h-full rounded-full ${gap<-10?'bg-rose-400':gap<-5?'bg-amber-400':'bg-emerald-400'}`} style={{width:`${w.ev_pct}%`}}/></div>
-                        <div className="text-[9px] text-slate-400 group-hover/ev:text-slate-600 mt-0.5 flex items-center justify-center gap-0.5"><Edit3 size={8}/>Sửa</div>
-                      </button>
-                    )}
-                  </div>
-                  <div className="col-span-1 text-right text-xs font-bold text-amber-700">{w.ac}tỷ</div>
-                  <div className="col-span-2 text-center">
-                    {wCPI!=null && (
-                      <span className={`text-xs font-black px-2 py-0.5 rounded-full ${wCPI>=0.95?'bg-emerald-100 text-emerald-700':wCPI>=0.85?'bg-amber-100 text-amber-700':'bg-rose-100 text-rose-700'}`}>
-                        {wCPI.toFixed(2)}
-                      </span>
-                    )}
-                  </div>
-                </div>
-                {expandedWbs===w.id && (
-                  <div className="border-t border-slate-100 px-4 py-3 bg-slate-50/50">
-                    <div className="grid grid-cols-3 gap-3 text-xs text-slate-600">
-                      <div>
-                        <span className="font-bold text-slate-400 uppercase text-[9px] block mb-1">Phụ trách</span>
-                        <select
-                          value={w.responsible}
-                          onClick={e => e.stopPropagation()}
-                          onChange={e => {
-                            e.stopPropagation();
-                            setWbs(prev => {
-                              const next = prev.map(x => x.id === w.id ? {...x, responsible: e.target.value} : x);
-                              if (dbLoaded.current) db.set('progress_wbs', pid, next);
-                              return next;
-                            });
-                          }}
-                          className="w-full text-xs border border-slate-200 rounded-lg px-2 py-1 bg-white focus:outline-none focus:ring-1 focus:ring-emerald-400 cursor-pointer"
-                        >
-                          {loadMembers(pid).map(m => (
-                            <option key={m.userId} value={m.userName}>{m.userName}</option>
-                          ))}
-                          {/* Fallback nếu chưa có members */}
-                          {loadMembers(pid).length === 0 && (
-                            <option value={w.responsible}>{w.responsible}</option>
-                          )}
-                        </select>
-                      </div>
-                      <div><span className="font-bold text-slate-400 uppercase text-[9px] block mb-0.5">Lệch PV-EV</span><span className={gap<0?'text-rose-600 font-bold':'text-emerald-600 font-bold'}>{gap>0?'+':''}{gap}%</span></div>
-                      <div><span className="font-bold text-slate-400 uppercase text-[9px] block mb-0.5">Critical path</span><span className={w.critical?'text-rose-600 font-bold':'text-slate-500'}>{w.critical?'⚠ Có':'Không'}</span></div>
-                    </div>
-                  </div>
-                )}
-              </div>
-            );
-          })}
-        </div>
-      )}
-
-      {/* ── Milestones ───────────────────────────────────────────────────────── */}
+      {/* ── Cột mốc ──────────────────────────────────────────────────────────── */}
       {tab==='milestones' && (
         <div className="space-y-4">
-          {/* Template badge */}
           {(() => {
             const tplId = selectedProject?.id ? getProjectTemplate(selectedProject.id) : null;
             const tpl   = tplId ? PROJECT_TEMPLATES[tplId] : null;
@@ -1323,10 +1314,10 @@ export default function ProgressDashboard({ project: selectedProject, projectId:
           })()}
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
             {[
-              { label:'Tổng cột mốc', val:milestones.length,                           cls:'bg-slate-100 text-slate-700' },
-              { label:'Hoàn thành',   val:milestones.filter(m=>m.status==='done').length, cls:'bg-emerald-100 text-emerald-700' },
-              { label:'Đang chậm',    val:milestones.filter(m=>m.status==='delayed').length, cls:'bg-rose-100 text-rose-700' },
-              { label:'Có rủi ro',    val:milestones.filter(m=>m.status==='at_risk').length, cls:'bg-amber-100 text-amber-700' },
+              { label:'Tổng cột mốc', val:milestones.length,                               cls:'bg-slate-100 text-slate-700' },
+              { label:'Hoàn thành',   val:milestones.filter(m=>m.status==='done').length,   cls:'bg-emerald-100 text-emerald-700' },
+              { label:'Đang chậm',    val:milestones.filter(m=>m.status==='delayed').length,cls:'bg-rose-100 text-rose-700' },
+              { label:'Có rủi ro',    val:milestones.filter(m=>m.status==='at_risk').length,cls:'bg-amber-100 text-amber-700' },
             ].map((k,i)=>(
               <div key={i} className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm">
                 <div className={`w-9 h-9 rounded-full flex items-center justify-center mb-3 ${k.cls}`}><Flag size={16}/></div>
@@ -1335,8 +1326,6 @@ export default function ProgressDashboard({ project: selectedProject, projectId:
               </div>
             ))}
           </div>
-
-          {/* Timeline */}
           <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5">
             <h3 className="text-base font-bold text-slate-800 mb-5 flex items-center gap-2"><Award size={16} className="text-amber-500"/>Timeline cột mốc</h3>
             <div className="relative">
@@ -1376,15 +1365,13 @@ export default function ProgressDashboard({ project: selectedProject, projectId:
               </div>
             </div>
           </div>
-
-          {/* Critical path warning */}
           {milestones.some(m=>m.status==='delayed'&&m.critical) && (
             <div className="bg-rose-50 border-2 border-rose-200 rounded-2xl p-4 flex items-start gap-3">
               <AlertTriangle size={18} className="text-rose-500 mt-0.5 shrink-0"/>
               <div>
                 <p className="font-bold text-rose-800 text-sm">🚨 Cảnh báo Critical Path</p>
                 {milestones.filter(m=>m.status==='delayed'&&m.critical).map(m=>(
-                  <p key={m.id} className="text-xs text-rose-700 mt-1">• <strong>{m.name}</strong> — chậm {m.delta} ngày so với kế hoạch ({m.plan}). Ảnh hưởng trực tiếp đến bàn giao.</p>
+                  <p key={m.id} className="text-xs text-rose-700 mt-1">• <strong>{m.name}</strong> — chậm {m.delta} ngày ({m.plan})</p>
                 ))}
                 <button onClick={callGEM} className="mt-2 flex items-center gap-1.5 px-3 py-1.5 bg-rose-600 text-white rounded-lg text-xs font-bold hover:bg-rose-700">
                   <Sparkles size={11}/>GEM đề xuất phục hồi tiến độ
@@ -1394,6 +1381,447 @@ export default function ProgressDashboard({ project: selectedProject, projectId:
           )}
         </div>
       )}
+
+      {/* ── Gantt & WBS ──────────────────────────────────────────────────────── */}
+      {tab==='wbs' && (
+        <div className="space-y-3">
+          {/* Gantt chart */}
+          <GanttChart
+            tasks={ganttTasks}
+            totalDays={totalDays}
+            today={today}
+            startMs={startMs}
+            canViewFinance={canViewFinance}
+            canViewFinanceNumbers={canViewFinanceNumbers}
+            onReorder={(reordered) => {
+              const wbsById = Object.fromEntries(wbs.map(w => [w.id, w]));
+              const nextWbs = reordered.map(t => wbsById[(t as any).wbsId]).filter(Boolean);
+              if (nextWbs.length === wbs.length) {
+                setWbs(() => { if (dbLoaded.current) db.set('progress_wbs', pid, nextWbs); return nextWbs; });
+              }
+            }}
+            onUpdateTask={(updated) => {
+              setWbs(prev => {
+                const next = (prev as WBSItem[]).map(w => {
+                  if (w.id !== updated.wbsId) return w;
+                  const patch: Partial<WBSItem> = { ev_pct: updated.done, gantt_start: updated.start, gantt_dur: updated.dur };
+                  if (startMs > 0) {
+                    const s = new Date(startMs + updated.start * 86400000);
+                    const e = new Date(startMs + (updated.start + updated.dur) * 86400000);
+                    patch.gantt_start_date = s.toISOString().slice(0,10);
+                    patch.gantt_end_date   = e.toISOString().slice(0,10);
+                  }
+                  return { ...w, ...patch };
+                });
+                if (dbLoaded.current) db.set('progress_wbs', pid, next);
+                return next;
+              });
+            }}
+            onFreezeBaseline={(frozenTasks) => {
+              setWbs(prev => {
+                const next = (prev as WBSItem[]).map(w => {
+                  const ft = frozenTasks.find(t => t.wbsId === w.id);
+                  if (!ft) return w;
+                  return { ...w, gantt_baseline_start: ft.gantt_baseline_start, gantt_baseline_end: ft.gantt_baseline_end };
+                });
+                if (dbLoaded.current) db.set('progress_wbs', pid, next);
+                return next;
+              });
+              notifOk('📸 Baseline đã được chụp', 'Mọi thay đổi tiến độ sẽ so sánh với mốc này');
+            }}
+          />
+
+          {/* S32.9 Resource histogram — wire từ mp_people + WBS */}
+          {(() => {
+            const BUCKET = 7;
+            const activePeople = mpPeople.filter(p => p.status === 'active');
+            const workerCount  = activePeople.filter(p => p.type === 'worker').length;
+            const staffCount   = activePeople.filter(p => p.type === 'staff').length;
+            const capacity     = Math.max(workerCount || 10, 5);
+            const buckets: { label:string; workers:number; staff:number; equip:number; overload:boolean }[] = [];
+            for (let w = 0; w < Math.min(Math.ceil(totalDays / BUCKET), 16); w++) {
+              const dayStart = w * BUCKET;
+              const dayEnd   = dayStart + BUCKET;
+              const activeTasks = (wbs as WBSItem[]).filter(item => {
+                const s = item.gantt_start ?? 0;
+                const e = s + (item.gantt_dur ?? 0);
+                return e > dayStart && s < dayEnd && item.ev_pct < 100;
+              });
+              const equipTasks = activeTasks.filter(t => ['M&E','Móng','Thân nhà'].includes(t.category));
+              const label = startMs > 0
+                ? new Date(startMs + dayStart * 86400000).toLocaleDateString('vi-VN',{day:'2-digit',month:'2-digit'})
+                : `T${w+1}`;
+              buckets.push({
+                label,
+                workers: Math.min(activeTasks.length * Math.max(1, Math.floor(workerCount / Math.max(activeTasks.length,1))), workerCount || activeTasks.length),
+                staff:   staffCount > 0 ? Math.ceil(staffCount / Math.max(activeTasks.length,1)) : 0,
+                equip:   equipTasks.length,
+                overload: activeTasks.length > capacity / 2,
+              });
+            }
+            const maxVal = Math.max(...buckets.map(b => b.workers + b.staff), capacity, 1);
+            return (
+              <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-4">
+                <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
+                  <h4 className="text-sm font-bold text-slate-700 flex items-center gap-2">
+                    <Users size={14} className="text-indigo-500"/>Tải trọng nhân lực & thiết bị theo tuần
+                  </h4>
+                  <div className="flex items-center gap-3 text-[10px] font-semibold text-slate-500">
+                    {mpPeople.length > 0
+                      ? <><span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded bg-amber-400 inline-block"/>Công nhân ({workerCount})</span>
+                          <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded bg-blue-400 inline-block"/>Cán bộ ({staffCount})</span></>
+                      : <span className="text-amber-600">⚠ Chưa có nhân sự — mở tab Nhân sự để nhập</span>
+                    }
+                  </div>
+                </div>
+                <div className="flex items-end gap-1 overflow-x-auto pb-6" style={{minHeight:80}}>
+                  {buckets.map((b,i) => {
+                    const totalH  = Math.round(((b.workers+b.staff)/maxVal)*64);
+                    const workerH = Math.round((b.workers/maxVal)*64);
+                    const staffH  = totalH - workerH;
+                    return (
+                      <div key={i} className="flex flex-col items-center shrink-0" style={{minWidth:32}}>
+                        <div className="relative flex flex-col justify-end" style={{height:64,width:20}}>
+                          <div className="absolute w-full border-t border-dashed border-rose-300"
+                               style={{bottom:`${Math.round((capacity/maxVal)*64)}px`}}/>
+                          <div className="w-full rounded-t-sm"
+                               style={{height:workerH, background: b.overload?'#f87171':'#fbbf24'}}/>
+                          {staffH>0 && <div className="w-full" style={{height:staffH,background:'#60a5fa'}}/>}
+                        </div>
+                        <div className="w-full mt-0.5 rounded-sm bg-slate-200"
+                             style={{height:Math.max(Math.round((b.equip/Math.max(...buckets.map(x=>x.equip),1))*16),0),width:20}}
+                             title={`${b.label}: ${b.equip} thiết bị`}/>
+                        <span className="text-[7px] text-slate-400 mt-1 whitespace-nowrap"
+                              style={{writingMode:'vertical-rl',transform:'rotate(180deg)',height:28}}>{b.label}</span>
+                      </div>
+                    );
+                  })}
+                </div>
+                {buckets.some(b=>b.overload) && (
+                  <p className="text-[10px] text-rose-600 font-semibold flex items-center gap-1 mt-1">
+                    <AlertTriangle size={10}/>Tuần màu đỏ có nguy cơ quá tải — cần điều phối lại tiến độ
+                  </p>
+                )}
+              </div>
+            );
+          })()}
+
+          {/* S32.10 Delay log */}
+          {(() => {
+            const [showDelayForm, setShowDelayForm] = React.useState(false);
+            const [delayLog, setDelayLog] = React.useState<{id:string;date:string;reason:string;wbsId:string;days:number}[]>([]);
+            const [delayForm, setDelayForm] = React.useState({
+              date: new Date().toISOString().slice(0,10), reason:'rain',
+              wbsId: (wbs[0] as WBSItem)?.id ?? '', days: 1,
+            });
+            React.useEffect(() => {
+              db.get<typeof delayLog>('progress_delay_log', pid, []).then(d => { if (d.length) setDelayLog(d); });
+            // eslint-disable-next-line react-hooks/exhaustive-deps
+            }, [pid]);
+            const REASONS = [
+              {value:'rain',label:'Mưa lớn',icon:'🌧'},{value:'holiday',label:'Nghỉ lễ',icon:'📅'},
+              {value:'incident',label:'Sự cố',icon:'⚠️'},{value:'material',label:'Thiếu vật tư',icon:'📦'},
+              {value:'other',label:'Khác',icon:'📝'},
+            ];
+            const totalDelay = delayLog.reduce((s,d)=>s+d.days,0);
+            const addDelay = () => {
+              const entry = {id:`dl${Date.now()}`,...delayForm};
+              const next = [...delayLog, entry];
+              setDelayLog(next); db.set('progress_delay_log', pid, next);
+              setWbs(prev => {
+                const updated = (prev as WBSItem[]).map(w => {
+                  if (w.id !== entry.wbsId) return w;
+                  const newDur = (w.gantt_dur ?? 30) + entry.days;
+                  const newEnd = w.gantt_start_date
+                    ? new Date(new Date(w.gantt_start_date).getTime()+newDur*86400000).toISOString().slice(0,10)
+                    : w.gantt_end_date;
+                  return {...w, gantt_dur:newDur, gantt_end_date:newEnd, delay_days:(w.delay_days??0)+entry.days};
+                });
+                if (dbLoaded.current) db.set('progress_wbs', pid, updated);
+                return updated;
+              });
+              setShowDelayForm(false);
+              notifOk('📅 Đã ghi nhận ngày dừng', `+${entry.days} ngày — ${REASONS.find(r=>r.value===entry.reason)?.label}`);
+            };
+            return (
+              <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-4">
+                <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
+                  <h4 className="text-sm font-bold text-slate-700 flex items-center gap-2">
+                    <CloudRain size={14} className="text-blue-500"/>Nhật ký ngày dừng thi công
+                    {totalDelay>0 && <span className="text-[10px] font-black px-2 py-0.5 bg-rose-100 text-rose-700 rounded-full">Tổng {totalDelay} ngày</span>}
+                  </h4>
+                  <button onClick={()=>setShowDelayForm(v=>!v)}
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold bg-blue-50 border border-blue-200 text-blue-700 hover:bg-blue-100 transition-all">
+                    <Plus size={11}/>Ghi ngày dừng
+                  </button>
+                </div>
+                {showDelayForm && (
+                  <div className="mb-3 p-3 bg-blue-50 border border-blue-200 rounded-xl flex flex-wrap gap-3 items-end">
+                    <div><label className="text-[10px] font-bold text-slate-500 block mb-1">Ngày</label>
+                      <input type="date" value={delayForm.date} onChange={e=>setDelayForm(f=>({...f,date:e.target.value}))}
+                        className="text-xs border border-slate-200 rounded-lg px-2 py-1.5 bg-white"/></div>
+                    <div><label className="text-[10px] font-bold text-slate-500 block mb-1">Hạng mục</label>
+                      <select value={delayForm.wbsId} onChange={e=>setDelayForm(f=>({...f,wbsId:e.target.value}))}
+                        className="text-xs border border-slate-200 rounded-lg px-2 py-1.5 bg-white max-w-[180px]">
+                        {(wbs as WBSItem[]).map(w=><option key={w.id} value={w.id}>{w.name}</option>)}
+                      </select></div>
+                    <div><label className="text-[10px] font-bold text-slate-500 block mb-1">Lý do</label>
+                      <select value={delayForm.reason} onChange={e=>setDelayForm(f=>({...f,reason:e.target.value}))}
+                        className="text-xs border border-slate-200 rounded-lg px-2 py-1.5 bg-white">
+                        {REASONS.map(r=><option key={r.value} value={r.value}>{r.icon} {r.label}</option>)}
+                      </select></div>
+                    <div><label className="text-[10px] font-bold text-slate-500 block mb-1">Số ngày</label>
+                      <input type="number" min={1} max={30} value={delayForm.days}
+                        onChange={e=>setDelayForm(f=>({...f,days:Math.max(1,Number(e.target.value))}))}
+                        className="text-xs border border-slate-200 rounded-lg px-2 py-1.5 bg-white w-16"/></div>
+                    <button onClick={addDelay}
+                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold bg-blue-600 text-white hover:bg-blue-700">
+                      <Save size={11}/>Lưu</button>
+                    <button onClick={()=>setShowDelayForm(false)} className="p-1.5 rounded-lg text-slate-400 hover:bg-slate-100"><X size={12}/></button>
+                  </div>
+                )}
+                {delayLog.length===0
+                  ? <p className="text-xs text-slate-400 italic py-1">Chưa có ngày dừng nào được ghi nhận</p>
+                  : <div className="space-y-1.5 max-h-40 overflow-y-auto">
+                      {delayLog.map(d=>{
+                        const r=REASONS.find(r=>r.value===d.reason);
+                        const taskName=(wbs as WBSItem[]).find(w=>w.id===d.wbsId)?.name??'—';
+                        return (
+                          <div key={d.id} className="flex items-center gap-3 px-3 py-2 bg-slate-50 rounded-xl text-xs">
+                            <span className="text-base shrink-0">{r?.icon??'📝'}</span>
+                            <span className="font-semibold text-slate-700 shrink-0">{d.date}</span>
+                            <span className="text-slate-500 flex-1 truncate">{taskName}</span>
+                            <span className="text-slate-400 shrink-0">{r?.label}</span>
+                            <span className="font-black text-rose-600 shrink-0">+{d.days}d</span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                }
+              </div>
+            );
+          })()}
+
+          {/* WBS table */}
+          <div className="space-y-3">
+            <div className="flex items-center justify-between">
+              <p className="text-sm text-slate-500">Click vào hạng mục để cập nhật % EV thực tế</p>
+              <div className="flex gap-2 text-[10px] font-bold">
+                {[['bg-emerald-200','OK'],['bg-amber-200','Rủi ro'],['bg-rose-200','Critical']].map(([c,l])=>(
+                  <span key={l} className="flex items-center gap-1"><span className={`w-2.5 h-2.5 rounded ${c}`}/>{l}</span>
+                ))}
+              </div>
+            </div>
+            <div className="grid grid-cols-12 gap-2 px-3 py-2 bg-slate-100 rounded-xl text-[10px] font-bold text-slate-500 uppercase tracking-wide">
+              <div className="col-span-4">Hạng mục</div>
+              <div className="col-span-1 text-right">Ngân sách</div>
+              <div className="col-span-2 text-center">PV%</div>
+              <div className="col-span-2 text-center">EV% (thực)</div>
+              <div className="col-span-1 text-right">AC</div>
+              <div className="col-span-2 text-center">CPI hạng mục</div>
+            </div>
+            {wbs.map(w=>{
+              const gap = w.ev_pct - w.pv_pct;
+              const wCPI = w.ac > 0 ? +((w.budget * w.ev_pct/100) / w.ac).toFixed(2) : null;
+              const rowCls = w.critical && gap < -10 ? 'bg-rose-50 border-rose-200' : gap < -5 ? 'bg-amber-50 border-amber-200' : 'bg-white border-slate-200';
+              const isEditing = editingWbs === w.id;
+              return (
+                <div key={w.id} className={`border rounded-2xl shadow-sm overflow-hidden ${rowCls}`}>
+                  <div className="grid grid-cols-12 gap-2 px-3 py-3 items-center cursor-pointer hover:bg-black/[0.02]"
+                    onClick={()=>setExpandedWbs(expandedWbs===w.id?null:w.id)}>
+                    <div className="col-span-4 flex items-center gap-2 min-w-0">
+                      {w.critical && <Flag size={11} className="text-rose-500 shrink-0"/>}
+                      <div className="min-w-0">
+                        <p className="text-xs font-semibold text-slate-800 truncate">{w.code} {w.name}</p>
+                        <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full ${CAT_CLS[w.category]||''}`}>{w.category}</span>
+                      </div>
+                    </div>
+                    <div className="col-span-1 text-right text-xs font-bold text-slate-700">{w.budget}tỷ</div>
+                    <div className="col-span-2 text-center">
+                      <div className="text-xs font-bold text-blue-600">{w.pv_pct}%</div>
+                      <div className="h-1.5 bg-blue-100 rounded-full mt-1 overflow-hidden"><div className="h-full bg-blue-400 rounded-full" style={{width:`${w.pv_pct}%`}}/></div>
+                    </div>
+                    <div className="col-span-2 text-center">
+                      {isEditing ? (
+                        <div className="flex gap-1" onClick={e=>e.stopPropagation()}>
+                          <input type="number" min={0} max={100} value={editEv} onChange={e=>setEditEv(e.target.value)}
+                            className="w-14 text-xs text-center border border-emerald-300 rounded-lg px-1 py-0.5 focus:outline-none focus:ring-1 focus:ring-emerald-400"/>
+                          <button onClick={()=>{
+                            setWbs(p=>{const next=p.map(x=>x.id===w.id?{...x,ev_pct:+editEv}:x);if(dbLoaded.current)db.set('progress_wbs',pid,next);return next;});
+                            setEditingWbs(null);
+                          }} className="p-1 bg-emerald-500 text-white rounded"><Save size={9}/></button>
+                          <button onClick={()=>setEditingWbs(null)} className="p-1 bg-slate-200 rounded"><X size={9}/></button>
+                        </div>
+                      ) : (
+                        <button onClick={e=>{e.stopPropagation();setEditingWbs(w.id);setEditEv(String(w.ev_pct));}} className="group/ev">
+                          <div className={`text-xs font-bold ${gap<-10?'text-rose-600':gap<-5?'text-amber-600':'text-emerald-600'}`}>{w.ev_pct}%</div>
+                          <div className="h-1.5 bg-emerald-100 rounded-full mt-1 overflow-hidden">
+                            <div className={`h-full rounded-full ${gap<-10?'bg-rose-400':gap<-5?'bg-amber-400':'bg-emerald-400'}`} style={{width:`${w.ev_pct}%`}}/>
+                          </div>
+                          <div className="text-[9px] text-slate-400 group-hover/ev:text-slate-600 mt-0.5 flex items-center justify-center gap-0.5"><Edit3 size={8}/>Sửa</div>
+                        </button>
+                      )}
+                    </div>
+                    <div className="col-span-1 text-right text-xs font-bold text-amber-700">{w.ac}tỷ</div>
+                    <div className="col-span-2 text-center">
+                      {wCPI!=null && (
+                        <span className={`text-xs font-black px-2 py-0.5 rounded-full ${wCPI>=0.95?'bg-emerald-100 text-emerald-700':wCPI>=0.85?'bg-amber-100 text-amber-700':'bg-rose-100 text-rose-700'}`}>
+                          {wCPI.toFixed(2)}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                  {expandedWbs===w.id && (
+                    <div className="border-t border-slate-100 px-4 py-3 bg-slate-50/50">
+                      <div className="grid grid-cols-3 gap-3 text-xs text-slate-600">
+                        <div>
+                          <span className="font-bold text-slate-400 uppercase text-[9px] block mb-1">Phụ trách</span>
+                          <select value={w.responsible} onClick={e=>e.stopPropagation()}
+                            onChange={e=>{e.stopPropagation();setWbs(prev=>{const next=prev.map(x=>x.id===w.id?{...x,responsible:e.target.value}:x);if(dbLoaded.current)db.set('progress_wbs',pid,next);return next;});}}
+                            className="w-full text-xs border border-slate-200 rounded-lg px-2 py-1 bg-white focus:outline-none focus:ring-1 focus:ring-emerald-400 cursor-pointer">
+                            {loadMembers(pid).map(m=>(<option key={m.userId} value={m.userName}>{m.userName}</option>))}
+                            {loadMembers(pid).length===0 && <option value={w.responsible}>{w.responsible}</option>}
+                          </select>
+                        </div>
+                        <div><span className="font-bold text-slate-400 uppercase text-[9px] block mb-0.5">Lệch PV-EV</span>
+                          <span className={gap<0?'text-rose-600 font-bold':'text-emerald-600 font-bold'}>{gap>0?'+':''}{gap}%</span></div>
+                        <div><span className="font-bold text-slate-400 uppercase text-[9px] block mb-0.5">Critical path</span>
+                          <span className={w.critical?'text-rose-600 font-bold':'text-slate-500'}>{w.critical?'⚠ Có':'Không'}</span></div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* ── Lịch & Sự kiện ───────────────────────────────────────────────────── */}
+      {tab==='calendar' && (
+        <CalendarSchedule projects={selectedProject ? [selectedProject] : []}/>
+      )}
+
+      {/* ── Báo cáo ──────────────────────────────────────────────────────────── */}
+      {tab==='reports' && selectedProject && (
+        <ReportsDashboard project={selectedProject} projectId={selectedProject.id}/>
+      )}
+      {/* S32.7 — Look-ahead 3 tuần */}
+      {tab === 'lookahead' && (() => {
+        const nowMs = Date.now();
+        const startOfToday = new Date(); startOfToday.setHours(0,0,0,0);
+        const todayMs = startOfToday.getTime();
+        const week1End = todayMs + 7  * 86400000;
+        const week2End = todayMs + 14 * 86400000;
+        const week3End = todayMs + 21 * 86400000;
+
+        // Build gantt tasks với real dates từ wbs
+        const ganttTasks = (wbs as WBSItem[]).map(w => {
+          const startDate = w.gantt_start_date ? new Date(w.gantt_start_date).getTime() : null;
+          const endDate   = w.gantt_end_date   ? new Date(w.gantt_end_date).getTime()   : null;
+          return { ...w, startMs: startDate, endMs: endDate };
+        });
+
+        const groups = [
+          { label:'Tuần này',      from: todayMs, to: week1End,  cls:'bg-blue-50 border-blue-200',   hdr:'text-blue-700' },
+          { label:'Tuần tới',      from: week1End, to: week2End, cls:'bg-violet-50 border-violet-200', hdr:'text-violet-700' },
+          { label:'Tuần sau nữa',  from: week2End, to: week3End, cls:'bg-slate-50 border-slate-200',  hdr:'text-slate-600' },
+        ];
+
+        const fmtDate = (ms: number) => new Date(ms).toLocaleDateString('vi-VN', { day:'2-digit', month:'2-digit' });
+
+        return (
+          <div className="space-y-4 lookahead-print">
+            {/* Print header — chỉ hiện khi in */}
+            <div className="hidden print:block text-center mb-4">
+              <h2 className="text-lg font-bold">KẾ HOẠCH LOOK-AHEAD 3 TUẦN</h2>
+              <p className="text-sm text-slate-500">{selectedProject?.name||'Dự án'} — In ngày {new Date().toLocaleDateString('vi-VN')}</p>
+            </div>
+
+            {/* Export bar */}
+            <div className="flex items-center justify-between bg-white rounded-2xl border border-slate-200 shadow-sm px-5 py-3 print:hidden">
+              <div>
+                <h3 className="font-bold text-slate-800 text-sm flex items-center gap-2"><Calendar size={14} className="text-blue-600"/>Look-ahead 3 tuần tới</h3>
+                <p className="text-xs text-slate-400 mt-0.5">Task bắt đầu trong 21 ngày — dùng cho họp giao ban</p>
+              </div>
+              <div className="flex gap-2">
+                <button onClick={() => window.print()}
+                  className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold border border-slate-200 bg-slate-50 text-slate-600 hover:border-blue-300 hover:bg-blue-50 hover:text-blue-700 transition-all">
+                  <Printer size={12}/>In A4
+                </button>
+              </div>
+            </div>
+
+            {groups.map(g => {
+              const tasks = ganttTasks.filter(t =>
+                t.startMs !== null && t.startMs >= g.from && t.startMs < g.to
+              );
+              return (
+                <div key={g.label} className={`rounded-2xl border-2 ${g.cls} overflow-hidden`}>
+                  <div className={`px-5 py-3 flex items-center justify-between border-b ${g.cls}`}>
+                    <h4 className={`font-bold text-sm ${g.hdr} flex items-center gap-2`}>
+                      <Calendar size={13}/>{g.label}
+                      <span className="ml-2 text-[10px] font-normal opacity-70">{fmtDate(g.from)} – {fmtDate(g.to - 86400000)}</span>
+                    </h4>
+                    <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full bg-white/60 ${g.hdr}`}>{tasks.length} task</span>
+                  </div>
+                  {tasks.length === 0 ? (
+                    <p className="px-5 py-4 text-xs text-slate-400 italic">Không có task nào bắt đầu trong giai đoạn này</p>
+                  ) : (
+                    <div className="divide-y divide-white/50">
+                      {tasks.map(t => {
+                        const dur = t.endMs && t.startMs ? Math.round((t.endMs - t.startMs) / 86400000) : null;
+                        const overdue = t.endMs && t.endMs < nowMs && t.ev_pct < 100;
+                        return (
+                          <div key={t.id} className="px-5 py-3 flex items-center gap-4 flex-wrap">
+                            <div className="flex-1 min-w-0">
+                              <p className={`text-sm font-semibold truncate ${overdue ? 'text-rose-700' : 'text-slate-800'}`}>
+                                {overdue && '⚠ '}{t.name}
+                              </p>
+                              <div className="flex items-center gap-3 mt-0.5 flex-wrap">
+                                <span className="text-[10px] text-slate-400">{t.code}</span>
+                                <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full ${CAT_CLS[t.category]||'bg-slate-100 text-slate-500'}`}>{t.category}</span>
+                                <span className="text-[10px] text-slate-500">👤 {t.responsible}</span>
+                              </div>
+                            </div>
+                            <div className="text-right shrink-0 space-y-0.5">
+                              <p className="text-[11px] font-bold text-slate-700">
+                                {t.startMs ? fmtDate(t.startMs) : '?'} → {t.endMs ? fmtDate(t.endMs) : '?'}
+                              </p>
+                              {dur !== null && <p className="text-[10px] text-slate-400">{dur} ngày</p>}
+                            </div>
+                            <div className="shrink-0">
+                              <div className="w-20 h-2 bg-white/60 rounded-full overflow-hidden">
+                                <div className={`h-full rounded-full ${t.ev_pct >= 100 ? 'bg-emerald-400' : t.ev_pct > 0 ? 'bg-amber-400' : 'bg-slate-300'}`}
+                                     style={{width:`${t.ev_pct}%`}}/>
+                              </div>
+                              <p className="text-[9px] text-center mt-0.5 text-slate-500">{t.ev_pct}%</p>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+
+            {/* Tasks không có gantt_start_date */}
+            {(() => {
+              const noDate = (wbs as WBSItem[]).filter(w => !w.gantt_start_date);
+              if (!noDate.length) return null;
+              return (
+                <div className="bg-amber-50 border border-amber-200 rounded-xl px-5 py-3 print:hidden">
+                  <p className="text-xs text-amber-700 font-semibold flex items-center gap-2">
+                    <AlertTriangle size={12}/>{noDate.length} task chưa gán ngày bắt đầu — mở tab WBS/Tiến độ để kéo Gantt
+                  </p>
+                </div>
+              );
+            })()}
+          </div>
+        );
+      })()}
+
       {printComponent}
     </div>
   );
