@@ -23,6 +23,8 @@ interface TenantRow extends TenantRecord {
   admin_email:   string;
   admin_name:    string;
   days_left:     number | null;  // null = không phải trial
+  plan_id:       PlanId;         // alias cho plan — backward compat
+  is_active:     boolean;        // alias cho !is_locked
 }
 
 interface OverrideForm {
@@ -102,19 +104,24 @@ export default function InternalAdminDashboard() {
           ? Math.max(0, Math.ceil((new Date(t.trial_ends_at).getTime() - Date.now()) / 86400000))
           : null;
         return {
-          id:            t.id,
-          name:          t.name,
-          plan_id:       t.plan_id,
-          trial_ends_at: t.trial_ends_at,
-          is_active:     t.is_active,
-          created_at:    t.created_at,
-          updated_at:    t.updated_at,
-          admin_user_id: t.admin_user_id,
-          user_count:    profiles.length,
-          project_count: pcMap[t.id] ?? 0,
-          admin_email:   admin.email   ?? '—',
-          admin_name:    admin.full_name ?? '—',
-          days_left:     daysLeft,
+          id:              t.id,
+          name:            t.name,
+          slug:            t.slug ?? t.id,
+          plan:            t.plan ?? 'trial',
+          plan_id:         t.plan ?? 'trial',        // alias
+          trial_ends_at:   t.trial_ends_at ?? null,
+          plan_expires_at: t.plan_expires_at ?? null,
+          is_locked:       !!t.is_locked,
+          is_active:       !t.is_locked,              // alias
+          stripe_customer_id: t.stripe_customer_id,
+          payos_customer_id:  t.payos_customer_id,
+          created_at:      t.created_at,
+          updated_at:      t.updated_at,
+          user_count:      profiles.length,
+          project_count:   pcMap[t.id] ?? 0,
+          admin_email:     admin.email    ?? '—',
+          admin_name:      admin.full_name ?? '—',
+          days_left:       daysLeft,
         };
       });
       setTenants(rows);
