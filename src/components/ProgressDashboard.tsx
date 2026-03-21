@@ -526,7 +526,13 @@ export default function ProgressDashboard({ project: selectedProject, projectId:
               setWbs(prev => {
                 const next = (prev as WBSItem[]).map(w => {
                   if (w.id !== updated.wbsId) return w;
-                  const patch: Partial<WBSItem> = { ev_pct: updated.done, gantt_start: updated.start, gantt_dur: updated.dur };
+                  const patch: Partial<WBSItem> = {
+                    ev_pct: updated.done,
+                    gantt_start: updated.start,
+                    gantt_dur: updated.dur,
+                    // persist depends_on khi tạo/xoá liên kết
+                    ...(updated.depends_on !== undefined ? { depends_on: updated.depends_on } : {}),
+                  };
                   if (startMs > 0) {
                     const s = new Date(startMs + updated.start * 86400000);
                     const e = new Date(startMs + (updated.start + updated.dur) * 86400000);

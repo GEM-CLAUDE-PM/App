@@ -144,6 +144,20 @@ export function GanttChart({
   const [items, setItems] = React.useState<GanttTask[]>(tasks);
   const [showFinance, setShowFinance] = React.useState(canViewFinance);
   const [zoom, setZoom] = React.useState<GanttZoom>('week');
+
+  // viewDays = số ngày hiển thị trên 1 viewport — zoom in = ít ngày hơn = bar to hơn
+  const viewDays = React.useMemo(() => {
+    if (zoom === 'week')    return Math.min(totalDays, 90);   // hiện ~13 tuần
+    if (zoom === 'month')   return Math.min(totalDays, 180);  // hiện ~6 tháng
+    return totalDays;                                          // quarter = toàn bộ
+  }, [zoom, totalDays]);
+
+  // scrollOffset tính bằng ngày — dùng để pan ngang
+  const [scrollDay, setScrollDay] = React.useState(0);
+  // clamp scrollDay khi viewDays/totalDays thay đổi
+  React.useEffect(() => {
+    setScrollDay(d => Math.min(d, Math.max(0, totalDays - viewDays)));
+  }, [viewDays, totalDays]);
   const [showConfirmBaseline, setShowConfirmBaseline] = React.useState(false);
   const [dragMode, setDragMode]     = React.useState<DragMode>(null);
   const [draggingRow, setDraggingRow]   = React.useState<number | null>(null);
@@ -296,8 +310,8 @@ export function GanttChart({
         if (fromIdx < 0) return;
         const pred = items[fromIdx];
         // x positions are % of timeline width — we'll use relative SVG coords 0..100
-        const x1 = (pred.start + pred.dur) / totalDays * 100; // end of predecessor
-        const x2 = task.start / totalDays * 100;               // start of successor
+        const x1 = (pred.start + pred.dur - scrollDay) / viewDays * 100; // end of predecessor
+        const x2 = (task.start - scrollDay) / viewDays * 100;               // start of successor
         const y1 = fromIdx * ROW_H + ROW_H / 2;
         const y2 = toIdx   * ROW_H + ROW_H / 2;
         // isViolation: successor bắt đầu trước predecessor kết thúc
@@ -306,62 +320,65 @@ export function GanttChart({
       });
     });
     return arrows;
-  }, [items, showDepArrows, totalDays]);
+  }, [items, showDepArrows, totalDays, scrollDay, viewDays]);
 
 
   const headerTicks = React.useMemo(() => {
     if (totalDays <= 0) return [];
     const ticks: { day: number; label: string }[] = [];
+    const winStart = scrollDay;
+    const winEnd   = scrollDay + viewDays;
+
     if (zoom === 'week') {
-      // Mỗi 7 ngày = 1 tuần
-      const numWeeks = Math.ceil(totalDays / 7);
-      for (let w = 0; w < numWeeks; w++) {
-        const day = w * 7;
+      // Tick mỗi 7 ngày trong cửa sổ
+      const firstTick = Math.ceil(winStart / 7) * 7;
+      for (let day = firstTick; day < winEnd; day += 7) {
         if (startMs > 0) {
           const d = new Date(startMs + day * 86400000);
           ticks.push({ day, label: `${d.getDate()}/${d.getMonth()+1}` });
         } else {
-          ticks.push({ day, label: `T${w+1}` });
+          ticks.push({ day, label: `T${Math.floor(day/7)+1}` });
         }
       }
     } else if (zoom === 'month') {
-      // Mỗi tháng 1 tick
       if (startMs > 0) {
         const start = new Date(startMs);
         const cur = new Date(start.getFullYear(), start.getMonth(), 1);
         while (true) {
           const dayOff = Math.round((cur.getTime() - startMs) / 86400000);
-          if (dayOff >= totalDays) break;
-          const label = `T${cur.getMonth()+1}/${cur.getFullYear().toString().slice(2)}`;
-          ticks.push({ day: Math.max(0, dayOff), label });
+          if (dayOff >= winEnd) break;
+          if (dayOff >= winStart) {
+            ticks.push({ day: dayOff, label: `T${cur.getMonth()+1}/${cur.getFullYear().toString().slice(2)}` });
+          }
           cur.setMonth(cur.getMonth() + 1);
-          if (ticks.length > 36) break;
+          if (ticks.length > 24) break;
         }
       } else {
-        for (let d = 0; d < totalDays; d += 30)
+        for (let d = Math.floor(winStart/30)*30; d < winEnd; d += 30)
           ticks.push({ day: d, label: `T${Math.floor(d/30)+1}` });
       }
     } else {
-      // Quarter — mỗi 3 tháng 1 tick
       if (startMs > 0) {
         const start = new Date(startMs);
         const qMonth = Math.floor(start.getMonth() / 3) * 3;
         const cur = new Date(start.getFullYear(), qMonth, 1);
         while (true) {
           const dayOff = Math.round((cur.getTime() - startMs) / 86400000);
-          if (dayOff >= totalDays) break;
-          const q = Math.floor(cur.getMonth() / 3) + 1;
-          ticks.push({ day: Math.max(0, dayOff), label: `Q${q}/${cur.getFullYear().toString().slice(2)}` });
+          if (dayOff >= winEnd) break;
+          if (dayOff >= winStart) {
+            const q = Math.floor(cur.getMonth() / 3) + 1;
+            ticks.push({ day: dayOff, label: `Q${q}/${cur.getFullYear().toString().slice(2)}` });
+          }
           cur.setMonth(cur.getMonth() + 3);
-          if (ticks.length > 16) break;
+          if (ticks.length > 8) break;
         }
       } else {
-        for (let d = 0; d < totalDays; d += 90)
+        for (let d = Math.floor(winStart/90)*90; d < winEnd; d += 90)
           ticks.push({ day: d, label: `Q${Math.floor(d/90)+1}` });
       }
     }
     return ticks;
-  }, [zoom, totalDays, startMs]);
+  }, [zoom, viewDays, scrollDay, totalDays, startMs]);
 
   // ── Row reorder — document-level pointer tracking (fix: setPointerCapture blocks onPointerEnter) ──
   const rowsContainerRef = useRef<HTMLDivElement>(null);
@@ -450,7 +467,7 @@ export function GanttChart({
     if (!barDragRef.current || !timelineRef.current) return;
     const { taskId, mode, startX, origStart, origDur } = barDragRef.current;
     const rect     = timelineRef.current.getBoundingClientRect();
-    const pxPerDay = rect.width / totalDays;
+    const pxPerDay = rect.width / viewDays;
     const deltaDays = Math.round((e.clientX - startX) / pxPerDay);
     setItems(prev => prev.map(t => {
       if (t.id !== taskId) return t;
@@ -494,14 +511,35 @@ export function GanttChart({
           </span>
         </h3>
         <div className="flex items-center gap-3 flex-wrap">
-          {/* Zoom toggle */}
-          <div className="flex items-center gap-0.5 bg-slate-100 p-0.5 rounded-lg">
-            {(['week','month','quarter'] as GanttZoom[]).map(z => (
-              <button key={z} onClick={() => setZoom(z)}
-                className={`px-2.5 py-1 rounded-md text-[10px] font-bold transition-all ${zoom===z?'bg-white shadow text-blue-700':'text-slate-500 hover:text-slate-700'}`}>
-                {z==='week'?'Tuần':z==='month'?'Tháng':'Quý'}
-              </button>
-            ))}
+          {/* Zoom toggle + Pan controls */}
+          <div className="flex items-center gap-1">
+            <div className="flex items-center gap-0.5 bg-slate-100 p-0.5 rounded-lg">
+              {(['week','month','quarter'] as GanttZoom[]).map(z => (
+                <button key={z} onClick={() => { setZoom(z); setScrollDay(0); }}
+                  className={`px-2.5 py-1 rounded-md text-[10px] font-bold transition-all ${zoom===z?'bg-white shadow text-blue-700':'text-slate-500 hover:text-slate-700'}`}>
+                  {z==='week'?'Tuần':z==='month'?'Tháng':'Quý'}
+                </button>
+              ))}
+            </div>
+            {/* Pan buttons — only show when not viewing full range */}
+            {viewDays < totalDays && (
+              <div className="flex items-center gap-0.5 bg-slate-100 p-0.5 rounded-lg">
+                <button
+                  onClick={() => setScrollDay(d => Math.max(0, d - viewDays))}
+                  disabled={scrollDay <= 0}
+                  className="px-2 py-1 rounded-md text-[10px] font-bold text-slate-500 hover:text-slate-800 disabled:opacity-30">◀</button>
+                <span className="text-[9px] text-slate-400 px-1 whitespace-nowrap">
+                  {startMs > 0
+                    ? `${new Date(startMs + scrollDay*86400000).toLocaleDateString('vi-VN',{day:'2-digit',month:'2-digit'})} – ${new Date(startMs + Math.min(scrollDay+viewDays,totalDays)*86400000).toLocaleDateString('vi-VN',{day:'2-digit',month:'2-digit'})}`
+                    : `Ngày ${scrollDay+1}–${Math.min(scrollDay+viewDays,totalDays)}`
+                  }
+                </span>
+                <button
+                  onClick={() => setScrollDay(d => Math.min(totalDays - viewDays, d + viewDays))}
+                  disabled={scrollDay + viewDays >= totalDays}
+                  className="px-2 py-1 rounded-md text-[10px] font-bold text-slate-500 hover:text-slate-800 disabled:opacity-30">▶</button>
+              </div>
+            )}
           </div>
 
           {/* Baseline button */}
@@ -577,7 +615,7 @@ export function GanttChart({
               <div className="relative w-full h-4">
                 {headerTicks.map((tick, i) => (
                   <span key={i} className="absolute text-[9px] font-semibold text-slate-400 whitespace-nowrap"
-                    style={{ left: `${(tick.day / totalDays) * 100}%`, transform: 'translateX(-50%)' }}>
+                    style={{ left: `${((tick.day - scrollDay) / viewDays) * 100}%`, transform: 'translateX(-50%)' }}>
                     {tick.label}
                   </span>
                 ))}
@@ -636,16 +674,16 @@ export function GanttChart({
                   {/* Grid lines — theo tick marks */}
                   {headerTicks.map((tick, gi) => (
                     <div key={gi} className="absolute top-0 bottom-0 border-l border-slate-100"
-                         style={{left:`${(tick.day/totalDays)*100}%`}}/>
+                         style={{left:`${((tick.day - scrollDay) / viewDays) * 100}%`}}/>
                   ))}
                   {/* Today line */}
                   <div className="absolute top-0 bottom-0 border-l-2 border-rose-400 border-dashed z-10"
-                       style={{left:`${(today/totalDays)*100}%`}}/>
+                       style={{left:`${((today - scrollDay) / viewDays) * 100}%`}}/>
 
                   <div className="relative w-full h-6">
                     {/* Background track */}
                     <div className="absolute h-full rounded-md bg-slate-100"
-                         style={{left:`${(task.start/totalDays)*100}%`, width:`${(task.dur/totalDays)*100}%`}}/>
+                         style={{left:`${((task.start - scrollDay) / viewDays) * 100}%`, width:`${(task.dur / viewDays) * 100}%`}}/>
                     {/* Progress fill */}
                     <div className={`absolute h-full rounded-md transition-all ${
                            showCritical && task.wbsId && criticalPathIds.has(task.wbsId)
@@ -653,19 +691,19 @@ export function GanttChart({
                              : (task.done===100 ? 'bg-emerald-400' : task.done>0 ? 'bg-amber-400' : 'bg-transparent')
                          }`}
                          style={{
-                           left:`${(task.start/totalDays)*100}%`,
-                           width:`${(task.dur/totalDays)*(task.done/100)*100}%`,
+                           left:`${((task.start - scrollDay) / viewDays) * 100}%`,
+                           width:`${(task.dur / viewDays) * (task.done / 100) * 100}%`,
                          }}/>
                     {/* Draggable bar overlay */}
                     <div className={`absolute h-full rounded-md cursor-move z-20 ${
                            dragMode === 'bar' ? 'opacity-0' : 'opacity-0 hover:opacity-20 hover:bg-blue-400'
                          }`}
-                         style={{left:`${(task.start/totalDays)*100}%`, width:`${(task.dur/totalDays)*100}%`}}
+                         style={{left:`${((task.start - scrollDay) / viewDays) * 100}%`, width:`${(task.dur / viewDays) * 100}%`}}
                          onPointerDown={e => onBarPointerDown(e, task.id)}/>
                     {/* Resize handle — right edge */}
                     <div className="absolute top-0.5 bottom-0.5 w-2 rounded-r-md cursor-ew-resize z-30
                                     bg-slate-400/0 hover:bg-blue-500/40 transition-colors"
-                         style={{left:`calc(${((task.start+task.dur)/totalDays)*100}% - 4px)`}}
+                         style={{left:`calc(${((task.start + task.dur - scrollDay) / viewDays) * 100}% - 4px)`}}
                          onPointerDown={e => onResizePointerDown(e, task.id)}/>
                     {/* Baseline bar — hiện nếu đã freeze */}
                     {task.gantt_baseline_start && task.gantt_baseline_end && startMs > 0 && (() => {
@@ -678,12 +716,12 @@ export function GanttChart({
                         <>
                           {/* Baseline track — xám mờ bên dưới */}
                           <div className="absolute h-1.5 rounded-sm bg-violet-300/50 bottom-0.5 z-5 pointer-events-none"
-                               style={{ left:`${(bStart/totalDays)*100}%`, width:`${(bDur/totalDays)*100}%` }}/>
+                               style={{ left:`${((bStart - scrollDay) / viewDays) * 100}%`, width:`${(bDur / viewDays) * 100}%` }}/>
                           {/* Delta badge */}
                           {deltaEnd !== 0 && (
                             <div className={`absolute text-[8px] font-black px-1 py-0.5 rounded z-20 pointer-events-none whitespace-nowrap
                               ${deltaEnd > 0 ? 'bg-rose-100 text-rose-700' : 'bg-emerald-100 text-emerald-700'}`}
-                                 style={{ left:`calc(${((task.start+task.dur)/totalDays)*100}% + 4px)`, top: '2px' }}>
+                                 style={{ left:`calc(${((task.start + task.dur - scrollDay) / viewDays) * 100}% + 4px)`, top: '2px' }}>
                               {deltaEnd > 0 ? `+${deltaEnd}d` : `${deltaEnd}d`}
                             </div>
                           )}
