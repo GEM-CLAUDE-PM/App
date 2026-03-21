@@ -851,31 +851,38 @@ export function GanttChart({
                   className="pointer-events-none"
                 >
                   <defs>
-                    <marker id="arrowOrange" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
-                      <path d="M0,0 L0,6 L7,3 z" fill="#f97316"/>
+                    <marker id="arrowGreen" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
+                      <path d="M0,0 L0,6 L7,3 z" fill="#10b981"/>
                     </marker>
                     <marker id="arrowRed" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
                       <path d="M0,0 L0,6 L7,3 z" fill="#ef4444"/>
                     </marker>
                   </defs>
                   {depArrows.map((a, i) => {
-                    // a.x1, a.x2 là % (0-100) — convert sang pixel
                     const px1 = (a.x1 / 100) * timelineW;
                     const px2 = (a.x2 / 100) * timelineW;
                     const py1 = a.y1;
                     const py2 = a.y2;
-                    const color = a.isViolation ? '#ef4444' : '#f97316';
-                    const markerId = a.isViolation ? 'arrowRed' : 'arrowOrange';
-                    // Bezier control point
-                    const cx = px1 + Math.max(20, Math.abs(px2 - px1) * 0.5);
+                    const color = a.isViolation ? '#ef4444' : '#10b981';
+                    const markerId = a.isViolation ? 'arrowRed' : 'arrowGreen';
+                    let d: string;
+                    if (Math.abs(py2 - py1) < 4) {
+                      d = `M ${px1} ${py1} L ${px2} ${py2}`;
+                    } else if (px2 >= px1) {
+                      const span = Math.max(15, (px2 - px1) * 0.5);
+                      d = `M ${px1} ${py1} C ${px1+span} ${py1}, ${px2-span} ${py2}, ${px2} ${py2}`;
+                    } else {
+                      const detour = Math.max(20, Math.abs(px1 - px2) * 0.5 + 15);
+                      d = `M ${px1} ${py1} C ${px1+detour} ${py1}, ${px1+detour} ${py2}, ${px2} ${py2}`;
+                    }
                     return (
                       <path key={i}
-                        d={`M ${px1} ${py1} C ${cx} ${py1}, ${cx} ${py2}, ${px2} ${py2}`}
+                        d={d}
                         fill="none"
                         stroke={color}
                         strokeWidth="1.5"
-                        strokeOpacity="0.8"
-                        strokeDasharray={a.isViolation ? '4 2' : undefined}
+                        strokeOpacity="0.85"
+                        strokeDasharray={a.isViolation ? '5 3' : undefined}
                         markerEnd={`url(#${markerId})`}
                       />
                     );
