@@ -5,7 +5,7 @@ import {
   Sparkles, Loader2, FileSpreadsheet, ChevronDown, ChevronUp,
   BarChart2, Activity, Zap, Flag, Edit3, Save, X, Plus, RefreshCw,
   ArrowUp, ArrowDown, Minus, Info, Printer, GripVertical, DollarSign,
-  Camera, GitBranch
+  Camera, GitBranch, GitMerge
 } from 'lucide-react';
 import {
   LineChart, Line, AreaChart, Area, BarChart, Bar,
@@ -24,9 +24,13 @@ import type { DashboardProps } from './types';
 type Props = DashboardProps;
 
 // ─── EVM helpers — tính từ WBS data thật ────────────────────────────────────
-type WBSItem = typeof WBS_INIT[number] & {
-  gantt_start_date?: string;  // ISO "2026-01-15"
-  gantt_end_date?: string;    // ISO "2026-03-30"
+type WBSItem = {
+  id: string; code: string; name: string;
+  budget: number; pv_pct: number; ev_pct: number; ac: number;
+  category: string; responsible: string; critical: boolean;
+  // Gantt scheduling
+  gantt_start_date?: string;     // ISO "2026-01-15"
+  gantt_end_date?: string;       // ISO "2026-03-30"
   gantt_baseline_start?: string;
   gantt_baseline_end?: string;
   depends_on?: string[];
@@ -171,8 +175,11 @@ type GanttTask = {
   id: number; name: string; start: number; dur: number;
   done: number; cat: string; wbsId?: string;
   gantt_start_date?: string; gantt_end_date?: string;
+  gantt_baseline_start?: string; gantt_baseline_end?: string;
   // Financial fields (PA3 Split View)
   budget?: number; ac?: number; pv_pct?: number; ev_pct?: number;
+  // S32.5 Dependency
+  depends_on?: string[]; // list of wbsId strings
 };
 
 type GanttZoom = 'week' | 'month' | 'quarter';
@@ -199,6 +206,10 @@ function GanttChart({
   const [draggingRow, setDraggingRow]   = React.useState<number | null>(null);
   const [dragOverRow, setDragOverRow]   = React.useState<number | null>(null);
   const [editingDone, setEditingDone]   = React.useState<number | null>(null);
+  // S32.5 Dependency arrows
+  const [showDepArrows, setShowDepArrows] = React.useState(true);
+  const [ctxMenu, setCtxMenu] = React.useState<{taskIdx: number; x: number; y: number} | null>(null);
+  const [linkingFrom, setLinkingFrom] = React.useState<number | null>(null); // idx of source task
 
   const barDragRef = useRef<{
     taskId: number; mode: 'bar' | 'resize';
@@ -223,7 +234,68 @@ function GanttChart({
     setShowConfirmBaseline(false);
   };
 
-  // ── Tính tick marks cho header theo zoom level ────────────────────────────
+  // S32.5 — Circular dependency check (DFS)
+  const hasCycle = (fromWbsId: string, toWbsId: string, allItems: GanttTask[]): boolean => {
+    // BFS từ toWbsId xem có đến được fromWbsId không
+    const visited = new Set<string>();
+    const queue = [toWbsId];
+    while (queue.length > 0) {
+      const cur = queue.shift()!;
+      if (cur === fromWbsId) return true;
+      if (visited.has(cur)) continue;
+      visited.add(cur);
+      const task = allItems.find(t => t.wbsId === cur);
+      if (task?.depends_on) task.depends_on.forEach(d => queue.push(d));
+    }
+    return false;
+  };
+
+  // S32.5 — Add dependency link
+  const addDependency = (fromIdx: number, toIdx: number) => {
+    if (fromIdx === toIdx) return;
+    const fromTask = items[fromIdx];
+    const toTask   = items[toIdx];
+    if (!fromTask.wbsId || !toTask.wbsId) return;
+    // toTask depends_on fromTask (Finish-to-Start: toTask bắt đầu sau fromTask kết thúc)
+    if (toTask.depends_on?.includes(fromTask.wbsId)) return; // đã có
+    if (hasCycle(toTask.wbsId, fromTask.wbsId, items)) return; // circular
+    const next = items.map((t, i) => i === toIdx
+      ? { ...t, depends_on: [...(t.depends_on ?? []), fromTask.wbsId!] }
+      : t
+    );
+    setItems(next);
+    onUpdateTask?.({ ...next[toIdx] });
+    onReorder(next);
+  };
+
+  // S32.5 — SVG dependency arrows overlay
+  // ROW_H = 48px (py-3 top+bottom = 24px + content ~24px), NAME_W = 208+24 = 232, LEFT_PAD = 12
+  const ROW_H = 48;
+  const NAME_W = 232; // w-52 (208) + w-6 drag handle (24)
+  const LEFT_PAD = 12; // px-3
+  const depArrows = React.useMemo(() => {
+    if (!showDepArrows) return [];
+    const arrows: { x1: number; y1: number; x2: number; y2: number; isViolation: boolean }[] = [];
+    items.forEach((task, toIdx) => {
+      if (!task.depends_on?.length) return;
+      task.depends_on.forEach(predWbsId => {
+        const fromIdx = items.findIndex(t => t.wbsId === predWbsId);
+        if (fromIdx < 0) return;
+        const pred = items[fromIdx];
+        // x positions are % of timeline width — we'll use relative SVG coords 0..100
+        const x1 = (pred.start + pred.dur) / totalDays * 100; // end of predecessor
+        const x2 = task.start / totalDays * 100;               // start of successor
+        const y1 = fromIdx * ROW_H + ROW_H / 2;
+        const y2 = toIdx   * ROW_H + ROW_H / 2;
+        // isViolation: successor bắt đầu trước predecessor kết thúc
+        const isViolation = task.start < (pred.start + pred.dur);
+        arrows.push({ x1, y1, x2, y2, isViolation });
+      });
+    });
+    return arrows;
+  }, [items, showDepArrows, totalDays]);
+
+
   const headerTicks = React.useMemo(() => {
     if (totalDays <= 0) return [];
     const ticks: { day: number; label: string }[] = [];
@@ -399,6 +471,11 @@ function GanttChart({
               <DollarSign size={11}/>{showFinance?'Ẩn tài chính':'💰 Tài chính'}
             </button>
           )}
+          {/* S32.5 Dependency toggle */}
+          <button onClick={() => setShowDepArrows(v => !v)}
+            className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[10px] font-bold border transition-all ${showDepArrows?'bg-orange-50 border-orange-200 text-orange-700':'bg-slate-50 border-slate-200 text-slate-500 hover:border-slate-300'}`}>
+            <GitMerge size={11}/>Liên kết
+          </button>
         </div>
       </div>
 
@@ -473,8 +550,12 @@ function GanttChart({
                 </div>
 
                 {/* Name */}
-                <div className="w-52 shrink-0 px-4 py-3">
-                  <p className="text-xs font-semibold text-slate-700 truncate">{task.name}</p>
+                <div className="w-52 shrink-0 px-4 py-3"
+                  onContextMenu={e => { e.preventDefault(); setCtxMenu({ taskIdx: idx, x: e.clientX, y: e.clientY }); }}>
+                  <p className={`text-xs font-semibold truncate ${linkingFrom !== null && linkingFrom !== idx ? 'text-orange-600 cursor-pointer hover:underline' : 'text-slate-700'}`}
+                    onClick={() => { if (linkingFrom !== null && linkingFrom !== idx) { addDependency(linkingFrom, idx); setLinkingFrom(null); }}}
+                    title={linkingFrom !== null ? 'Click để đặt task này phụ thuộc' : 'Chuột phải → Thêm liên kết'}
+                  >{task.name}</p>
                   <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full ${CAT_CLS[task.cat]||'bg-slate-100 text-slate-500'}`}>{task.cat}</span>
                 </div>
 
@@ -628,8 +709,112 @@ function GanttChart({
               </div>
             );
           })}
+
+          {/* S32.5 — SVG Dependency Arrows Overlay */}
+          {showDepArrows && depArrows.length > 0 && (
+            <div className="relative pointer-events-none" style={{ marginTop: -items.length * ROW_H }}>
+              <svg
+                width="100%" height={items.length * ROW_H}
+                viewBox={`0 0 100 ${items.length * ROW_H}`}
+                preserveAspectRatio="none"
+                style={{ position: 'absolute', left: NAME_W + LEFT_PAD, top: 0, overflow: 'visible', width: `calc(100% - ${NAME_W + LEFT_PAD}px)` }}
+                className="pointer-events-none"
+              >
+                <defs>
+                  <marker id="arrowOrange" markerWidth="4" markerHeight="4" refX="3.5" refY="2" orient="auto" markerUnits="userSpaceOnUse">
+                    <path d="M0,0 L0,4 L4,2 z" fill="#f97316"/>
+                  </marker>
+                  <marker id="arrowRed" markerWidth="4" markerHeight="4" refX="3.5" refY="2" orient="auto" markerUnits="userSpaceOnUse">
+                    <path d="M0,0 L0,4 L4,2 z" fill="#ef4444"/>
+                  </marker>
+                </defs>
+                {depArrows.map((a, i) => {
+                  const color = a.isViolation ? '#ef4444' : '#f97316';
+                  const markerId = a.isViolation ? 'arrowRed' : 'arrowOrange';
+                  const cx = (a.x1 + a.x2) / 2;
+                  return (
+                    <path key={i}
+                      d={`M ${a.x1} ${a.y1} C ${cx} ${a.y1}, ${cx} ${a.y2}, ${a.x2} ${a.y2}`}
+                      fill="none" stroke={color} strokeWidth="0.6"
+                      strokeOpacity="0.75"
+                      markerEnd={`url(#${markerId})`}
+                      strokeDasharray={a.isViolation ? '2 1' : undefined}
+                    />
+                  );
+                })}
+              </svg>
+              <div style={{ height: items.length * ROW_H }}/>
+            </div>
+          )}
         </div>
       </div>
+
+      {/* S32.5 — Context menu: click phải vào task name để thêm liên kết */}
+      {ctxMenu !== null && (
+        <div
+          className="fixed z-50 bg-white border border-slate-200 rounded-xl shadow-xl py-1 min-w-[180px]"
+          style={{ top: ctxMenu.y, left: ctxMenu.x }}
+          onMouseLeave={() => setCtxMenu(null)}
+        >
+          <div className="px-3 py-1.5 text-[10px] font-bold text-slate-400 uppercase tracking-wide border-b border-slate-100">
+            {items[ctxMenu.taskIdx]?.name?.slice(0, 25)}
+          </div>
+          {linkingFrom === null ? (
+            <button
+              className="w-full text-left px-3 py-2 text-xs text-slate-700 hover:bg-orange-50 hover:text-orange-700 flex items-center gap-2"
+              onClick={() => { setLinkingFrom(ctxMenu.taskIdx); setCtxMenu(null); }}
+            >
+              <GitMerge size={12}/> Thêm liên kết từ đây…
+            </button>
+          ) : (
+            <>
+              <div className="px-3 py-1.5 text-[11px] text-orange-600 bg-orange-50">
+                → Chọn task kế tiếp (phụ thuộc vào <b>{items[linkingFrom]?.name?.slice(0,20)}</b>)
+              </div>
+              <button
+                className="w-full text-left px-3 py-2 text-xs text-emerald-700 hover:bg-emerald-50 flex items-center gap-2"
+                onClick={() => {
+                  addDependency(linkingFrom, ctxMenu.taskIdx);
+                  setLinkingFrom(null); setCtxMenu(null);
+                }}
+              >
+                ✓ Đặt "{items[ctxMenu.taskIdx]?.name?.slice(0,20)}" phụ thuộc
+              </button>
+              <button
+                className="w-full text-left px-3 py-2 text-xs text-slate-500 hover:bg-slate-50"
+                onClick={() => { setLinkingFrom(null); setCtxMenu(null); }}
+              >
+                Huỷ
+              </button>
+            </>
+          )}
+          {items[ctxMenu.taskIdx]?.depends_on?.length ? (
+            <>
+              <div className="border-t border-slate-100 mt-1 px-3 py-1.5 text-[10px] text-slate-400">Phụ thuộc vào:</div>
+              {items[ctxMenu.taskIdx].depends_on!.map(wid => {
+                const pred = items.find(t => t.wbsId === wid);
+                return (
+                  <div key={wid} className="px-3 py-1 flex items-center justify-between text-xs text-slate-600">
+                    <span>← {pred?.name?.slice(0,22) ?? wid}</span>
+                    <button
+                      className="text-rose-400 hover:text-rose-600 ml-2"
+                      onClick={() => {
+                        const next = items.map((t, i) =>
+                          i === ctxMenu.taskIdx ? { ...t, depends_on: t.depends_on?.filter(d => d !== wid) } : t
+                        );
+                        setItems(next);
+                        onUpdateTask?.({ ...next[ctxMenu.taskIdx] });
+                        onReorder(next);
+                        setCtxMenu(null);
+                      }}
+                    >✕</button>
+                  </div>
+                );
+              })}
+            </>
+          ) : null}
+        </div>
+      )}
     </div>
   );
 }
@@ -638,7 +823,7 @@ function GanttChart({
 export default function ProgressDashboard({ project: selectedProject, projectId: projectIdProp }: Props) {
   const pid = projectIdProp ?? selectedProject?.id ?? 'default';
   const { user } = useAuth();
-  const { notify } = useNotification();
+  const { ok: notifOk, err: notifErr, warn: notifWarn } = useNotification();
   // L4+ (admin/manager-finance) thấy số tiền thật, L3 chỉ thấy CPI indicator
   const canViewFinance        = ['admin','manager'].includes(user?.tier ?? '') || (user?.tier === 'manager');
   const canViewFinanceNumbers = user?.tier === 'admin';
@@ -741,6 +926,7 @@ export default function ProgressDashboard({ project: selectedProject, projectId:
         budget: w.budget, ac: w.ac, pv_pct: w.pv_pct, ev_pct: w.ev_pct,
         gantt_start_date: w.gantt_start_date, gantt_end_date: w.gantt_end_date,
         gantt_baseline_start: w.gantt_baseline_start, gantt_baseline_end: w.gantt_baseline_end,
+        depends_on: w.depends_on,
       };
     });
   }, [wbs, startMs]);
@@ -944,7 +1130,7 @@ export default function ProgressDashboard({ project: selectedProject, projectId:
                 if (dbLoaded.current) db.set('progress_wbs', pid, next);
                 return next;
               });
-              notify('success', '📸 Baseline đã được chụp', 'Mọi thay đổi tiến độ sẽ so sánh với mốc này');
+              notifOk('📸 Baseline đã được chụp', 'Mọi thay đổi tiến độ sẽ so sánh với mốc này');
             }}
           />
         </div>
