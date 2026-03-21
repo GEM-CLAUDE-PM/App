@@ -3,7 +3,11 @@
 
 // 4 loại quan hệ phụ thuộc chuẩn PM (tương thích MS Project)
 export type DepType = 'FS' | 'SS' | 'FF' | 'SF';
-export type DepLink = { wbsId: string; type: DepType; lag?: number };
+export type DepLink = {
+  wbsId: string;
+  type:  DepType;
+  lag?:  number; // ngày: dương = gap (chờ thêm), âm = lead (bắt đầu sớm hơn)
+};
 
 // ─── WBS Item type ────────────────────────────────────────────────────────────
 export type WBSItem = {
@@ -24,22 +28,68 @@ export type WBSItem = {
   gantt_dur?: number;
 };
 
-// ─── S34 TODO: Import từ MS Project (.mpp) ────────────────────────────────────
-// MS Project .mpp là binary format — cần thư viện parse phía server hoặc
-// export từ MS Project ra XML (.xml) rồi parse trên client.
-// Mapping khi import:
-//   Task.Name          → WBSItem.name
-//   Task.OutlineNumber → WBSItem.code
-//   Task.Cost          → WBSItem.budget
-//   Task.Start         → WBSItem.gantt_start_date
-//   Task.Finish        → WBSItem.gantt_end_date
-//   Task.PercentWorkComplete → WBSItem.ev_pct
-//   Task.PredecessorLink.PredecessorUID + Type (0=FF,1=FS,2=SF,3=SS) + Lag
-//                      → WBSItem.dep_links
-// Approach khuyến nghị S34:
-//   1. User export .mpp → .xml từ MS Project (File → Save As → XML)
-//   2. App đọc XML → parse Task nodes → map sang WBSItem[]
-//   3. Preview → confirm → db.set('progress_wbs')
+// ─── S34 TODO: Scheduling Engine — tính start/finish từ predecessor ──────────
+//
+// LUẬT TÍNH NGÀY theo từng loại quan hệ + lag (ngày):
+//
+//   lag > 0 = gap (chờ thêm X ngày sau điều kiện)
+//   lag < 0 = lead/overlap (bắt đầu sớm hơn X ngày)
+//
+//   FS (Finish-to-Start):  successor.start = predecessor.finish + lag
+//     VD: FS+3 → chờ 3 ngày sau khi predecessor xong mới bắt đầu
+//     VD: FS-2 → bắt đầu sớm hơn 2 ngày trước khi predecessor xong
+//
+//   SS (Start-to-Start):   successor.start  = predecessor.start  + lag
+//     VD: SS+5 → bắt đầu 5 ngày sau khi predecessor bắt đầu
+//
+//   FF (Finish-to-Finish): successor.finish = predecessor.finish + lag
+//     VD: FF+0 → kết thúc cùng lúc predecessor
+//     → successor.start = successor.finish - successor.duration
+//
+//   SF (Start-to-Finish):  successor.finish = predecessor.start  + lag  (hiếm)
+//     → successor.start = successor.finish - successor.duration
+//
+// THUẬT TOÁN (Forward Pass CPM):
+//   1. Topo sort các task theo dep_links (Kahn's algorithm)
+//   2. Task không có predecessor → giữ nguyên gantt_start_date
+//   3. Task có predecessor(s) → tính từ TẤT CẢ predecessors, lấy ngày LỚN NHẤT
+//      (task phải chờ predecessor muộn nhất hoàn thành)
+//   4. gantt_end_date = gantt_start_date + gantt_dur (ngày làm việc hoặc calendar days)
+//   5. Backward pass → tính float, critical path
+//
+// UI trong Predecessor column:
+//   - Cho phép nhập lag trực tiếp: "FS+3", "SS-2", "FF+0"
+//   - Input field nhỏ bên cạnh type badge trong cột Predecessor
+//   - Khi thay đổi lag → trigger recalculate dates ngay lập tức
+//   - Highlight task bị ảnh hưởng (cascade)
+//
+// S34 IMPORT .MPP:
+//   - MS Project .mpp là binary format
+//   - Approach: user export .mpp → .xml (File → Save As → XML)
+//   - App parse XML → Task nodes → WBSItem[] với dep_links đầy đủ
+//   - Mapping: Task.PredecessorLink.PredecessorUID + Type + Lag → DepLink
+//   - MS Project Type codes: 0=FF, 1=FS, 2=SF, 3=SS
+//   - Lag unit: phút trong .mpp → convert sang ngày (÷ 480)
+// ─────────────────────────────────────────────────────────────────────────────
+
+// Hàm tính ngày successor từ predecessor — dùng trong S34 scheduling engine
+// Exported để test và reuse trong GanttChart khi có UI recalculate
+export function calcSuccessorStart(
+  predStart: Date, predDur: number,
+  depType: DepType, lag: number = 0
+): Date {
+  const predFinish = new Date(predStart.getTime() + predDur * 86400000);
+  let resultMs: number;
+  switch (depType) {
+    case 'FS': resultMs = predFinish.getTime() + lag * 86400000; break;
+    case 'SS': resultMs = predStart.getTime()  + lag * 86400000; break;
+    case 'FF': resultMs = predFinish.getTime() + lag * 86400000; break; // caller subtract dur
+    case 'SF': resultMs = predStart.getTime()  + lag * 86400000; break; // caller subtract dur
+    default:   resultMs = predFinish.getTime();
+  }
+  return new Date(resultMs);
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 
 // ─── Seed data ────────────────────────────────────────────────────────────────
