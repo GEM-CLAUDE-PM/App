@@ -387,7 +387,7 @@ export default function ManpowerDashboard({ project, initialTab }:Props) {
     ]).then(([ppl, saved]) => {
       setPeople(ppl);
       if (!saved.find((a: DailyAttendance) => a.date === TODAY)) {
-setAttendance([...saved, ...seed]);
+setAttendance(saved);
       } else {
         setAttendance(saved);
       }
