@@ -128,20 +128,28 @@ function IndexBadge({ label, value, threshold1=0.85, threshold2=0.95, unit='' }:
 type GanttTask = {
   id: number; name: string; start: number; dur: number;
   done: number; cat: string; wbsId?: string;
+  // Financial fields (PA3 Split View)
+  budget?: number;  // tỷ VNĐ
+  ac?: number;      // Actual Cost tỷ
+  pv_pct?: number;  // Planned Value %
+  ev_pct?: number;  // Earned Value % (= done)
 };
 
 type DragMode = 'row' | 'bar' | 'resize' | null;
 
 function GanttChart({
-  tasks, totalDays, today, onReorder, onUpdateTask,
+  tasks, totalDays, today, onReorder, onUpdateTask, canViewFinance = false, canViewFinanceNumbers = false,
 }: {
   tasks: GanttTask[];
   totalDays: number;
   today: number;
   onReorder: (tasks: GanttTask[]) => void;
   onUpdateTask?: (task: GanttTask) => void;
+  canViewFinance?: boolean;        // L3+ thấy CPI indicator
+  canViewFinanceNumbers?: boolean; // L4+ thấy số tiền thật
 }) {
   const [items, setItems] = React.useState<GanttTask[]>(tasks);
+  const [showFinance, setShowFinance] = React.useState(canViewFinance);
   const [dragMode, setDragMode]     = React.useState<DragMode>(null);
   const [draggingRow, setDraggingRow]   = React.useState<number | null>(null);
   const [dragOverRow, setDragOverRow]   = React.useState<number | null>(null);
@@ -241,12 +249,20 @@ function GanttChart({
             ☰ reorder · kéo bar để dời · kéo cạnh để resize · click % để sửa
           </span>
         </h3>
-        <div className="flex gap-3 text-[10px] font-semibold text-slate-500">
-          {[['bg-emerald-400','Hoàn thành'],['bg-amber-400','Đang thi công'],['bg-slate-300','Chưa bắt đầu']].map(([cls,lbl])=>(
-            <span key={lbl} className="flex items-center gap-1">
-              <span className={`w-3 h-2.5 rounded ${cls} inline-block`}/>{lbl}
-            </span>
-          ))}
+        <div className="flex items-center gap-3">
+          <div className="flex gap-3 text-[10px] font-semibold text-slate-500">
+            {[['bg-emerald-400','Hoàn thành'],['bg-amber-400','Đang thi công'],['bg-slate-300','Chưa bắt đầu']].map(([cls,lbl])=>(
+              <span key={lbl} className="flex items-center gap-1">
+                <span className={`w-3 h-2.5 rounded ${cls} inline-block`}/>{lbl}
+              </span>
+            ))}
+          </div>
+          {canViewFinance && (
+            <button onClick={()=>setShowFinance(v=>!v)}
+              className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[10px] font-bold border transition-all ${showFinance?'bg-indigo-50 border-indigo-200 text-indigo-700':'bg-slate-50 border-slate-200 text-slate-500 hover:border-slate-300'}`}>
+              <DollarSign size={11}/>{showFinance?'Ẩn tài chính':'💰 Tài chính'}
+            </button>
+          )}
         </div>
       </div>
 
@@ -261,7 +277,14 @@ function GanttChart({
                 {[0,10,20,30,40,50,60,70,80,90].map(d=><span key={d}>T{Math.ceil((d+1)/7)}</span>)}
               </div>
             </div>
-            <div className="w-16 shrink-0 px-2 py-2.5 text-center">%</div>
+            <div className="w-16 shrink-0 px-2 py-2.5 text-center">EV%</div>
+            {showFinance && canViewFinance && (
+              <>
+                {canViewFinanceNumbers && <div className="w-20 shrink-0 px-2 py-2.5 text-center text-indigo-500">Budget</div>}
+                {canViewFinanceNumbers && <div className="w-20 shrink-0 px-2 py-2.5 text-center text-amber-500">AC</div>}
+                <div className="w-24 shrink-0 px-2 py-2.5 text-center text-emerald-500">CPI</div>
+              </>
+            )}
           </div>
 
           {/* Rows */}
@@ -357,6 +380,65 @@ function GanttChart({
                     </span>
                   )}
                 </div>
+
+                {/* ── PA3 Financial Panel (right side) ───────────────────── */}
+                {showFinance && canViewFinance && (() => {
+                  const wCPI = (task.budget && task.ac && task.ac > 0)
+                    ? +((task.budget * (task.done/100)) / task.ac).toFixed(2)
+                    : null;
+                  const cpiColor = wCPI === null ? 'text-slate-400'
+                    : wCPI >= 0.95 ? 'text-emerald-600'
+                    : wCPI >= 0.85 ? 'text-amber-600'
+                    : 'text-rose-600';
+                  const cpiBg = wCPI === null ? ''
+                    : wCPI >= 0.95 ? 'bg-emerald-50'
+                    : wCPI >= 0.85 ? 'bg-amber-50'
+                    : 'bg-rose-50';
+                  const pvGap = task.pv_pct !== undefined ? task.done - task.pv_pct : null;
+                  return (
+                    <>
+                      {/* Budget — chỉ L4+ */}
+                      {canViewFinanceNumbers && (
+                        <div className="w-20 shrink-0 flex flex-col items-center justify-center px-1 border-l border-slate-100">
+                          <span className="text-xs font-bold text-indigo-700">
+                            {task.budget != null ? `${task.budget}t` : '—'}
+                          </span>
+                          {pvGap !== null && (
+                            <span className={`text-[9px] font-semibold mt-0.5 ${pvGap >= 0 ? 'text-emerald-500' : 'text-rose-500'}`}>
+                              PV:{task.pv_pct}%{pvGap >= 0 ? '✓' : '↓'}
+                            </span>
+                          )}
+                        </div>
+                      )}
+                      {/* AC — chỉ L4+ */}
+                      {canViewFinanceNumbers && (
+                        <div className="w-20 shrink-0 flex flex-col items-center justify-center px-1 border-l border-slate-100">
+                          <span className="text-xs font-bold text-amber-700">
+                            {task.ac != null ? `${task.ac}t` : '—'}
+                          </span>
+                          {task.budget != null && task.ac != null && (
+                            <span className={`text-[9px] font-semibold mt-0.5 ${task.ac <= task.budget ? 'text-emerald-500' : 'text-rose-500'}`}>
+                              {task.ac <= task.budget ? 'Trong NS' : 'Vượt NS'}
+                            </span>
+                          )}
+                        </div>
+                      )}
+                      {/* CPI — L3 thấy indicator, L4 thấy số */}
+                      <div className={`w-24 shrink-0 flex flex-col items-center justify-center px-2 border-l border-slate-100 ${cpiBg}`}>
+                        {wCPI !== null ? (
+                          <>
+                            <span className={`text-sm font-black ${cpiColor}`}>{wCPI}</span>
+                            <span className={`text-[9px] font-bold ${cpiColor}`}>
+                              {wCPI >= 0.95 ? '✅ Tốt' : wCPI >= 0.85 ? '⚠️ Lưu ý' : '🔴 Vượt NS'}
+                            </span>
+                          </>
+                        ) : (
+                          <span className="text-[10px] text-slate-300">—</span>
+                        )}
+                      </div>
+                    </>
+                  );
+                })()}
               </div>
             );
           })}
@@ -369,6 +451,10 @@ function GanttChart({
 // ─── Main ─────────────────────────────────────────────────────────────────────
 export default function ProgressDashboard({ project: selectedProject, projectId: projectIdProp }: Props) {
   const pid = projectIdProp ?? selectedProject?.id ?? 'default';
+  const { user } = useAuth();
+  // L4+ (admin/manager-finance) thấy số tiền thật, L3 chỉ thấy CPI indicator
+  const canViewFinance        = ['admin','manager'].includes(user?.tier ?? '') || (user?.tier === 'manager');
+  const canViewFinanceNumbers = user?.tier === 'admin';
   const [tab, setTab] = useState<'scurve'|'evm'|'wbs'|'milestones'>('scurve');
   const { printComponent, printProgressReport } = usePrint();
   const dbLoaded = useRef(false);
@@ -436,13 +522,18 @@ export default function ProgressDashboard({ project: selectedProject, projectId:
     const starts = [0, 5, 22, 30, 42, 48, 55, 50, 62, 85];
     const durs   = [10, 20, 15, 18, 20, 14, 12, 30, 25, 10];
     return wbs.map((w, i) => ({
-      id:   i + 1,
-      name: w.name,
-      start: starts[i] ?? i * 8,
-      dur:   durs[i]   ?? 10,
-      done:  w.ev_pct,
-      cat:   w.category,
-      wbsId: w.id,
+      id:     i + 1,
+      name:   w.name,
+      start:  (w as any).gantt_start ?? starts[i] ?? i * 8,
+      dur:    (w as any).gantt_dur   ?? durs[i]   ?? 10,
+      done:   w.ev_pct,
+      cat:    w.category,
+      wbsId:  w.id,
+      // Financial data cho PA3 panel
+      budget: w.budget,
+      ac:     w.ac,
+      pv_pct: w.pv_pct,
+      ev_pct: w.ev_pct,
     }));
   }, [wbs]);
 
@@ -592,6 +683,8 @@ export default function ProgressDashboard({ project: selectedProject, projectId:
             tasks={ganttTasks}
             totalDays={totalDays}
             today={today}
+            canViewFinance={canViewFinance}
+            canViewFinanceNumbers={canViewFinanceNumbers}
             onReorder={(reordered) => {
               const wbsById = Object.fromEntries(wbs.map(w => [w.id, w]));
               const nextWbs = reordered

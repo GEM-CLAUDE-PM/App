@@ -3,7 +3,7 @@
  * S17 — 3 gói dịch vụ: Starter / Pro / Enterprise
  * VNPay mock integration + trial 30 ngày + invoice tự động
  */
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNotification } from './NotificationEngine';
 import { getSupabase, type PlanId } from './supabase';
 import { useAuth } from './AuthProvider';
@@ -133,6 +133,26 @@ export default function BillingPage({ onClose }: { onClose?: () => void }) {
   });
   const [openFaq, setOpenFaq] = useState<number | null>(null);
   const [upgrading, setUpgrading] = useState(false);
+  const [activeTab, setActiveTab] = useState<'plans'|'history'>('plans');
+  const [transactions, setTransactions] = useState<any[]>([]);
+  const [loadingTx, setLoadingTx] = useState(false);
+
+  // Load payment history
+  useEffect(() => {
+    if (activeTab !== 'history' || !user?.tenant_id) return;
+    setLoadingTx(true);
+    (async () => {
+      const sb = getSupabase();
+      if (!sb) { setLoadingTx(false); return; }
+      const { data } = await sb
+        .from('payment_transactions')
+        .select('*')
+        .order('created_at', { ascending: false })
+        .limit(50);
+      setTransactions(data || []);
+      setLoadingTx(false);
+    })();
+  }, [activeTab, user?.tenant_id]);
 
   // Tính ngày trial còn lại từ user thật
   const trialDaysLeft = (() => {
@@ -274,6 +294,80 @@ export default function BillingPage({ onClose }: { onClose?: () => void }) {
         </div>
       </div>
 
+      {/* ── Tab switcher ──────────────────────────────────── */}
+      <div className="max-w-5xl mx-auto px-4 pt-5">
+        <div className="flex gap-1 bg-slate-100 p-1 rounded-2xl w-fit">
+          <button onClick={() => setActiveTab('plans')}
+            className={`px-5 py-2 rounded-xl text-sm font-bold transition-all ${activeTab==='plans'?'bg-white shadow text-slate-800':'text-slate-500 hover:text-slate-700'}`}>
+            💎 Gói dịch vụ
+          </button>
+          <button onClick={() => setActiveTab('history')}
+            className={`px-5 py-2 rounded-xl text-sm font-bold transition-all ${activeTab==='history'?'bg-white shadow text-slate-800':'text-slate-500 hover:text-slate-700'}`}>
+            📋 Lịch sử thanh toán
+          </button>
+        </div>
+      </div>
+
+      {/* ── Payment History Tab ────────────────────────────── */}
+      {activeTab === 'history' && (
+        <div className="max-w-4xl mx-auto px-4 py-6 space-y-4">
+          <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+            <div className="px-5 py-4 border-b border-slate-100 flex items-center justify-between">
+              <h3 className="font-bold text-slate-800 flex items-center gap-2">
+                <CreditCard size={16} className="text-emerald-600"/> Lịch sử giao dịch
+              </h3>
+              <span className="text-xs text-slate-400">{transactions.length} giao dịch</span>
+            </div>
+            {loadingTx ? (
+              <div className="flex items-center justify-center py-12 gap-2 text-slate-400">
+                <Loader2 size={18} className="animate-spin"/> Đang tải...
+              </div>
+            ) : transactions.length === 0 ? (
+              <div className="py-12 text-center">
+                <div className="text-3xl mb-3">📭</div>
+                <p className="text-sm text-slate-400 mb-4">Chưa có giao dịch nào</p>
+                <div className="text-left max-w-md mx-auto bg-blue-50 border border-blue-200 rounded-xl p-4">
+                  <p className="font-bold text-blue-800 text-sm mb-2">ℹ️ Kích hoạt PayOS live:</p>
+                  <ol className="space-y-1.5 text-xs text-blue-700">
+                    <li>1. Đăng ký doanh nghiệp tại <strong>payos.vn</strong></li>
+                    <li>2. Lấy Client ID, API Key, Checksum Key</li>
+                    <li>3. Thêm vào Supabase Secrets: <code className="bg-blue-100 px-1 rounded">PAYOS_CLIENT_ID, PAYOS_API_KEY, PAYOS_CHECKSUM_KEY</code></li>
+                    <li>4. Deploy: <code className="bg-blue-100 px-1 rounded">supabase functions deploy create-payos-link</code></li>
+                    <li>5. Webhook URL trong PayOS Dashboard: <code className="bg-blue-100 px-1 rounded">/functions/v1/payos-webhook</code></li>
+                  </ol>
+                </div>
+              </div>
+            ) : (
+              <div className="divide-y divide-slate-100">
+                <div className="grid grid-cols-6 gap-3 px-5 py-2.5 bg-slate-50 text-[10px] font-bold text-slate-400 uppercase tracking-wide">
+                  <span className="col-span-2">Mô tả</span><span>Số tiền</span><span>Cổng TT</span><span>Trạng thái</span><span>Ngày</span>
+                </div>
+                {transactions.map(tx => (
+                  <div key={tx.id} className="grid grid-cols-6 gap-3 px-5 py-3.5 items-center text-sm hover:bg-slate-50">
+                    <div className="col-span-2">
+                      <p className="font-semibold text-slate-800 truncate">{tx.description||'GEM PM Pro'}</p>
+                      <p className="text-[10px] text-slate-400">#{tx.order_code}</p>
+                    </div>
+                    <span className="font-bold text-emerald-700">{tx.amount?.toLocaleString('vi-VN')}đ</span>
+                    <span className="text-xs">{tx.gateway==='payos'?'🏦 PayOS':'💳 Stripe'}</span>
+                    <span>
+                      {tx.status==='paid'
+                        ? <span className="text-xs font-bold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full">✅ Thành công</span>
+                        : tx.status==='pending'
+                        ? <span className="text-xs font-bold text-amber-600 bg-amber-50 px-2 py-0.5 rounded-full">⏳ Chờ TT</span>
+                        : <span className="text-xs font-bold text-rose-600 bg-rose-50 px-2 py-0.5 rounded-full">❌ Thất bại</span>}
+                    </span>
+                    <span className="text-xs text-slate-500">{new Date(tx.paid_at||tx.created_at).toLocaleDateString('vi-VN')}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* ── Plans Tab ──────────────────────────────────────── */}
+      {activeTab === 'plans' && <>
       <div className="max-w-5xl mx-auto px-4 py-8 space-y-8">
         {/* Plan cards */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
@@ -402,6 +496,10 @@ export default function BillingPage({ onClose }: { onClose?: () => void }) {
           </div>
         </div>
       </div>
+
+      </> /* end plans tab */}
+
+      </> /* end plans tab */}
 
       {/* Trial/Payment Modal */}
       <ModalForm

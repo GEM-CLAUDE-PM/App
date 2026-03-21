@@ -204,16 +204,20 @@ export default function NotificationEngine({ project }: Props) {
   const [composeData, setComposeData] = useState({ to:'', channel:'zalo' as NotifChannel, subject:'', context:'' });
   const [isSending, setIsSending]     = useState(false);
   const [sendResult, setSendResult]   = useState<{success:boolean;sent:number;failed:number;errorMsg?:string}|null>(null);
-  const [allUsers, setAllUsers]       = useState<{id:string;full_name:string;job_role:string}[]>([]);
+  const [allUsers, setAllUsers]       = useState<{id:string;full_name:string;job_role:string;email?:string;phone?:string}[]>([]);
   const [selectedUsers, setSelectedUsers] = useState<string[]>([]); // array of user IDs
+  const [externalInput, setExternalInput] = useState(''); // email hoặc SĐT ngoài hệ thống
 
-  // Load danh sách users từ Supabase profiles
+  // Load danh sách users từ Supabase profiles (email + phone cho Email/Zalo)
   React.useEffect(() => {
     (async () => {
       const { getSupabase } = await import('./supabase');
       const sb = getSupabase();
       if (!sb) return;
-      const { data } = await sb.from('profiles').select('id,full_name,job_role').order('full_name');
+      const { data } = await sb
+        .from('profiles')
+        .select('id,full_name,job_role,email,phone')
+        .order('full_name');
       if (data) setAllUsers(data);
     })();
   }, []);
@@ -242,7 +246,16 @@ export default function NotificationEngine({ project }: Props) {
           notifErr('Zalo OA chưa cấu hình. Kiểm tra VITE_ZALO_OA_ID trong .env');
           setIsSending(false); return;
         }
-        const recipients: ZaloRecipient[] = composeData.to.split(',').map(name => ({ name: name.trim() }));
+        // Lấy phone từ internal users đã chọn
+        const internalRecipients: ZaloRecipient[] = allUsers
+          .filter(u => selectedUsers.includes(u.id) && u.phone)
+          .map(u => ({ name: u.full_name, phone: ZaloService.formatPhone(u.phone!) }));
+        // Parse external phones (nhập tay)
+        const externalRecipients: ZaloRecipient[] = externalInput
+          .split(',').map(s => s.trim()).filter(Boolean)
+          .map(phone => ({ name: phone, phone: ZaloService.formatPhone(phone) }));
+        const recipients: ZaloRecipient[] = [...internalRecipients, ...externalRecipients];
+        if (recipients.length === 0) throw new Error('Không có số điện thoại — chọn người nhận hoặc nhập SĐT ngoài hệ thống');
         const result = await ZaloService.sendAlert({
           title: 'Thông báo từ GEM PM Pro',
           body:  gemText,
@@ -257,7 +270,15 @@ export default function NotificationEngine({ project }: Props) {
         const { getSupabase } = await import('./supabase');
         const sb = getSupabase();
         if (!sb) { failed = 1; throw new Error('Không kết nối được Supabase'); }
-        const toAddresses = composeData.to.split(',').map(s => s.trim()).filter(Boolean);
+        // Lấy email từ internal users đã chọn
+        const internalEmails = allUsers
+          .filter(u => selectedUsers.includes(u.id) && u.email)
+          .map(u => u.email!);
+        // Parse external emails (nhập tay)
+        const externalEmails = externalInput
+          .split(',').map(s => s.trim()).filter(s => s.includes('@'));
+        const toAddresses = [...new Set([...internalEmails, ...externalEmails])];
+        if (toAddresses.length === 0) throw new Error('Không có địa chỉ email — chọn người nhận hoặc nhập email ngoài hệ thống');
         const { error } = await sb.functions.invoke('send-email', {
           body: {
             to:      toAddresses,
@@ -531,17 +552,79 @@ export default function NotificationEngine({ project }: Props) {
                 <label className="text-xs font-bold text-slate-500 uppercase mb-1 block tracking-wide">Kênh gửi</label>
                 <div className="flex gap-2">
                   {(Object.keys(CHANNEL_CFG) as NotifChannel[]).map(ch=>(
-                    <button key={ch} onClick={()=>setComposeData(p=>({...p,channel:ch}))}
+                    <button key={ch} onClick={()=>{ setComposeData(p=>({...p,channel:ch})); setSelectedUsers([]); setExternalInput(''); setSendResult(null); }}
                       className={`flex items-center gap-1.5 px-3 py-2 rounded-xl border-2 text-xs font-bold transition-all ${composeData.channel===ch?`${CHANNEL_CFG[ch].cls} border-current/40`:'border-slate-200 text-slate-500 hover:border-slate-300'}`}>
                       {CHANNEL_CFG[ch].icon}{CHANNEL_CFG[ch].label}
                     </button>
                   ))}
                 </div>
               </div>
+              {/* ── Recipient picker — dùng chung cho cả 3 kênh ── */}
               {composeData.channel !== 'inapp' ? (
                 <div>
-                  <label className="text-xs font-bold text-slate-500 uppercase mb-1 block tracking-wide">Gửi đến</label>
-                  <input value={composeData.to} onChange={e=>setComposeData(p=>({...p,to:e.target.value}))} placeholder="GĐ DA, CHT, Kế toán..." className={inputCls}/>
+                  <div className="flex items-center justify-between mb-2">
+                    <label className="text-xs font-bold text-slate-500 uppercase tracking-wide">
+                      Người nhận
+                      {composeData.channel==='email' && <span className="ml-1 font-normal normal-case text-slate-400">— qua Email</span>}
+                      {composeData.channel==='zalo'  && <span className="ml-1 font-normal normal-case text-slate-400">— qua Zalo OA</span>}
+                    </label>
+                    <div className="flex gap-2">
+                      <button onClick={selectAll} className="text-[10px] text-violet-600 font-bold hover:underline">Tất cả ({allUsers.length})</button>
+                      <span className="text-slate-300">|</span>
+                      <button onClick={clearAll}  className="text-[10px] text-slate-400 font-bold hover:underline">Bỏ chọn</button>
+                    </div>
+                  </div>
+                  <div className="max-h-36 overflow-y-auto border border-slate-200 rounded-xl divide-y divide-slate-100">
+                    {allUsers.length === 0 ? (
+                      <div className="px-3 py-3 text-xs text-slate-400 text-center">Đang tải danh sách...</div>
+                    ) : allUsers.map(u => {
+                      const contact = composeData.channel==='email' ? u.email : u.phone;
+                      const hasContact = !!contact;
+                      return (
+                        <label key={u.id} className={`flex items-center gap-2.5 px-3 py-2 cursor-pointer ${hasContact?'hover:bg-slate-50':'opacity-40 cursor-not-allowed'}`}>
+                          <input type="checkbox"
+                            checked={selectedUsers.includes(u.id)}
+                            disabled={!hasContact}
+                            onChange={()=>hasContact&&toggleUser(u.id)}
+                            className="w-3.5 h-3.5 accent-violet-600"/>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-xs font-semibold text-slate-700 truncate">{u.full_name}</p>
+                            <p className="text-[10px] text-slate-400 truncate">
+                              {hasContact ? contact : `Chưa có ${composeData.channel==='email'?'email':'SĐT'}`}
+                            </p>
+                          </div>
+                          <span className="text-[10px] text-slate-400 shrink-0">{u.job_role}</span>
+                        </label>
+                      );
+                    })}
+                  </div>
+                  {selectedUsers.length > 0 && (
+                    <p className="text-[10px] text-violet-600 font-semibold mt-1.5">
+                      Đã chọn {selectedUsers.length} người nhận
+                    </p>
+                  )}
+                  {allUsers.length > 0 && selectedUsers.length === 0 && !externalInput && (
+                    <p className="text-[10px] text-amber-500 font-semibold mt-1.5">
+                      ⚠️ Chưa chọn người nhận nội bộ
+                    </p>
+                  )}
+                  {/* Thêm người nhận ngoài hệ thống */}
+                  <div className="mt-3">
+                    <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wide mb-1 block">
+                      {composeData.channel==='email'
+                        ? '+ Email ngoài hệ thống (CĐT, TVGS, NTP...)'
+                        : '+ SĐT Zalo ngoài hệ thống'}
+                    </label>
+                    <input
+                      value={externalInput}
+                      onChange={e => setExternalInput(e.target.value)}
+                      placeholder={composeData.channel==='email'
+                        ? 'vd: cdt@company.vn, tvgs@gmail.com'
+                        : 'vd: 0901234567, 0912345678'}
+                      className={inputCls}
+                    />
+                    <p className="text-[10px] text-slate-400 mt-1">Cách nhau bằng dấu phẩy</p>
+                  </div>
                 </div>
               ) : (
                 <div>
@@ -598,7 +681,7 @@ export default function NotificationEngine({ project }: Props) {
             <div className="flex items-center justify-between mb-4">
               <h3 className="font-bold text-slate-800 flex items-center gap-2"><Eye size={15} className="text-slate-500"/>Xem trước</h3>
               {gemText&&(
-                <button onClick={sendMessage} disabled={isSending||(composeData.channel!=='inapp'&&!composeData.to)}
+                <button onClick={sendMessage} disabled={isSending||(!gemText)||(composeData.channel!=='inapp'&&selectedUsers.length===0&&!externalInput.trim())}
                   className="flex items-center gap-1.5 px-3 py-1.5 bg-violet-600 text-white rounded-lg text-xs font-bold hover:bg-violet-700 disabled:opacity-50">
                   {isSending?<Loader2 size={10} className="animate-spin"/>:<Send size={10}/>}
                   {isSending?'Đang gửi...':'Gửi ngay'}
