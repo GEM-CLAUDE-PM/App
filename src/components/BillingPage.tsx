@@ -11,7 +11,7 @@ import ModalForm, { FormRow, FormGrid, inputCls, selectCls, BtnCancel, BtnSubmit
 import {
   Check, X, Zap, Shield, Crown, CreditCard,
   Calendar, Download, AlertTriangle, ChevronDown, ChevronUp,
-  Building2, Users, HardDrive, Lock, Star, Clock, CheckCircle,
+  Building2, Users, HardDrive, Lock, Star, Clock, CheckCircle, Loader2,
 } from 'lucide-react';
 
 type Plan = 'starter' | 'pro' | 'enterprise';
@@ -367,7 +367,8 @@ export default function BillingPage({ onClose }: { onClose?: () => void }) {
       )}
 
       {/* ── Plans Tab ──────────────────────────────────────── */}
-      {activeTab === 'plans' && <>
+      {activeTab === 'plans' && (
+        <>
       <div className="max-w-5xl mx-auto px-4 py-8 space-y-8">
         {/* Plan cards */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
@@ -497,12 +498,8 @@ export default function BillingPage({ onClose }: { onClose?: () => void }) {
         </div>
       </div>
 
-      </> /* end plans tab */}
-
-      </> /* end plans tab */}
-
-      {/* Trial/Payment Modal */}
-      <ModalForm
+          {/* Trial/Payment Modal */}
+          <ModalForm
         open={showPayForm}
         onClose={() => setShowPayForm(false)}
         title={`Kích hoạt trial 30 ngày — ${selectedPlan === 'starter' ? 'Starter' : 'Pro'}`}
@@ -546,7 +543,9 @@ export default function BillingPage({ onClose }: { onClose?: () => void }) {
           ✅ <strong>30 ngày dùng thử đầy đủ tính năng</strong> — không giới hạn, không cần thanh toán.
           Sau 30 ngày em sẽ nhắc anh chọn gói hoặc hủy — không tự động trừ tiền.
         </div>
-      </ModalForm>
+          </ModalForm>
+        </>
+      )}
     </div>
   );
 }
