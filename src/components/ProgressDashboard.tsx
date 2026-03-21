@@ -553,15 +553,16 @@ export default function ProgressDashboard({ project: selectedProject, projectId:
             }}
           />
 
-          {/* S32.9 Resource histogram — wire từ mp_people + WBS */}
+          {/* S32.9 Resource histogram — align với Gantt timeline */}
           {(() => {
             const BUCKET = 7;
+            const numBuckets = Math.ceil(totalDays / BUCKET);
             const activePeople = mpPeople.filter(p => p.status === 'active');
             const workerCount  = activePeople.filter(p => p.type === 'worker').length;
             const staffCount   = activePeople.filter(p => p.type === 'staff').length;
             const capacity     = Math.max(workerCount || 10, 5);
             const buckets: { label:string; workers:number; staff:number; equip:number; overload:boolean }[] = [];
-            for (let w = 0; w < Math.min(Math.ceil(totalDays / BUCKET), 16); w++) {
+            for (let w = 0; w < numBuckets; w++) {
               const dayStart = w * BUCKET;
               const dayEnd   = dayStart + BUCKET;
               const activeTasks = (wbs as WBSItem[]).filter(item => {
@@ -582,44 +583,75 @@ export default function ProgressDashboard({ project: selectedProject, projectId:
               });
             }
             const maxVal = Math.max(...buckets.map(b => b.workers + b.staff), capacity, 1);
+            // Gantt left offset: w-6 drag(24) + w-52 name(208) + px-3 padding(12) = 244px
+            const GANTT_LEFT_OFFSET = 244;
+            // Gantt right columns: EV%(64) — always present
+            const GANTT_RIGHT_OFFSET = 64;
+            const colPct = (BUCKET / totalDays) * 100; // % width per bucket = same as Gantt
+
             return (
-              <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-4">
-                <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
-                  <h4 className="text-sm font-bold text-slate-700 flex items-center gap-2">
-                    <Users size={14} className="text-indigo-500"/>Tải trọng nhân lực & thiết bị theo tuần
-                  </h4>
-                  <div className="flex items-center gap-3 text-[10px] font-semibold text-slate-500">
+              <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-4 -mt-1 rounded-t-none border-t-0">
+                {/* Header row — aligns with Gantt card */}
+                <div className="flex items-center justify-between mb-2 flex-wrap gap-2">
+                  <div>
+                    <h4 className="text-sm font-bold text-slate-700 flex items-center gap-2">
+                      <Users size={14} className="text-indigo-500"/>Biểu đồ nhân lực & thiết bị
+                    </h4>
+                    <p className="text-[10px] text-slate-400 mt-0.5">Phân bổ theo tuần · cột đỏ = vượt năng lực</p>
+                  </div>
+                  <div className="flex items-center gap-3 text-[10px] font-semibold">
                     {mpPeople.length > 0
-                      ? <><span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded bg-amber-400 inline-block"/>Công nhân ({workerCount})</span>
-                          <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded bg-blue-400 inline-block"/>Cán bộ ({staffCount})</span></>
-                      : <span className="text-amber-600">⚠ Chưa có nhân sự — mở tab Nhân sự để nhập</span>
+                      ? <><span className="flex items-center gap-1 text-slate-500"><span className="w-2.5 h-2.5 rounded bg-amber-400 inline-block"/>Công nhân ({workerCount})</span>
+                          <span className="flex items-center gap-1 text-slate-500"><span className="w-2.5 h-2.5 rounded bg-blue-400 inline-block"/>Cán bộ ({staffCount})</span>
+                          <span className="flex items-center gap-1 text-slate-500"><span className="w-2.5 h-2.5 rounded bg-slate-300 inline-block"/>Thiết bị</span></>
+                      : <span className="text-[10px] text-slate-400 italic">Chưa có số liệu — nhập nhân sự & thiết bị để hiển thị</span>
                     }
                   </div>
                 </div>
-                <div className="flex items-end gap-1 overflow-x-auto pb-6" style={{minHeight:80}}>
-                  {buckets.map((b,i) => {
-                    const totalH  = Math.round(((b.workers+b.staff)/maxVal)*64);
-                    const workerH = Math.round((b.workers/maxVal)*64);
-                    const staffH  = totalH - workerH;
-                    return (
-                      <div key={i} className="flex flex-col items-center shrink-0" style={{minWidth:32}}>
-                        <div className="relative flex flex-col justify-end" style={{height:64,width:20}}>
-                          <div className="absolute w-full border-t border-dashed border-rose-300"
-                               style={{bottom:`${Math.round((capacity/maxVal)*64)}px`}}/>
-                          <div className="w-full rounded-t-sm"
-                               style={{height:workerH, background: b.overload?'#f87171':'#fbbf24'}}/>
-                          {staffH>0 && <div className="w-full" style={{height:staffH,background:'#60a5fa'}}/>}
-                        </div>
-                        <div className="w-full mt-0.5 rounded-sm bg-slate-200"
-                             style={{height:Math.max(Math.round((b.equip/Math.max(...buckets.map(x=>x.equip),1))*16),0),width:20}}
-                             title={`${b.label}: ${b.equip} thiết bị`}/>
-                        <span className="text-[7px] text-slate-400 mt-1 whitespace-nowrap"
-                              style={{writingMode:'vertical-rl',transform:'rotate(180deg)',height:28}}>{b.label}</span>
+
+                {/* Chart — same overflow-x-auto + minWidth as Gantt */}
+                <div className="overflow-x-auto">
+                  <div style={{ minWidth: 640 }}>
+                    <div className="flex" style={{ height: 72 }}>
+                      {/* Left spacer = Gantt drag handle + name column */}
+                      <div style={{ width: GANTT_LEFT_OFFSET, flexShrink: 0 }}
+                           className="flex items-end pb-1 text-[9px] text-slate-400 font-semibold pl-2">
+                        {mpPeople.length > 0 ? `Max: ${capacity}` : '—'}
                       </div>
-                    );
-                  })}
+                      {/* Timeline area — same flex-1 as Gantt */}
+                      <div className="flex-1 relative" style={{ minWidth: 0 }}>
+                        {/* Capacity dashed line */}
+                        <div className="absolute inset-x-0 border-t border-dashed border-rose-300 pointer-events-none"
+                             style={{ bottom: `${Math.round((capacity / maxVal) * 64)}px` }}/>
+                        {/* Bars — positioned by % matching Gantt tick positions */}
+                        <div className="absolute inset-0 flex items-end">
+                          {buckets.map((b, i) => {
+                            const totalH  = Math.round(((b.workers + b.staff) / maxVal) * 64);
+                            const workerH = Math.round((b.workers / maxVal) * 64);
+                            const staffH  = totalH - workerH;
+                            const leftPct = (i * BUCKET / totalDays) * 100;
+                            const widthPct = colPct;
+                            return (
+                              <div key={i} className="absolute bottom-0 flex flex-col justify-end items-center"
+                                   style={{ left:`${leftPct}%`, width:`${widthPct}%`, height: 64 }}
+                                   title={`${b.label}: ${b.workers + b.staff} người${b.overload ? ' ⚠ quá tải' : ''}`}>
+                                <div className="w-4/5 flex flex-col justify-end rounded-t-sm overflow-hidden"
+                                     style={{ height: totalH || 0 }}>
+                                  <div style={{ height: workerH, background: b.overload ? '#f87171' : '#fbbf24' }}/>
+                                  {staffH > 0 && <div style={{ height: staffH, background: '#60a5fa' }}/>}
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                      {/* Right spacer = EV% column */}
+                      <div style={{ width: GANTT_RIGHT_OFFSET, flexShrink: 0 }}/>
+                    </div>
+                  </div>
                 </div>
-                {buckets.some(b=>b.overload) && (
+
+                {buckets.some(b => b.overload) && (
                   <p className="text-[10px] text-rose-600 font-semibold flex items-center gap-1 mt-1">
                     <AlertTriangle size={10}/>Tuần màu đỏ có nguy cơ quá tải — cần điều phối lại tiến độ
                   </p>
