@@ -790,43 +790,38 @@ export default function QSDashboard({ projectId, projectName, contractValue = 45
             </div>
           </div>
 
-          {/* Add row form */}
-          {showAddRow && (
-            <div className="bg-blue-50 border border-blue-200 rounded-2xl p-4 grid grid-cols-2 md:grid-cols-4 gap-3">
-              <div className="col-span-2 md:col-span-1">
-                <label className="block text-[10px] font-bold text-slate-400 uppercase mb-1">Chương</label>
-                <select value={newRow.chapter} onChange={e=>setNewRow({...newRow,chapter:e.target.value})} className="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm bg-white focus:outline-none focus:border-blue-500">
-                  {CHAPTERS.map(c=><option key={c} value={c}>{c} — {CHAPTER_NAMES[c]}</option>)}
-                </select>
-              </div>
-              <div>
-                <label className="block text-[10px] font-bold text-slate-400 uppercase mb-1">Mã HM *</label>
-                <input value={newRow.code||""} onChange={e=>setNewRow({...newRow,code:e.target.value})} placeholder="VD: C2.8" className="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-blue-500"/>
-              </div>
+          {/* Add row — ModalForm */}
+          <ModalForm
+            open={showAddRow}
+            onClose={() => setShowAddRow(false)}
+            title="Thêm hạng mục QS"
+            subtitle="Bổ sung hạng mục vào bảng khối lượng QS"
+            icon={<Plus size={18}/>}
+            color="blue"
+            width="md"
+            footer={<>
+              <BtnCancel onClick={() => setShowAddRow(false)}/>
+              <BtnSubmit label="Thêm vào BOQ" onClick={addNewRow}/>
+            </>}
+          >
+            <FormGrid cols={2}>
               <div className="col-span-2">
-                <label className="block text-[10px] font-bold text-slate-400 uppercase mb-1">Tên hạng mục *</label>
-                <input value={newRow.name||""} onChange={e=>setNewRow({...newRow,name:e.target.value})} placeholder="Tên công việc..." className="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-blue-500"/>
+                <FormRow label="Chương">
+                  <select value={newRow.chapter} onChange={e=>setNewRow({...newRow,chapter:e.target.value})} className={selectCls}>
+                    {CHAPTERS.map(c=><option key={c} value={c}>{c} — {CHAPTER_NAMES[c]}</option>)}
+                  </select>
+                </FormRow>
               </div>
-              <div>
-                <label className="block text-[10px] font-bold text-slate-400 uppercase mb-1">Đơn vị</label>
-                <input value={newRow.unit||""} onChange={e=>setNewRow({...newRow,unit:e.target.value})} placeholder="m³" className="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-blue-500"/>
+              <FormRow label="Mã hạng mục *"><input value={newRow.code||""} onChange={e=>setNewRow({...newRow,code:e.target.value})} placeholder="VD: C2.8" className={inputCls}/></FormRow>
+              <div className="col-span-2">
+                <FormRow label="Tên hạng mục *"><input value={newRow.name||""} onChange={e=>setNewRow({...newRow,name:e.target.value})} placeholder="Tên công việc..." className={inputCls}/></FormRow>
               </div>
-              <div>
-                <label className="block text-[10px] font-bold text-slate-400 uppercase mb-1">KL hợp đồng</label>
-                <input type="number" value={newRow.qty_contract||""} onChange={e=>setNewRow({...newRow,qty_contract:Number(e.target.value)})} className="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-blue-500"/>
-              </div>
-              <div>
-                <label className="block text-[10px] font-bold text-slate-400 uppercase mb-1">Đơn giá (VNĐ)</label>
-                <input type="number" value={newRow.unit_price||""} onChange={e=>setNewRow({...newRow,unit_price:Number(e.target.value)})} className="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-blue-500"/>
-              </div>
-              <div className="col-span-2 flex gap-2 items-end">
-                <button onClick={addNewRow} className="flex-1 py-2 bg-blue-600 text-white rounded-xl text-sm font-bold hover:bg-blue-700">
-                  <Check size={14} className="inline mr-1"/>Thêm vào BOQ
-                </button>
-                <button onClick={()=>setShowAddRow(false)} className="px-4 py-2 border border-slate-200 text-slate-600 rounded-xl text-sm hover:bg-slate-50">Hủy</button>
-              </div>
-            </div>
-          )}
+              <FormRow label="Đơn vị"><input value={newRow.unit||""} onChange={e=>setNewRow({...newRow,unit:e.target.value})} placeholder="m³, m², tấn..." className={inputCls}/></FormRow>
+              <FormRow label="KL hợp đồng"><input type="number" value={newRow.qty_contract||""} onChange={e=>setNewRow({...newRow,qty_contract:Number(e.target.value)})} placeholder="0" className={inputCls}/></FormRow>
+              <FormRow label="Đơn giá (VNĐ)"><input type="number" value={newRow.unit_price||""} onChange={e=>setNewRow({...newRow,unit_price:Number(e.target.value)})} placeholder="0" className={inputCls}/></FormRow>
+              <FormRow label="Ghi chú"><input value={newRow.note||""} onChange={e=>setNewRow({...newRow,note:e.target.value})} placeholder="Ghi chú thêm..." className={inputCls}/></FormRow>
+            </FormGrid>
+          </ModalForm>
 
           {/* BOQ table */}
           <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">

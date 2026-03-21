@@ -3,6 +3,7 @@
 
 import React, { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import { useNotification } from './NotificationEngine';
+import ModalForm, { FormRow, FormGrid, inputCls, selectCls, BtnCancel, BtnSubmit } from './ModalForm';
 import { db } from "./db";
 import {
   BarChart2, TrendingUp, TrendingDown, FileText, Plus, X,
@@ -460,71 +461,45 @@ export default function SubcontractorTab({ projectId, boqItems, acceptanceLots, 
                 </button>
               </div>
 
-              {showNewSub&&(
-                <div className="bg-orange-50 border border-orange-200 rounded-2xl p-5 space-y-4">
-                  <h4 className="font-bold text-slate-800 flex items-center gap-2"><Building2 size={16} className="text-orange-500"/>Thêm đối tác / HĐ phụ mới</h4>
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                    {([
-                      {label:"Mã *",key:"code",placeholder:"NTP-005"},
-                      {label:"Tên đối tác *",key:"name",placeholder:"Công ty TNHH..."},
-                      {label:"Số HĐ",key:"contract_no",placeholder:"HĐP-2026/05"},
-                      {label:"Liên hệ",key:"contact",placeholder:"Tên — SĐT"},
-                    ] as const).map(f=>(
-                      <div key={f.key}>
-                        <label className="block text-[10px] font-bold text-slate-400 uppercase mb-1">{f.label}</label>
-                        <input value={(newSub as any)[f.key]||""} onChange={e=>setNewSub({...newSub,[f.key]:e.target.value})}
-                          placeholder={f.placeholder} className="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-orange-400 bg-white"/>
-                      </div>
-                    ))}
-                    <div className="col-span-2 md:col-span-4">
-                      <label className="block text-[10px] font-bold text-slate-400 uppercase mb-1">Phạm vi công việc</label>
-                      <input value={newSub.scope||""} onChange={e=>setNewSub({...newSub,scope:e.target.value})} placeholder="Mô tả công việc theo hợp đồng..." className="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-orange-400 bg-white"/>
-                    </div>
-                    <div>
-                      <label className="block text-[10px] font-bold text-slate-400 uppercase mb-1">Loại đối tác</label>
-                      <select value={newSub.type} onChange={e=>setNewSub({...newSub,type:e.target.value as SubType})} className="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm bg-white focus:outline-none focus:border-orange-400">
-                        {(Object.keys(SUB_TYPE_CFG) as SubType[]).map(t=><option key={t} value={t}>{SUB_TYPE_CFG[t].label}</option>)}
-                      </select>
-                    </div>
-                    <div>
-                      <label className="block text-[10px] font-bold text-slate-400 uppercase mb-1">Cơ chế TT</label>
-                      <select value={newSub.pay_mechanism} onChange={e=>setNewSub({...newSub,pay_mechanism:e.target.value as PayMechanism})} className="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm bg-white focus:outline-none focus:border-orange-400">
-                        {(Object.keys(MECH_CFG) as PayMechanism[]).map(m=><option key={m} value={m}>{MECH_CFG[m].label}</option>)}
-                      </select>
-                    </div>
-                    <div>
-                      <label className="block text-[10px] font-bold text-slate-400 uppercase mb-1">Giá trị HĐ (VNĐ)</label>
-                      <input type="number" value={newSub.contract_value||""} onChange={e=>setNewSub({...newSub,contract_value:Number(e.target.value)})} className="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-orange-400 bg-white"/>
-                    </div>
-                    <div>
-                      <label className="block text-[10px] font-bold text-slate-400 uppercase mb-1">Giữ lại BH (%)</label>
-                      <input type="number" value={newSub.retention_pct||0} onChange={e=>setNewSub({...newSub,retention_pct:Number(e.target.value)})} className="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-orange-400 bg-white"/>
-                    </div>
-                    <div>
-                      <label className="block text-[10px] font-bold text-slate-400 uppercase mb-1">Ngày bắt đầu</label>
-                      <input value={newSub.start_date||""} onChange={e=>setNewSub({...newSub,start_date:e.target.value})} placeholder="DD/MM/YYYY" className="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-orange-400 bg-white"/>
-                    </div>
-                    <div>
-                      <label className="block text-[10px] font-bold text-slate-400 uppercase mb-1">Ngày kết thúc</label>
-                      <input value={newSub.end_date||""} onChange={e=>setNewSub({...newSub,end_date:e.target.value})} placeholder="DD/MM/YYYY" className="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-orange-400 bg-white"/>
-                    </div>
-                    <div>
-                      <label className="block text-[10px] font-bold text-slate-400 uppercase mb-1">Tạm ứng ban đầu (VNĐ)</label>
-                      <input type="number" value={newSub.advance_paid||0} onChange={e=>setNewSub({...newSub,advance_paid:Number(e.target.value)})} className="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-orange-400 bg-white"/>
-                    </div>
-                    <div>
-                      <label className="block text-[10px] font-bold text-slate-400 uppercase mb-1">Tài khoản ngân hàng</label>
-                      <input value={newSub.bank_account||""} onChange={e=>setNewSub({...newSub,bank_account:e.target.value})} placeholder="VCB - 007..." className="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-orange-400 bg-white"/>
-                    </div>
+              <ModalForm
+                open={showNewSub}
+                onClose={() => { setShowNewSub(false); setNewSub({ type: "subcontractor", pay_mechanism: "progress", retention_pct: 5 }); }}
+                title="Thêm đối tác / HĐ phụ"
+                subtitle="Nhà thầu phụ, tổ đội hoặc nhà cung cấp"
+                icon={<Building2 size={18}/>}
+                color="orange"
+                width="lg"
+                footer={<>
+                  <BtnCancel onClick={() => { setShowNewSub(false); setNewSub({ type: "subcontractor", pay_mechanism: "progress", retention_pct: 5 }); }}/>
+                  <BtnSubmit label="Lưu hợp đồng phụ" onClick={saveNewSub}/>
+                </>}
+              >
+                <FormGrid cols={2}>
+                  <FormRow label="Mã *"><input value={newSub.code||""} onChange={e=>setNewSub({...newSub,code:e.target.value})} placeholder="NTP-005" className={inputCls}/></FormRow>
+                  <FormRow label="Tên đối tác *"><input value={newSub.name||""} onChange={e=>setNewSub({...newSub,name:e.target.value})} placeholder="Công ty TNHH..." className={inputCls}/></FormRow>
+                  <FormRow label="Số HĐ"><input value={newSub.contract_no||""} onChange={e=>setNewSub({...newSub,contract_no:e.target.value})} placeholder="HĐP-2026/05" className={inputCls}/></FormRow>
+                  <FormRow label="Liên hệ"><input value={newSub.contact||""} onChange={e=>setNewSub({...newSub,contact:e.target.value})} placeholder="Tên — SĐT" className={inputCls}/></FormRow>
+                  <div className="col-span-2">
+                    <FormRow label="Phạm vi công việc"><input value={newSub.scope||""} onChange={e=>setNewSub({...newSub,scope:e.target.value})} placeholder="Mô tả công việc theo hợp đồng..." className={inputCls}/></FormRow>
                   </div>
-                  <div className="flex gap-3">
-                    <button onClick={saveNewSub} className="flex-1 py-2.5 bg-orange-500 text-white rounded-xl font-bold text-sm hover:bg-orange-600 shadow-md">
-                      <Check size={14} className="inline mr-1.5"/>Lưu hợp đồng phụ
-                    </button>
-                    <button onClick={()=>{setShowNewSub(false);setNewSub({type:"subcontractor",pay_mechanism:"progress",retention_pct:5});}} className="px-5 py-2.5 border border-slate-200 text-slate-600 rounded-xl text-sm hover:bg-slate-50">Hủy</button>
-                  </div>
-                </div>
-              )}
+                  <FormRow label="Loại đối tác">
+                    <select value={newSub.type} onChange={e=>setNewSub({...newSub,type:e.target.value as SubType})} className={selectCls}>
+                      {(Object.keys(SUB_TYPE_CFG) as SubType[]).map(t=><option key={t} value={t}>{SUB_TYPE_CFG[t].label}</option>)}
+                    </select>
+                  </FormRow>
+                  <FormRow label="Cơ chế thanh toán">
+                    <select value={newSub.pay_mechanism} onChange={e=>setNewSub({...newSub,pay_mechanism:e.target.value as PayMechanism})} className={selectCls}>
+                      {(Object.keys(MECH_CFG) as PayMechanism[]).map(m=><option key={m} value={m}>{MECH_CFG[m].label}</option>)}
+                    </select>
+                  </FormRow>
+                  <FormRow label="Giá trị HĐ (VNĐ)"><input type="number" value={newSub.contract_value||""} onChange={e=>setNewSub({...newSub,contract_value:Number(e.target.value)})} placeholder="0" className={inputCls}/></FormRow>
+                  <FormRow label="Giữ lại BH (%)"><input type="number" value={newSub.retention_pct||0} onChange={e=>setNewSub({...newSub,retention_pct:Number(e.target.value)})} placeholder="5" className={inputCls}/></FormRow>
+                  <FormRow label="Ngày bắt đầu"><input value={newSub.start_date||""} onChange={e=>setNewSub({...newSub,start_date:e.target.value})} placeholder="DD/MM/YYYY" className={inputCls}/></FormRow>
+                  <FormRow label="Ngày kết thúc"><input value={newSub.end_date||""} onChange={e=>setNewSub({...newSub,end_date:e.target.value})} placeholder="DD/MM/YYYY" className={inputCls}/></FormRow>
+                  <FormRow label="Tạm ứng ban đầu (VNĐ)"><input type="number" value={newSub.advance_paid||0} onChange={e=>setNewSub({...newSub,advance_paid:Number(e.target.value)})} placeholder="0" className={inputCls}/></FormRow>
+                  <FormRow label="Tài khoản ngân hàng"><input value={newSub.bank_account||""} onChange={e=>setNewSub({...newSub,bank_account:e.target.value})} placeholder="VCB - 007..." className={inputCls}/></FormRow>
+                </FormGrid>
+              </ModalForm>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {enrichedSubs
@@ -602,14 +577,25 @@ export default function SubcontractorTab({ projectId, boqItems, acceptanceLots, 
                 </button>
               </div>
 
-              {showNewSubPay&&(
-                <div className="bg-white rounded-2xl border border-orange-200 shadow-md p-5 space-y-4">
-                  <h4 className="font-bold text-slate-800 flex items-center gap-2"><DollarSign size={16} className="text-orange-500"/>Lập phiếu thanh toán NTP / Tổ đội</h4>
+              <ModalForm
+                open={showNewSubPay}
+                onClose={() => setShowNewSubPay(false)}
+                title="Lập phiếu thanh toán NTP / Tổ đội"
+                subtitle="Tạo phiếu thanh toán theo cơ chế hợp đồng"
+                icon={<DollarSign size={18}/>}
+                color="orange"
+                width="xl"
+                footer={<>
+                  <BtnCancel onClick={() => setShowNewSubPay(false)}/>
+                  <BtnSubmit label="Lưu phiếu thanh toán" onClick={saveNewSubPay}/>
+                </>}
+              >
+                <div className="space-y-4">
                   <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                     <div>
                       <label className="block text-[10px] font-bold text-slate-400 uppercase mb-1.5">Đối tác *</label>
                       <select value={newSubPaySubId} onChange={e=>{const s=subs.find(x=>x.id===e.target.value);setNewSubPaySubId(e.target.value);if(s)setNewSubPayMech(s.pay_mechanism);}}
-                        className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm bg-white focus:outline-none focus:border-orange-400">
+                        className={selectCls}>
                         <option value="">— Chọn đối tác —</option>
                         {subs.map(s=><option key={s.id} value={s.id}>{s.code} — {s.name}</option>)}
                       </select>
@@ -617,14 +603,14 @@ export default function SubcontractorTab({ projectId, boqItems, acceptanceLots, 
                     <div>
                       <label className="block text-[10px] font-bold text-slate-400 uppercase mb-1.5">Cơ chế thanh toán</label>
                       <select value={newSubPayMech} onChange={e=>setNewSubPayMech(e.target.value as PayMechanism)}
-                        className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm bg-white focus:outline-none focus:border-orange-400">
+                        className={selectCls}>
                         {(Object.keys(MECH_CFG) as PayMechanism[]).map(m=><option key={m} value={m}>{MECH_CFG[m].label}</option>)}
                       </select>
                     </div>
                     <div>
                       <label className="block text-[10px] font-bold text-slate-400 uppercase mb-1.5">Kỳ / Mô tả đợt</label>
                       <input value={newSubPayPeriod} onChange={e=>setNewSubPayPeriod(e.target.value)} placeholder="VD: Tháng 03/2026 — Đợt 3"
-                        className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-orange-400"/>
+                        className={inputCls}/>
                     </div>
                   </div>
 
@@ -742,14 +728,14 @@ export default function SubcontractorTab({ projectId, boqItems, acceptanceLots, 
                     <label className="block text-[10px] font-bold text-slate-400 uppercase mb-1.5">Ghi chú</label>
                     <textarea value={newSubPayNote} onChange={e=>setNewSubPayNote(e.target.value)} rows={2} className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-orange-400 resize-none"/>
                   </div>
-                  <div className="flex gap-3">
-                    <button onClick={saveNewSubPayment} className="flex-1 py-2.5 bg-orange-500 text-white rounded-xl font-bold text-sm hover:bg-orange-600 shadow-md shadow-orange-100">
-                      <Save size={14} className="inline mr-1.5"/>Lưu phiếu thanh toán
-                    </button>
-                    <button onClick={()=>setShowNewSubPay(false)} className="px-5 py-2.5 border border-slate-200 text-slate-600 rounded-xl text-sm hover:bg-slate-50">Hủy</button>
+                  
+                  <div>
+                    <label className="block text-[10px] font-bold text-slate-400 uppercase mb-1.5">Ghi chú</label>
+                    <input value={newSubPayNote} onChange={e=>setNewSubPayNote(e.target.value)} placeholder="Ghi chú thêm..."
+                      className={inputCls}/>
                   </div>
                 </div>
-              )}
+              </ModalForm>
 
               <div className="space-y-3">
                 {/* Payment search + status filter */}
