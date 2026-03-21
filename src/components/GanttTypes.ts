@@ -28,52 +28,72 @@ export type WBSItem = {
   gantt_dur?: number;
 };
 
-// ─── S34 TODO: Scheduling Engine — tính start/finish từ predecessor ──────────
+// ─── S34 TODO: Scheduling Engine + Predecessor UX ────────────────────────────
 //
-// LUẬT TÍNH NGÀY theo từng loại quan hệ + lag (ngày):
+// ── 1. HIỂN THỊ — theo chuẩn MS Project ──────────────────────────────────────
+//   Format: "[số thứ tự][ loại quan hệ][lag]"
+//   VD:  "3"      = task 3, FS, không lag (FS là mặc định — ẩn loại nếu FS+0)
+//        "3FS"    = task 3, Finish-to-Start, không lag
+//        "4SS+2d" = task 4, Start-to-Start, lag +2 ngày
+//        "5FF-1d" = task 5, Finish-to-Finish, lead 1 ngày
+//        "2,3"    = task 2 và task 3, đều là FS
+//   Màu sắc giữ nguyên:
+//        FS → teal  |  SS → blue  |  FF → violet  |  SF → orange
 //
-//   lag > 0 = gap (chờ thêm X ngày sau điều kiện)
-//   lag < 0 = lead/overlap (bắt đầu sớm hơn X ngày)
+// ── 2. NHẬP LIỆU THẲNG TRONG CỘT PREDECESSOR ─────────────────────────────────
+//   - Click vào ô Predecessor → input text editable (như Excel)
+//   - Nhập: "3" hoặc "3FS" hoặc "4SS+2d" hoặc "2,3FS-1d"
+//   - Parse regex: /^(\d+)(FS|SS|FF|SF)?([+-]\d+d?)?$/i
+//   - Validate: không cho circular dependency
+//   - Enter/blur → parse → update dep_links → recalculate dates cascade
+//   - Escape → cancel edit
 //
-//   FS (Finish-to-Start):  successor.start = predecessor.finish + lag
-//     VD: FS+3 → chờ 3 ngày sau khi predecessor xong mới bắt đầu
-//     VD: FS-2 → bắt đầu sớm hơn 2 ngày trước khi predecessor xong
+// ── 3. RIGHT-CLICK TRÊN BAR → MINI MODAL FORM ────────────────────────────────
+//   Modal nhỏ (không phải context menu text):
+//   ┌─────────────────────────────────────┐
+//   │ Thêm liên kết cho: [Tên task]       │
+//   ├─────────────────────────────────────┤
+//   │ Predecessor: [dropdown list tasks]  │
+//   │ Loại:        [FS ▾] [SS] [FF] [SF] │
+//   │ Lag (ngày):  [  0  ] (+gap / -lead)│
+//   │                                     │
+//   │        [Huỷ]    [Thêm liên kết]    │
+//   └─────────────────────────────────────┘
+//   - Dropdown tasks: hiện số thứ tự + tên, filter bỏ circular
+//   - Lag: number input, +/- button, tooltip giải thích
+//   - Submit → update dep_links → trigger recalculate dates
 //
-//   SS (Start-to-Start):   successor.start  = predecessor.start  + lag
-//     VD: SS+5 → bắt đầu 5 ngày sau khi predecessor bắt đầu
+// ── 4. SCHEDULING ENGINE — tính start/finish từ predecessor ──────────────────
+//   lag > 0 = gap (chờ thêm X ngày)  |  lag < 0 = lead (bắt đầu sớm X ngày)
 //
-//   FF (Finish-to-Finish): successor.finish = predecessor.finish + lag
-//     VD: FF+0 → kết thúc cùng lúc predecessor
-//     → successor.start = successor.finish - successor.duration
+//   FS: successor.start  = predecessor.finish + lag
+//   SS: successor.start  = predecessor.start  + lag
+//   FF: successor.finish = predecessor.finish + lag  → start = finish - dur
+//   SF: successor.finish = predecessor.start  + lag  → start = finish - dur
 //
-//   SF (Start-to-Finish):  successor.finish = predecessor.start  + lag  (hiếm)
-//     → successor.start = successor.finish - successor.duration
+//   Forward Pass CPM:
+//   1. Topo sort (Kahn's algorithm)
+//   2. Không có predecessor → giữ nguyên ngày PM nhập
+//   3. Có predecessor → tính từ TẤT CẢ, lấy ngày LỚN NHẤT (latest constraint)
+//   4. gantt_end_date = start + dur
+//   5. Backward pass → float → critical path
+//   6. Cascade: khi 1 task thay đổi → recalculate tất cả successors
 //
-// THUẬT TOÁN (Forward Pass CPM):
-//   1. Topo sort các task theo dep_links (Kahn's algorithm)
-//   2. Task không có predecessor → giữ nguyên gantt_start_date
-//   3. Task có predecessor(s) → tính từ TẤT CẢ predecessors, lấy ngày LỚN NHẤT
-//      (task phải chờ predecessor muộn nhất hoàn thành)
-//   4. gantt_end_date = gantt_start_date + gantt_dur (ngày làm việc hoặc calendar days)
-//   5. Backward pass → tính float, critical path
-//
-// UI trong Predecessor column:
-//   - Cho phép nhập lag trực tiếp: "FS+3", "SS-2", "FF+0"
-//   - Input field nhỏ bên cạnh type badge trong cột Predecessor
-//   - Khi thay đổi lag → trigger recalculate dates ngay lập tức
-//   - Highlight task bị ảnh hưởng (cascade)
-//
-// S34 IMPORT .MPP:
-//   - MS Project .mpp là binary format
-//   - Approach: user export .mpp → .xml (File → Save As → XML)
-//   - App parse XML → Task nodes → WBSItem[] với dep_links đầy đủ
-//   - Mapping: Task.PredecessorLink.PredecessorUID + Type + Lag → DepLink
-//   - MS Project Type codes: 0=FF, 1=FS, 2=SF, 3=SS
-//   - Lag unit: phút trong .mpp → convert sang ngày (÷ 480)
+// ── 5. IMPORT MS PROJECT .MPP ────────────────────────────────────────────────
+//   .mpp là binary → user export sang .xml (File → Save As → XML)
+//   Parse XML Task nodes:
+//     Task.Name                              → WBSItem.name
+//     Task.OutlineNumber                     → WBSItem.code
+//     Task.Cost                              → WBSItem.budget
+//     Task.Start / Task.Finish               → gantt_start_date / gantt_end_date
+//     Task.PercentWorkComplete               → WBSItem.ev_pct
+//     Task.PredecessorLink.PredecessorUID    → dep_links[].wbsId (map qua UID)
+//     Task.PredecessorLink.Type (0=FF,1=FS,2=SF,3=SS) → dep_links[].type
+//     Task.PredecessorLink.LinkLag (phút)    → dep_links[].lag (÷ 480 = ngày)
 // ─────────────────────────────────────────────────────────────────────────────
 
-// Hàm tính ngày successor từ predecessor — dùng trong S34 scheduling engine
-// Exported để test và reuse trong GanttChart khi có UI recalculate
+// Hàm tính ngày successor — core của scheduling engine S34
+// Exported để test và tái dùng trong recalculate cascade
 export function calcSuccessorStart(
   predStart: Date, predDur: number,
   depType: DepType, lag: number = 0
@@ -83,11 +103,32 @@ export function calcSuccessorStart(
   switch (depType) {
     case 'FS': resultMs = predFinish.getTime() + lag * 86400000; break;
     case 'SS': resultMs = predStart.getTime()  + lag * 86400000; break;
-    case 'FF': resultMs = predFinish.getTime() + lag * 86400000; break; // caller subtract dur
-    case 'SF': resultMs = predStart.getTime()  + lag * 86400000; break; // caller subtract dur
+    case 'FF': resultMs = predFinish.getTime() + lag * 86400000; break; // caller: start = result - dur
+    case 'SF': resultMs = predStart.getTime()  + lag * 86400000; break; // caller: start = result - dur
     default:   resultMs = predFinish.getTime();
   }
   return new Date(resultMs);
+}
+
+// Parse predecessor text như MS Project: "3", "3FS", "4SS+2d", "2,3FS-1d"
+// Dùng trong S34 inline edit + import
+export function parsePredecessorText(
+  text: string,
+  items: { id: number; wbsId?: string }[]
+): { wbsId: string; type: DepType; lag: number }[] {
+  const result: { wbsId: string; type: DepType; lag: number }[] = [];
+  const parts = text.split(',').map(s => s.trim()).filter(Boolean);
+  for (const part of parts) {
+    const m = part.match(/^(\d+)(FS|SS|FF|SF)?([+-]\d+)d?$/i);
+    if (!m) continue;
+    const idx  = parseInt(m[1]) - 1; // 1-based → 0-based
+    const item = items[idx];
+    if (!item?.wbsId) continue;
+    const type = ((m[2] ?? 'FS').toUpperCase()) as DepType;
+    const lag  = m[3] ? parseInt(m[3]) : 0;
+    result.push({ wbsId: item.wbsId, type, lag });
+  }
+  return result;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
