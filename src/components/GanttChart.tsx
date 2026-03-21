@@ -171,8 +171,6 @@ export function GanttChart({
   const [draggingRow, setDraggingRow]   = React.useState<number | null>(null);
   const [dragOverRow, setDragOverRow]   = React.useState<number | null>(null);
   const [editingDone, setEditingDone]   = React.useState<number | null>(null);
-  // S32.5 Dependency arrows
-  const [showDepArrows, setShowDepArrows] = React.useState(true);
   const [ctxMenu, setCtxMenu] = React.useState<{taskIdx: number; x: number; y: number} | null>(null);
   const [linkingFrom, setLinkingFrom] = React.useState<number | null>(null); // idx of source task
 
@@ -181,16 +179,6 @@ export function GanttChart({
     startX: number; origStart: number; origDur: number;
   } | null>(null);
   const timelineRef = useRef<HTMLDivElement>(null);
-  const [timelineWidth, setTimelineWidth] = React.useState(0);
-  // Measure timeline width sau khi mount + khi resize
-  React.useEffect(() => {
-    if (!timelineRef.current) return;
-    const measure = () => setTimelineWidth(timelineRef.current?.getBoundingClientRect().width ?? 0);
-    measure();
-    const ro = new ResizeObserver(measure);
-    ro.observe(timelineRef.current);
-    return () => ro.disconnect();
-  }, [items.length]);
 
   React.useEffect(() => { setItems(tasks); }, [tasks]);
 
@@ -320,33 +308,6 @@ export function GanttChart({
     onUpdateTask?.({ ...next[toIdx] });
     onReorder(next);
   };
-
-  // S32.5 — SVG dependency arrows overlay
-  // ROW_H = 48px (py-3 top+bottom = 24px + content ~24px), NAME_W = 208+24 = 232, LEFT_PAD = 12
-  const ROW_H = 48;
-  const NAME_W = 232; // w-52 (208) + w-6 drag handle (24)
-  const LEFT_PAD = 12; // px-3
-  const depArrows = React.useMemo(() => {
-    if (!showDepArrows) return [];
-    const arrows: { x1: number; y1: number; x2: number; y2: number; isViolation: boolean }[] = [];
-    items.forEach((task, toIdx) => {
-      if (!task.depends_on?.length) return;
-      task.depends_on.forEach(predWbsId => {
-        const fromIdx = items.findIndex(t => t.wbsId === predWbsId);
-        if (fromIdx < 0) return;
-        const pred = items[fromIdx];
-        // x positions are % of timeline width — we'll use relative SVG coords 0..100
-        const x1 = (pred.start + pred.dur - scrollDay) / viewDays * 100; // end of predecessor
-        const x2 = (task.start - scrollDay) / viewDays * 100;               // start of successor
-        const y1 = fromIdx * ROW_H + ROW_H / 2;
-        const y2 = toIdx   * ROW_H + ROW_H / 2;
-        // isViolation: successor bắt đầu trước predecessor kết thúc
-        const isViolation = task.start < (pred.start + pred.dur);
-        arrows.push({ x1, y1, x2, y2, isViolation });
-      });
-    });
-    return arrows;
-  }, [items, showDepArrows, totalDays, scrollDay, viewDays]);
 
 
   const headerTicks = React.useMemo(() => {
@@ -601,11 +562,7 @@ export function GanttChart({
             className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[10px] font-bold border transition-all ${showPred?'bg-teal-50 border-teal-200 text-teal-700':'bg-slate-50 border-slate-200 text-slate-500 hover:border-slate-300'}`}>
             <GitMerge size={11}/>Predecessor
           </button>
-          {/* S32.5 Dependency toggle */}
-          <button onClick={() => setShowDepArrows(v => !v)}
-            className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[10px] font-bold border transition-all ${showDepArrows?'bg-orange-50 border-orange-200 text-orange-700':'bg-slate-50 border-slate-200 text-slate-500 hover:border-slate-300'}`}>
-            <GitMerge size={11}/>Liên kết
-          </button>
+
           {/* S32.6 Critical Path toggle */}
           <button onClick={() => setShowCritical(v => !v)}
             className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[10px] font-bold border transition-all ${showCritical?'bg-rose-50 border-rose-200 text-rose-700':'bg-slate-50 border-slate-200 text-slate-500 hover:border-slate-300'}`}>
@@ -657,7 +614,7 @@ export function GanttChart({
             </div>
             <div className="w-16 shrink-0 px-2 py-2.5 text-center">EV%</div>
             {showPred && (
-              <div className="w-36 shrink-0 px-2 py-2.5 text-center text-teal-500">Predecessor</div>
+              <div className="w-48 shrink-0 px-2 py-2.5 text-center text-teal-500">Predecessor</div>
             )}
             {showFinance && canViewFinance && (
               <>
@@ -797,28 +754,37 @@ export function GanttChart({
 
                 {/* ── Predecessor column ─────────────────────────────────── */}
                 {showPred && (
-                  <div className="w-36 shrink-0 px-2 py-2 flex flex-col gap-0.5 justify-center border-l border-slate-100">
+                  <div className="w-48 shrink-0 px-2 py-2 flex flex-col gap-1 justify-center border-l border-slate-100">
                     {(() => {
-                      // Hiển thị dep_links mới (FS/SS/FF/SF) hoặc depends_on legacy (FS)
                       const links: { wbsId: string; type: string; lag?: number }[] =
                         task.dep_links?.length
                           ? task.dep_links
                           : (task.depends_on ?? []).map(wid => ({ wbsId: wid, type: 'FS' }));
-                      if (!links.length) return <span className="text-[10px] text-slate-300">—</span>;
+                      if (!links.length) return <span className="text-[10px] text-slate-300 text-center w-full">—</span>;
                       return links.map(lk => {
                         const pred = items.find(t => t.wbsId === lk.wbsId);
-                        const predCode = pred?.name?.slice(0, 12) ?? lk.wbsId.slice(0, 8);
-                        const lagStr = lk.lag ? (lk.lag > 0 ? `+${lk.lag}d` : `${lk.lag}d`) : '';
+                        // Violation: task bắt đầu trước predecessor kết thúc
+                        const isViolation = pred
+                          ? task.start < (pred.start + pred.dur)
+                          : false;
+                        const lagStr = lk.lag
+                          ? (lk.lag > 0 ? ` +${lk.lag}d` : ` ${lk.lag}d`)
+                          : '';
                         const typeColor =
                           lk.type === 'FS' ? 'bg-teal-100 text-teal-700'
                           : lk.type === 'SS' ? 'bg-blue-100 text-blue-700'
                           : lk.type === 'FF' ? 'bg-violet-100 text-violet-700'
-                          : 'bg-orange-100 text-orange-700'; // SF
+                          : 'bg-orange-100 text-orange-700';
                         return (
-                          <div key={lk.wbsId} className="flex items-center gap-1 flex-wrap">
-                            <span className={`text-[9px] font-black px-1 py-0.5 rounded ${typeColor}`}>{lk.type}</span>
-                            <span className="text-[10px] text-slate-600 truncate" title={pred?.name}>{predCode}</span>
-                            {lagStr && <span className="text-[9px] text-slate-400">{lagStr}</span>}
+                          <div key={lk.wbsId + lk.type}
+                               className={`flex items-center gap-1 rounded-lg px-1.5 py-0.5 ${isViolation ? 'bg-rose-50' : ''}`}
+                               title={pred?.name ?? lk.wbsId}>
+                            <span className={`text-[9px] font-black px-1 py-0.5 rounded shrink-0 ${typeColor}`}>{lk.type}</span>
+                            <span className={`text-[10px] truncate flex-1 ${isViolation ? 'text-rose-600 font-semibold' : 'text-slate-600'}`}>
+                              {pred?.name ?? lk.wbsId}
+                            </span>
+                            {lagStr && <span className="text-[9px] text-slate-400 shrink-0">{lagStr}</span>}
+                            {isViolation && <span className="text-rose-500 text-[9px] shrink-0" title="Overlap — task bắt đầu trước predecessor kết thúc">⚠</span>}
                           </div>
                         );
                       });
@@ -889,64 +855,6 @@ export function GanttChart({
           })}
           </div>{/* end rowsContainerRef */}
 
-          {/* S32.5 — SVG Dependency Arrows Overlay */}
-          {showDepArrows && depArrows.length > 0 && timelineWidth > 0 && (() => {
-            const timelineW = timelineWidth;
-            return (
-              <div className="relative pointer-events-none" style={{ marginTop: -items.length * ROW_H }}>
-                <svg
-                  style={{
-                    position: 'absolute',
-                    left: NAME_W + LEFT_PAD,
-                    top: 0,
-                    width: timelineW,
-                    height: items.length * ROW_H,
-                    overflow: 'visible',
-                  }}
-                  className="pointer-events-none"
-                >
-                  <defs>
-                    <marker id="arrowGreen" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
-                      <path d="M0,0 L0,6 L7,3 z" fill="#10b981"/>
-                    </marker>
-                    <marker id="arrowRed" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
-                      <path d="M0,0 L0,6 L7,3 z" fill="#ef4444"/>
-                    </marker>
-                  </defs>
-                  {depArrows.map((a, i) => {
-                    const px1 = (a.x1 / 100) * timelineW;
-                    const px2 = (a.x2 / 100) * timelineW;
-                    const py1 = a.y1;
-                    const py2 = a.y2;
-                    const color = a.isViolation ? '#ef4444' : '#10b981';
-                    const markerId = a.isViolation ? 'arrowRed' : 'arrowGreen';
-                    let d: string;
-                    if (Math.abs(py2 - py1) < 4) {
-                      d = `M ${px1} ${py1} L ${px2} ${py2}`;
-                    } else if (px2 >= px1) {
-                      const span = Math.max(15, (px2 - px1) * 0.5);
-                      d = `M ${px1} ${py1} C ${px1+span} ${py1}, ${px2-span} ${py2}, ${px2} ${py2}`;
-                    } else {
-                      const detour = Math.max(20, Math.abs(px1 - px2) * 0.5 + 15);
-                      d = `M ${px1} ${py1} C ${px1+detour} ${py1}, ${px1+detour} ${py2}, ${px2} ${py2}`;
-                    }
-                    return (
-                      <path key={i}
-                        d={d}
-                        fill="none"
-                        stroke={color}
-                        strokeWidth="1.5"
-                        strokeOpacity="0.85"
-                        strokeDasharray={a.isViolation ? '5 3' : undefined}
-                        markerEnd={`url(#${markerId})`}
-                      />
-                    );
-                  })}
-                </svg>
-                <div style={{ height: items.length * ROW_H }}/>
-              </div>
-            );
-          })()}
         </div>
       </div>
 
