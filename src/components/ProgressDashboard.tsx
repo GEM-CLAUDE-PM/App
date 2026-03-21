@@ -4,7 +4,8 @@ import {
   TrendingUp, Clock, AlertTriangle, Award, CheckCircle, Target,
   Sparkles, Loader2, FileSpreadsheet, ChevronDown, ChevronUp,
   BarChart2, Activity, Zap, Flag, Edit3, Save, X, Plus, RefreshCw,
-  ArrowUp, ArrowDown, Minus, Info, Printer, GripVertical, DollarSign
+  ArrowUp, ArrowDown, Minus, Info, Printer, GripVertical, DollarSign,
+  Camera, GitBranch
 } from 'lucide-react';
 import {
   LineChart, Line, AreaChart, Area, BarChart, Bar,
@@ -16,53 +17,93 @@ import { db, useRealtimeSync } from './db';
 import { useAuth } from './AuthProvider';
 import { getProjectTemplate, applyTemplate, PROJECT_TEMPLATES } from './projectTemplates';
 import { usePrint } from './PrintService';
+import { useNotification } from './NotificationEngine';
 
 import type { DashboardProps } from './types';
 
 type Props = DashboardProps;
 
-// ─── EVM Data ─────────────────────────────────────────────────────────────────
-const EVM_DATA = [
-  { week:'T1',  pv:2.1,  ev:2.0,  ac:2.2,  label:'Tuần 1'  },
-  { week:'T2',  pv:4.5,  ev:4.3,  ac:4.8,  label:'Tuần 2'  },
-  { week:'T3',  pv:7.2,  ev:6.8,  ac:7.5,  label:'Tuần 3'  },
-  { week:'T4',  pv:10.4, ev:9.5,  ac:10.9, label:'Tuần 4'  },
-  { week:'T5',  pv:14.0, ev:12.2, ac:14.8, label:'Tuần 5'  },
-  { week:'T6',  pv:18.2, ev:15.1, ac:19.2, label:'Tuần 6'  },
-  { week:'T7',  pv:22.8, ev:18.0, ac:23.4, label:'Tuần 7'  },
-  { week:'T8',  pv:27.5, ev:20.5, ac:28.1, label:'Tuần 8'  },
-  // forecast
-  { week:'T9*', pv:32.0, ev:null, ac:null, forecast_ev:23.5, forecast_ac:32.8, label:'Tuần 9 (dự báo)' },
-  { week:'T10*',pv:36.5, ev:null, ac:null, forecast_ev:27.0, forecast_ac:37.9, label:'Tuần 10 (dự báo)' },
-  { week:'T11*',pv:41.0, ev:null, ac:null, forecast_ev:30.8, forecast_ac:43.2, label:'Tuần 11 (dự báo)' },
-  { week:'T12*',pv:45.0, ev:null, ac:null, forecast_ev:35.0, forecast_ac:48.6, label:'Tuần 12 (dự báo)' },
-];
+// ─── EVM helpers — tính từ WBS data thật ────────────────────────────────────
+type WBSItem = typeof WBS_INIT[number] & {
+  gantt_start_date?: string;  // ISO "2026-01-15"
+  gantt_end_date?: string;    // ISO "2026-03-30"
+  gantt_baseline_start?: string;
+  gantt_baseline_end?: string;
+  depends_on?: string[];
+  responsible_id?: string;
+  resource_ids?: string[];
+  delay_days?: number;
+  // legacy drag fields (px-based, giữ tương thích)
+  gantt_start?: number;
+  gantt_dur?: number;
+};
 
-const BAC = 45.0; // Budget at Completion (tỷ VNĐ)
-const EV_NOW  = 20.5;
-const PV_NOW  = 27.5;
-const AC_NOW  = 28.1;
-const SPI = +(EV_NOW / PV_NOW).toFixed(3);   // 0.745
-const CPI = +(EV_NOW / AC_NOW).toFixed(3);   // 0.730
-const SV  = +(EV_NOW - PV_NOW).toFixed(2);   // -7.0
-const CV  = +(EV_NOW - AC_NOW).toFixed(2);   // -7.6
-const EAC = +(BAC / CPI).toFixed(2);         // 61.6 tỷ
-const ETC = +(EAC - AC_NOW).toFixed(2);
-const VAC = +(BAC - EAC).toFixed(2);         // -16.6 tỷ
-const TCPI= +((BAC - EV_NOW) / (BAC - AC_NOW)).toFixed(3); // 1.437
+function calcEVM(wbs: WBSItem[]) {
+  const BAC   = +wbs.reduce((s, w) => s + (w.budget || 0), 0).toFixed(3);
+  const EV    = +wbs.reduce((s, w) => s + (w.budget || 0) * (w.ev_pct || 0) / 100, 0).toFixed(3);
+  const PV    = +wbs.reduce((s, w) => s + (w.budget || 0) * (w.pv_pct || 0) / 100, 0).toFixed(3);
+  const AC    = +wbs.reduce((s, w) => s + (w.ac || 0), 0).toFixed(3);
+  const SPI   = PV > 0  ? +(EV / PV).toFixed(3) : 1;
+  const CPI   = AC > 0  ? +(EV / AC).toFixed(3) : 1;
+  const SV    = +(EV - PV).toFixed(2);
+  const CV    = +(EV - AC).toFixed(2);
+  const EAC   = CPI > 0 ? +(BAC / CPI).toFixed(2) : BAC;
+  const ETC   = +(EAC - AC).toFixed(2);
+  const VAC   = +(BAC - EAC).toFixed(2);
+  const denom = BAC - AC;
+  const TCPI  = denom > 0 ? +((BAC - EV) / denom).toFixed(3) : 1;
+  return { BAC, EV, PV, AC, SPI, CPI, SV, CV, EAC, ETC, VAC, TCPI };
+}
 
-// ─── WBS / Work packages ─────────────────────────────────────────────────────
-const WBS_INIT = [
-  { id:'1', code:'1.0', name:'Công tác chuẩn bị',       budget:1.8,  pv_pct:100, ev_pct:100, ac:1.95, category:'Móng',      responsible:'Trần Văn B', critical:false },
-  { id:'2', code:'2.0', name:'Thi công móng cọc',        budget:5.2,  pv_pct:100, ev_pct:100, ac:5.60, category:'Móng',      responsible:'Trần Văn B', critical:false },
-  { id:'3', code:'3.0', name:'Đài móng & giằng móng',    budget:3.8,  pv_pct:85,  ev_pct:72,  ac:3.20, category:'Móng',      responsible:'Lê Thị C',   critical:true  },
-  { id:'4', code:'4.0', name:'Tầng hầm (tường vây & sàn)',budget:6.4, pv_pct:65,  ev_pct:48,  ac:4.10, category:'Thân nhà',  responsible:'Trần Văn B', critical:true  },
-  { id:'5', code:'5.0', name:'Cột & dầm tầng 1-2',       budget:4.2,  pv_pct:42,  ev_pct:28,  ac:1.40, category:'Thân nhà',  responsible:'Lê Thị C',   critical:true  },
-  { id:'6', code:'6.0', name:'Sàn tầng 1-2',             budget:3.1,  pv_pct:30,  ev_pct:14,  ac:0.52, category:'Thân nhà',  responsible:'Trần Văn B', critical:true  },
-  { id:'7', code:'7.0', name:'Xây tường bao tầng 1',     budget:2.4,  pv_pct:15,  ev_pct:5,   ac:0.14, category:'Hoàn thiện',responsible:'Lê Thị C',   critical:false },
-  { id:'8', code:'8.0', name:'Hệ thống M&E (điện, nước)',budget:7.8,  pv_pct:22,  ev_pct:10,  ac:0.90, category:'M&E',       responsible:'Phạm Văn D', critical:false },
-  { id:'9', code:'9.0', name:'Hoàn thiện kiến trúc',     budget:6.5,  pv_pct:0,   ev_pct:0,   ac:0.00, category:'Hoàn thiện',responsible:'Lê Thị C',   critical:false },
-  { id:'10',code:'10.0',name:'Nghiệm thu & bàn giao',    budget:1.8,  pv_pct:0,   ev_pct:0,   ac:0.00, category:'Kết thúc',  responsible:'Nguyễn A',   critical:false },
+/** Tính totalDays và todayIndex từ project start/end date */
+function calcGanttRange(project?: { startDate?: string; endDate?: string }) {
+  const parseVN = (s?: string) => {
+    if (!s || s === '-') return null;
+    const parts = s.split('/');
+    if (parts.length === 3) return new Date(`${parts[2]}-${parts[1].padStart(2,'0')}-${parts[0].padStart(2,'0')}`);
+    return null;
+  };
+  const start = parseVN(project?.startDate);
+  const end   = parseVN(project?.endDate);
+  const now   = new Date();
+  if (!start || !end || end <= start) return { totalDays: 120, todayIndex: 0, startMs: now.getTime() };
+  const totalDays  = Math.round((end.getTime() - start.getTime()) / 86400000);
+  const todayIndex = Math.max(0, Math.min(totalDays, Math.round((now.getTime() - start.getTime()) / 86400000)));
+  return { totalDays, todayIndex, startMs: start.getTime() };
+}
+
+/** Tạo S-Curve weekly từ WBS data (snapshot lịch sử + dự báo) */
+function buildSCurveData(wbs: WBSItem[], totalDays: number, todayIndex: number, BAC: number) {
+  if (BAC <= 0 || totalDays <= 0) return [];
+  const weeks = Math.ceil(totalDays / 7);
+  const result: { week: string; pv: number; ev: number | null; ac: number | null; forecast_ev?: number; forecast_ac?: number; label: string }[] = [];
+  const todayWeek = Math.floor(todayIndex / 7);
+  for (let w = 0; w < weeks; w++) {
+    const dayPct = Math.min(1, (w + 1) * 7 / totalDays);
+    const pvCum = +wbs.reduce((s, item) => s + (item.budget || 0) * Math.min(item.pv_pct / 100, dayPct > item.pv_pct / 100 ? 1 : dayPct / (item.pv_pct / 100 || 1)), 0).toFixed(2);
+    const isPast = w < todayWeek;
+    const isCurrent = w === todayWeek;
+    const evCum  = isPast || isCurrent ? +wbs.reduce((s, item) => s + (item.budget || 0) * Math.min(dayPct, item.ev_pct / 100), 0).toFixed(2) : null;
+    const acCum  = isPast || isCurrent ? +wbs.reduce((s, item) => s + Math.min(item.ac || 0, (item.ac || 0) * (dayPct / (item.ev_pct / 100 || 1))), 0).toFixed(2) : null;
+    const fEV = !isPast && !isCurrent && BAC > 0 ? +(wbs.reduce((s, i) => s + (i.budget || 0) * Math.min(1, dayPct * 1.05), 0)).toFixed(2) : undefined;
+    const fAC = !isPast && !isCurrent && BAC > 0 ? +(fEV ? fEV * 1.08 : 0).toFixed(2) : undefined;
+    result.push({ week: `T${w+1}`, pv: pvCum, ev: evCum, ac: acCum, forecast_ev: fEV, forecast_ac: fAC, label: `Tuần ${w+1}` });
+  }
+  return result;
+}
+
+// ─── WBS / Work packages — seed data (chỉ dùng khi chưa có data trong DB) ─────
+const WBS_INIT: WBSItem[] = [
+  { id:'1', code:'1.0', name:'Công tác chuẩn bị',        budget:1.8,  pv_pct:100, ev_pct:100, ac:1.95, category:'Móng',       responsible:'Trần Văn B', critical:false, gantt_start_date: undefined, gantt_end_date: undefined },
+  { id:'2', code:'2.0', name:'Thi công móng cọc',         budget:5.2,  pv_pct:100, ev_pct:100, ac:5.60, category:'Móng',       responsible:'Trần Văn B', critical:false, gantt_start_date: undefined, gantt_end_date: undefined },
+  { id:'3', code:'3.0', name:'Đài móng & giằng móng',     budget:3.8,  pv_pct:85,  ev_pct:72,  ac:3.20, category:'Móng',       responsible:'Lê Thị C',   critical:true,  gantt_start_date: undefined, gantt_end_date: undefined },
+  { id:'4', code:'4.0', name:'Tầng hầm (tường vây & sàn)',budget:6.4,  pv_pct:65,  ev_pct:48,  ac:4.10, category:'Thân nhà',   responsible:'Trần Văn B', critical:true,  gantt_start_date: undefined, gantt_end_date: undefined },
+  { id:'5', code:'5.0', name:'Cột & dầm tầng 1-2',        budget:4.2,  pv_pct:42,  ev_pct:28,  ac:1.40, category:'Thân nhà',   responsible:'Lê Thị C',   critical:true,  gantt_start_date: undefined, gantt_end_date: undefined },
+  { id:'6', code:'6.0', name:'Sàn tầng 1-2',              budget:3.1,  pv_pct:30,  ev_pct:14,  ac:0.52, category:'Thân nhà',   responsible:'Trần Văn B', critical:true,  gantt_start_date: undefined, gantt_end_date: undefined },
+  { id:'7', code:'7.0', name:'Xây tường bao tầng 1',      budget:2.4,  pv_pct:15,  ev_pct:5,   ac:0.14, category:'Hoàn thiện', responsible:'Lê Thị C',   critical:false, gantt_start_date: undefined, gantt_end_date: undefined },
+  { id:'8', code:'8.0', name:'Hệ thống M&E (điện, nước)', budget:7.8,  pv_pct:22,  ev_pct:10,  ac:0.90, category:'M&E',        responsible:'Phạm Văn D', critical:false, gantt_start_date: undefined, gantt_end_date: undefined },
+  { id:'9', code:'9.0', name:'Hoàn thiện kiến trúc',      budget:6.5,  pv_pct:0,   ev_pct:0,   ac:0.00, category:'Hoàn thiện', responsible:'Lê Thị C',   critical:false, gantt_start_date: undefined, gantt_end_date: undefined },
+  { id:'10',code:'10.0',name:'Nghiệm thu & bàn giao',     budget:1.8,  pv_pct:0,   ev_pct:0,   ac:0.00, category:'Kết thúc',   responsible:'Nguyễn A',   critical:false, gantt_start_date: undefined, gantt_end_date: undefined },
 ];
 
 // ─── Milestones ───────────────────────────────────────────────────────────────
@@ -125,38 +166,40 @@ function IndexBadge({ label, value, threshold1=0.85, threshold2=0.95, unit='' }:
   );
 }
 
-// ─── GanttChart S22 — drag bar + resize + inline % edit ──────────────────────
+// ─── GanttChart S32 — drag bar + resize + inline % edit + zoom 3 cấp ────────
 type GanttTask = {
   id: number; name: string; start: number; dur: number;
   done: number; cat: string; wbsId?: string;
+  gantt_start_date?: string; gantt_end_date?: string;
   // Financial fields (PA3 Split View)
-  budget?: number;  // tỷ VNĐ
-  ac?: number;      // Actual Cost tỷ
-  pv_pct?: number;  // Planned Value %
-  ev_pct?: number;  // Earned Value % (= done)
+  budget?: number; ac?: number; pv_pct?: number; ev_pct?: number;
 };
 
+type GanttZoom = 'week' | 'month' | 'quarter';
 type DragMode = 'row' | 'bar' | 'resize' | null;
 
 function GanttChart({
-  tasks, totalDays, today, onReorder, onUpdateTask, canViewFinance = false, canViewFinanceNumbers = false,
+  tasks, totalDays, today, startMs = 0, onReorder, onUpdateTask, onFreezeBaseline, canViewFinance = false, canViewFinanceNumbers = false,
 }: {
   tasks: GanttTask[];
   totalDays: number;
   today: number;
+  startMs?: number;
   onReorder: (tasks: GanttTask[]) => void;
   onUpdateTask?: (task: GanttTask) => void;
-  canViewFinance?: boolean;        // L3+ thấy CPI indicator
-  canViewFinanceNumbers?: boolean; // L4+ thấy số tiền thật
+  onFreezeBaseline?: (tasks: GanttTask[]) => void;
+  canViewFinance?: boolean;
+  canViewFinanceNumbers?: boolean;
 }) {
   const [items, setItems] = React.useState<GanttTask[]>(tasks);
   const [showFinance, setShowFinance] = React.useState(canViewFinance);
+  const [zoom, setZoom] = React.useState<GanttZoom>('week');
+  const [showConfirmBaseline, setShowConfirmBaseline] = React.useState(false);
   const [dragMode, setDragMode]     = React.useState<DragMode>(null);
   const [draggingRow, setDraggingRow]   = React.useState<number | null>(null);
   const [dragOverRow, setDragOverRow]   = React.useState<number | null>(null);
-  const [editingDone, setEditingDone]   = React.useState<number | null>(null); // task id
+  const [editingDone, setEditingDone]   = React.useState<number | null>(null);
 
-  // Bar/resize drag state
   const barDragRef = useRef<{
     taskId: number; mode: 'bar' | 'resize';
     startX: number; origStart: number; origDur: number;
@@ -164,6 +207,76 @@ function GanttChart({
   const timelineRef = useRef<HTMLDivElement>(null);
 
   React.useEffect(() => { setItems(tasks); }, [tasks]);
+
+  // Kiểm tra đã có baseline chưa (bất kỳ task nào có gantt_baseline_start)
+  const hasBaseline = items.some(t => t.gantt_baseline_start);
+
+  // Freeze baseline — copy gantt_start_date/end_date → baseline fields
+  const freezeBaseline = () => {
+    const next = items.map(t => ({
+      ...t,
+      gantt_baseline_start: t.gantt_start_date,
+      gantt_baseline_end:   t.gantt_end_date,
+    }));
+    setItems(next);
+    onFreezeBaseline?.(next);
+    setShowConfirmBaseline(false);
+  };
+
+  // ── Tính tick marks cho header theo zoom level ────────────────────────────
+  const headerTicks = React.useMemo(() => {
+    if (totalDays <= 0) return [];
+    const ticks: { day: number; label: string }[] = [];
+    if (zoom === 'week') {
+      // Mỗi 7 ngày = 1 tuần
+      const numWeeks = Math.ceil(totalDays / 7);
+      for (let w = 0; w < numWeeks; w++) {
+        const day = w * 7;
+        if (startMs > 0) {
+          const d = new Date(startMs + day * 86400000);
+          ticks.push({ day, label: `${d.getDate()}/${d.getMonth()+1}` });
+        } else {
+          ticks.push({ day, label: `T${w+1}` });
+        }
+      }
+    } else if (zoom === 'month') {
+      // Mỗi tháng 1 tick
+      if (startMs > 0) {
+        const start = new Date(startMs);
+        const cur = new Date(start.getFullYear(), start.getMonth(), 1);
+        while (true) {
+          const dayOff = Math.round((cur.getTime() - startMs) / 86400000);
+          if (dayOff >= totalDays) break;
+          const label = `T${cur.getMonth()+1}/${cur.getFullYear().toString().slice(2)}`;
+          ticks.push({ day: Math.max(0, dayOff), label });
+          cur.setMonth(cur.getMonth() + 1);
+          if (ticks.length > 36) break;
+        }
+      } else {
+        for (let d = 0; d < totalDays; d += 30)
+          ticks.push({ day: d, label: `T${Math.floor(d/30)+1}` });
+      }
+    } else {
+      // Quarter — mỗi 3 tháng 1 tick
+      if (startMs > 0) {
+        const start = new Date(startMs);
+        const qMonth = Math.floor(start.getMonth() / 3) * 3;
+        const cur = new Date(start.getFullYear(), qMonth, 1);
+        while (true) {
+          const dayOff = Math.round((cur.getTime() - startMs) / 86400000);
+          if (dayOff >= totalDays) break;
+          const q = Math.floor(cur.getMonth() / 3) + 1;
+          ticks.push({ day: Math.max(0, dayOff), label: `Q${q}/${cur.getFullYear().toString().slice(2)}` });
+          cur.setMonth(cur.getMonth() + 3);
+          if (ticks.length > 16) break;
+        }
+      } else {
+        for (let d = 0; d < totalDays; d += 90)
+          ticks.push({ day: d, label: `Q${Math.floor(d/90)+1}` });
+      }
+    }
+    return ticks;
+  }, [zoom, totalDays, startMs]);
 
   // ── Row reorder (drag handle) ─────────────────────────────────────────────
   const onRowPointerDown = (e: React.PointerEvent, idx: number) => {
@@ -242,7 +355,7 @@ function GanttChart({
   return (
     <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden"
          onPointerUp={commitRowDrop}>
-      <div className="p-4 border-b border-slate-100 flex items-center justify-between">
+      <div className="p-4 border-b border-slate-100 flex items-center justify-between flex-wrap gap-2">
         <h3 className="text-base font-bold text-slate-800 flex items-center gap-2">
           <FileSpreadsheet size={16} className="text-blue-600"/>
           Sơ đồ Gantt — {items.length} hạng mục
@@ -250,9 +363,31 @@ function GanttChart({
             ☰ reorder · kéo bar để dời · kéo cạnh để resize · click % để sửa
           </span>
         </h3>
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-3 flex-wrap">
+          {/* Zoom toggle */}
+          <div className="flex items-center gap-0.5 bg-slate-100 p-0.5 rounded-lg">
+            {(['week','month','quarter'] as GanttZoom[]).map(z => (
+              <button key={z} onClick={() => setZoom(z)}
+                className={`px-2.5 py-1 rounded-md text-[10px] font-bold transition-all ${zoom===z?'bg-white shadow text-blue-700':'text-slate-500 hover:text-slate-700'}`}>
+                {z==='week'?'Tuần':z==='month'?'Tháng':'Quý'}
+              </button>
+            ))}
+          </div>
+
+          {/* Baseline button */}
+          {!hasBaseline ? (
+            <button onClick={() => setShowConfirmBaseline(true)}
+              className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[10px] font-bold border border-violet-200 bg-violet-50 text-violet-700 hover:bg-violet-100 transition-all">
+              <Camera size={11}/>Chụp baseline
+            </button>
+          ) : (
+            <span className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[10px] font-bold border border-slate-200 bg-slate-50 text-slate-500">
+              <GitBranch size={11}/>Baseline đã chụp
+            </span>
+          )}
+
           <div className="flex gap-3 text-[10px] font-semibold text-slate-500">
-            {[['bg-emerald-400','Hoàn thành'],['bg-amber-400','Đang thi công'],['bg-slate-300','Chưa bắt đầu']].map(([cls,lbl])=>(
+            {[['bg-emerald-400','Hoàn thành'],['bg-amber-400','Đang thi công'],['bg-slate-300','Chưa bắt đầu'],['bg-violet-300/60','Baseline']].map(([cls,lbl])=>(
               <span key={lbl} className="flex items-center gap-1">
                 <span className={`w-3 h-2.5 rounded ${cls} inline-block`}/>{lbl}
               </span>
@@ -267,15 +402,45 @@ function GanttChart({
         </div>
       </div>
 
+      {/* Confirm baseline dialog */}
+      {showConfirmBaseline && (
+        <div className="mx-4 mt-3 mb-1 p-3.5 bg-violet-50 border border-violet-200 rounded-xl flex items-start justify-between gap-3">
+          <div className="flex items-start gap-2">
+            <Camera size={15} className="text-violet-600 mt-0.5 shrink-0"/>
+            <div>
+              <p className="text-xs font-bold text-violet-800">Xác nhận chụp baseline?</p>
+              <p className="text-[11px] text-violet-600 mt-0.5">
+                Lưu ngày bắt đầu/kết thúc hiện tại làm mốc so sánh. <strong>Chỉ thực hiện được 1 lần.</strong>
+              </p>
+            </div>
+          </div>
+          <div className="flex gap-2 shrink-0">
+            <button onClick={() => setShowConfirmBaseline(false)}
+              className="px-3 py-1.5 text-[11px] font-bold bg-white border border-slate-200 text-slate-600 rounded-lg hover:bg-slate-50">
+              Huỷ
+            </button>
+            <button onClick={freezeBaseline}
+              className="px-3 py-1.5 text-[11px] font-bold bg-violet-600 text-white rounded-lg hover:bg-violet-700">
+              Xác nhận
+            </button>
+          </div>
+        </div>
+      )}
+
       <div className="overflow-x-auto">
         <div style={{ minWidth: 640 }}>
           {/* Header */}
           <div className="flex bg-slate-50 border-b border-slate-200 text-[10px] font-bold text-slate-400 uppercase tracking-wide">
             <div className="w-6 shrink-0"/>
             <div className="w-52 shrink-0 px-4 py-2.5">Hạng mục</div>
-            <div className="flex-1 px-3 py-2.5">
-              <div className="flex justify-between">
-                {[0,10,20,30,40,50,60,70,80,90].map(d=><span key={d}>T{Math.ceil((d+1)/7)}</span>)}
+            <div className="flex-1 px-3 py-2.5 relative" style={{minWidth:0}}>
+              <div className="relative w-full h-4">
+                {headerTicks.map((tick, i) => (
+                  <span key={i} className="absolute text-[9px] font-semibold text-slate-400 whitespace-nowrap"
+                    style={{ left: `${(tick.day / totalDays) * 100}%`, transform: 'translateX(-50%)' }}>
+                    {tick.label}
+                  </span>
+                ))}
               </div>
             </div>
             <div className="w-16 shrink-0 px-2 py-2.5 text-center">EV%</div>
@@ -318,10 +483,10 @@ function GanttChart({
                      className="flex-1 px-3 py-3 relative flex items-center"
                      onPointerMove={onTimelinePointerMove}
                      onPointerUp={onTimelinePointerUp}>
-                  {/* Grid lines */}
-                  {[0,10,20,30,40,50,60,70,80,90].map(d=>(
-                    <div key={d} className="absolute top-0 bottom-0 border-l border-slate-100"
-                         style={{left:`${(d/totalDays)*100}%`}}/>
+                  {/* Grid lines — theo tick marks */}
+                  {headerTicks.map((tick, gi) => (
+                    <div key={gi} className="absolute top-0 bottom-0 border-l border-slate-100"
+                         style={{left:`${(tick.day/totalDays)*100}%`}}/>
                   ))}
                   {/* Today line */}
                   <div className="absolute top-0 bottom-0 border-l-2 border-rose-400 border-dashed z-10"
@@ -350,9 +515,29 @@ function GanttChart({
                                     bg-slate-400/0 hover:bg-blue-500/40 transition-colors"
                          style={{left:`calc(${((task.start+task.dur)/totalDays)*100}% - 4px)`}}
                          onPointerDown={e => onResizePointerDown(e, task.id)}/>
-                    {/* Baseline marker */}
-                    <div className="absolute top-1 bottom-1 w-0.5 bg-slate-400 rounded opacity-60 z-10"
-                         style={{left:`${((task.start+task.dur)/totalDays)*100}%`}}/>
+                    {/* Baseline bar — hiện nếu đã freeze */}
+                    {task.gantt_baseline_start && task.gantt_baseline_end && startMs > 0 && (() => {
+                      const bs = new Date(task.gantt_baseline_start).getTime();
+                      const be = new Date(task.gantt_baseline_end).getTime();
+                      const bStart = Math.max(0, Math.round((bs - startMs) / 86400000));
+                      const bDur   = Math.max(1, Math.round((be - bs) / 86400000));
+                      const deltaEnd = (task.start + task.dur) - (bStart + bDur);
+                      return (
+                        <>
+                          {/* Baseline track — xám mờ bên dưới */}
+                          <div className="absolute h-1.5 rounded-sm bg-violet-300/50 bottom-0.5 z-5 pointer-events-none"
+                               style={{ left:`${(bStart/totalDays)*100}%`, width:`${(bDur/totalDays)*100}%` }}/>
+                          {/* Delta badge */}
+                          {deltaEnd !== 0 && (
+                            <div className={`absolute text-[8px] font-black px-1 py-0.5 rounded z-20 pointer-events-none whitespace-nowrap
+                              ${deltaEnd > 0 ? 'bg-rose-100 text-rose-700' : 'bg-emerald-100 text-emerald-700'}`}
+                                 style={{ left:`calc(${((task.start+task.dur)/totalDays)*100}% + 4px)`, top: '2px' }}>
+                              {deltaEnd > 0 ? `+${deltaEnd}d` : `${deltaEnd}d`}
+                            </div>
+                          )}
+                        </>
+                      );
+                    })()}
                   </div>
                 </div>
 
@@ -453,6 +638,7 @@ function GanttChart({
 export default function ProgressDashboard({ project: selectedProject, projectId: projectIdProp }: Props) {
   const pid = projectIdProp ?? selectedProject?.id ?? 'default';
   const { user } = useAuth();
+  const { notify } = useNotification();
   // L4+ (admin/manager-finance) thấy số tiền thật, L3 chỉ thấy CPI indicator
   const canViewFinance        = ['admin','manager'].includes(user?.tier ?? '') || (user?.tier === 'manager');
   const canViewFinanceNumbers = user?.tier === 'admin';
@@ -516,35 +702,57 @@ export default function ProgressDashboard({ project: selectedProject, projectId:
   const [showGem, setShowGem] = useState(false);
   const [expandedWbs, setExpandedWbs] = useState<string|null>(null);
 
-  const totalDays = 95; const today = 58;
+  // ── Gantt range từ project dates (dynamic) ─────────────────────────────────
+  const { totalDays, todayIndex: today, startMs } = React.useMemo(
+    () => calcGanttRange(selectedProject as any),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [selectedProject?.startDate, selectedProject?.endDate]
+  );
 
-  // Gantt tasks derived từ WBS data thật (start/dur tính từ thứ tự WBS)
+  // ── EVM tính từ WBS data thật ───────────────────────────────────────────────
+  const evm = React.useMemo(() => calcEVM(wbs as WBSItem[]), [wbs]);
+  const { BAC, EV: EV_NOW, PV: PV_NOW, AC: AC_NOW, SPI, CPI, SV, CV, EAC, ETC, VAC, TCPI } = evm;
+
+  // ── S-Curve data từ WBS thật ────────────────────────────────────────────────
+  const EVM_DATA = React.useMemo(
+    () => buildSCurveData(wbs as WBSItem[], totalDays, today, BAC),
+    [wbs, totalDays, today, BAC]
+  );
+
+  // ── Gantt tasks — ưu tiên gantt_start_date/end_date nếu có ─────────────────
   const ganttTasks = React.useMemo(() => {
-    const starts = [0, 5, 22, 30, 42, 48, 55, 50, 62, 85];
-    const durs   = [10, 20, 15, 18, 20, 14, 12, 30, 25, 10];
-    return wbs.map((w, i) => ({
-      id:     i + 1,
-      name:   w.name,
-      start:  (w as any).gantt_start ?? starts[i] ?? i * 8,
-      dur:    (w as any).gantt_dur   ?? durs[i]   ?? 10,
-      done:   w.ev_pct,
-      cat:    w.category,
-      wbsId:  w.id,
-      // Financial data cho PA3 panel
-      budget: w.budget,
-      ac:     w.ac,
-      pv_pct: w.pv_pct,
-      ev_pct: w.ev_pct,
-    }));
-  }, [wbs]);
+    const fallbackOffsets = [0, 5, 22, 30, 42, 48, 55, 50, 62, 85];
+    const fallbackDurs    = [10, 20, 15, 18, 20, 14, 12, 30, 25, 10];
+    return (wbs as WBSItem[]).map((w, i) => {
+      let start = w.gantt_start ?? fallbackOffsets[i] ?? i * 8;
+      let dur   = w.gantt_dur   ?? fallbackDurs[i]   ?? 10;
+      if (w.gantt_start_date && startMs > 0) {
+        const s = new Date(w.gantt_start_date).getTime();
+        start = Math.max(0, Math.round((s - startMs) / 86400000));
+      }
+      if (w.gantt_start_date && w.gantt_end_date) {
+        const s = new Date(w.gantt_start_date).getTime();
+        const e = new Date(w.gantt_end_date).getTime();
+        dur = Math.max(1, Math.round((e - s) / 86400000));
+      }
+      return {
+        id: i + 1, name: w.name, start, dur,
+        done: w.ev_pct, cat: w.category, wbsId: w.id,
+        budget: w.budget, ac: w.ac, pv_pct: w.pv_pct, ev_pct: w.ev_pct,
+        gantt_start_date: w.gantt_start_date, gantt_end_date: w.gantt_end_date,
+        gantt_baseline_start: w.gantt_baseline_start, gantt_baseline_end: w.gantt_baseline_end,
+      };
+    });
+  }, [wbs, startMs]);
 
   const callGEM = useCallback(async () => {
     setGemLoading(true); setGemText(''); setShowGem(true);
     try {
       const model = genAI.getGenerativeModel({ model: GEM_MODEL_QUALITY, systemInstruction: GEM_SYS });
-      const critical = wbs.filter(w=>w.critical && w.ev_pct < w.pv_pct);
+      const critical = (wbs as WBSItem[]).filter(w=>w.critical && w.ev_pct < w.pv_pct);
+      const projectName = selectedProject?.name || 'Dự án';
       const r = await model.generateContent(
-        `Phân tích EVM dự án xây dựng Villa PAT:\n` +
+        `Phân tích EVM dự án xây dựng ${projectName}:\n` +
         `BAC=${BAC}tỷ | EV=${EV_NOW}tỷ | PV=${PV_NOW}tỷ | AC=${AC_NOW}tỷ\n` +
         `SPI=${SPI} | CPI=${CPI} | SV=${SV}tỷ | CV=${CV}tỷ\n` +
         `EAC=${EAC}tỷ | ETC=${ETC}tỷ | VAC=${VAC}tỷ | TCPI=${TCPI}\n` +
@@ -684,6 +892,7 @@ export default function ProgressDashboard({ project: selectedProject, projectId:
             tasks={ganttTasks}
             totalDays={totalDays}
             today={today}
+            startMs={startMs}
             canViewFinance={canViewFinance}
             canViewFinanceNumbers={canViewFinanceNumbers}
             onReorder={(reordered) => {
@@ -699,16 +908,43 @@ export default function ProgressDashboard({ project: selectedProject, projectId:
               }
             }}
             onUpdateTask={(updated) => {
-              // Sync start/dur/done về WBS item tương ứng
+              // Sync start/dur/done về WBS + tính gantt_start_date/end_date ISO
               setWbs(prev => {
-                const next = prev.map(w =>
-                  w.id === updated.wbsId
-                    ? { ...w, ev_pct: updated.done, gantt_start: updated.start, gantt_dur: updated.dur }
-                    : w
-                );
+                const next = (prev as WBSItem[]).map(w => {
+                  if (w.id !== updated.wbsId) return w;
+                  const patch: Partial<WBSItem> = {
+                    ev_pct: updated.done,
+                    gantt_start: updated.start,
+                    gantt_dur: updated.dur,
+                  };
+                  // Nếu có project start date → tính ISO date
+                  if (startMs > 0) {
+                    const s = new Date(startMs + updated.start * 86400000);
+                    const e = new Date(startMs + (updated.start + updated.dur) * 86400000);
+                    patch.gantt_start_date = s.toISOString().slice(0, 10);
+                    patch.gantt_end_date   = e.toISOString().slice(0, 10);
+                  }
+                  return { ...w, ...patch };
+                });
                 if (dbLoaded.current) db.set('progress_wbs', pid, next);
                 return next;
               });
+            }}
+            onFreezeBaseline={(frozenTasks) => {
+              setWbs(prev => {
+                const next = (prev as WBSItem[]).map(w => {
+                  const ft = frozenTasks.find(t => t.wbsId === w.id);
+                  if (!ft) return w;
+                  return {
+                    ...w,
+                    gantt_baseline_start: ft.gantt_baseline_start,
+                    gantt_baseline_end:   ft.gantt_baseline_end,
+                  };
+                });
+                if (dbLoaded.current) db.set('progress_wbs', pid, next);
+                return next;
+              });
+              notify('success', '📸 Baseline đã được chụp', 'Mọi thay đổi tiến độ sẽ so sánh với mốc này');
             }}
           />
         </div>
