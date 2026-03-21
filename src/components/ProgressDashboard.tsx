@@ -4,7 +4,7 @@ import {
   TrendingUp, Clock, AlertTriangle, Award, CheckCircle, Target,
   Sparkles, Loader2, FileSpreadsheet, ChevronDown, ChevronUp,
   BarChart2, Activity, Zap, Flag, Edit3, Save, X, Plus, RefreshCw,
-  ArrowUp, ArrowDown, Minus, Info, Printer, GripVertical
+  ArrowUp, ArrowDown, Minus, Info, Printer, GripVertical, DollarSign
 } from 'lucide-react';
 import {
   LineChart, Line, AreaChart, Area, BarChart, Bar,
@@ -13,6 +13,7 @@ import {
 } from 'recharts';
 import { genAI, GEM_MODEL, GEM_MODEL_QUALITY } from './gemini';
 import { db, useRealtimeSync } from './db';
+import { useAuth } from './AuthProvider';
 import { getProjectTemplate, applyTemplate, PROJECT_TEMPLATES } from './projectTemplates';
 import { usePrint } from './PrintService';
 
