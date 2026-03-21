@@ -114,6 +114,12 @@ export function DelayLogPanel({ pid, wbs, dbLoaded, setWbs, notifOk }: {
 }
 
 // ─── GanttChart S32 ────────
+// 4 loại quan hệ phụ thuộc chuẩn PM (tương thích MS Project)
+// FS = Finish-to-Start (mặc định), SS = Start-to-Start,
+// FF = Finish-to-Finish, SF = Start-to-Finish
+type DepType = 'FS' | 'SS' | 'FF' | 'SF';
+type DepLink = { wbsId: string; type: DepType; lag?: number }; // lag: số ngày trễ/sớm
+
 type GanttTask = {
   id: number; name: string; start: number; dur: number;
   done: number; cat: string; wbsId?: string;
@@ -121,8 +127,9 @@ type GanttTask = {
   gantt_baseline_start?: string; gantt_baseline_end?: string;
   // Financial fields (PA3 Split View)
   budget?: number; ac?: number; pv_pct?: number; ev_pct?: number;
-  // S32.5 Dependency
-  depends_on?: string[]; // list of wbsId strings
+  // S32.5 Dependency — hỗ trợ FS/SS/FF/SF + lag (tương thích MS Project .mpp)
+  depends_on?: string[];   // legacy: list wbsId (FS, no lag)
+  dep_links?:  DepLink[];  // new: đầy đủ type + lag
 };
 
 type GanttZoom = 'week' | 'month' | 'quarter';
@@ -143,6 +150,7 @@ export function GanttChart({
 }) {
   const [items, setItems] = React.useState<GanttTask[]>(tasks);
   const [showFinance, setShowFinance] = React.useState(canViewFinance);
+  const [showPred, setShowPred] = React.useState(false); // Cột Predecessor — mặc định ẩn
   const [zoom, setZoom] = React.useState<GanttZoom>('week');
 
   // viewDays = số ngày hiển thị trên 1 viewport — zoom in = ít ngày hơn = bar to hơn
@@ -288,16 +296,24 @@ export function GanttChart({
   };
 
   // S32.5 — Add dependency link
-  const addDependency = (fromIdx: number, toIdx: number) => {
+  const [linkingDepType, setLinkingDepType] = React.useState<'FS'|'SS'|'FF'|'SF'>('FS');
+
+  const addDependency = (fromIdx: number, toIdx: number, depType: 'FS'|'SS'|'FF'|'SF' = 'FS') => {
     if (fromIdx === toIdx) return;
     const fromTask = items[fromIdx];
     const toTask   = items[toIdx];
     if (!fromTask.wbsId || !toTask.wbsId) return;
-    // toTask depends_on fromTask (Finish-to-Start: toTask bắt đầu sau fromTask kết thúc)
-    if (toTask.depends_on?.includes(fromTask.wbsId)) return; // đã có
-    if (hasCycle(toTask.wbsId, fromTask.wbsId, items)) return; // circular
+    // Check đã có link này chưa
+    const existingLinks = toTask.dep_links ?? (toTask.depends_on ?? []).map(w => ({ wbsId: w, type: 'FS' as const }));
+    if (existingLinks.some(l => l.wbsId === fromTask.wbsId && l.type === depType)) return;
+    if (hasCycle(toTask.wbsId, fromTask.wbsId, items)) return;
+    const newLink: DepLink = { wbsId: fromTask.wbsId!, type: depType };
     const next = items.map((t, i) => i === toIdx
-      ? { ...t, depends_on: [...(t.depends_on ?? []), fromTask.wbsId!] }
+      ? {
+          ...t,
+          dep_links:  [...(t.dep_links ?? (t.depends_on ?? []).map(w => ({ wbsId: w, type: 'FS' as const }))), newLink],
+          depends_on: [...(t.depends_on ?? []), fromTask.wbsId!], // giữ backward compat
+        }
       : t
     );
     setItems(next);
@@ -580,6 +596,11 @@ export function GanttChart({
               <DollarSign size={11}/>{showFinance?'Ẩn tài chính':'💰 Tài chính'}
             </button>
           )}
+          {/* Predecessor column toggle */}
+          <button onClick={() => setShowPred(v => !v)}
+            className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[10px] font-bold border transition-all ${showPred?'bg-teal-50 border-teal-200 text-teal-700':'bg-slate-50 border-slate-200 text-slate-500 hover:border-slate-300'}`}>
+            <GitMerge size={11}/>Predecessor
+          </button>
           {/* S32.5 Dependency toggle */}
           <button onClick={() => setShowDepArrows(v => !v)}
             className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[10px] font-bold border transition-all ${showDepArrows?'bg-orange-50 border-orange-200 text-orange-700':'bg-slate-50 border-slate-200 text-slate-500 hover:border-slate-300'}`}>
@@ -635,6 +656,9 @@ export function GanttChart({
               </div>
             </div>
             <div className="w-16 shrink-0 px-2 py-2.5 text-center">EV%</div>
+            {showPred && (
+              <div className="w-36 shrink-0 px-2 py-2.5 text-center text-teal-500">Predecessor</div>
+            )}
             {showFinance && canViewFinance && (
               <>
                 {canViewFinanceNumbers && <div className="w-20 shrink-0 px-2 py-2.5 text-center text-indigo-500">Budget</div>}
@@ -770,6 +794,37 @@ export function GanttChart({
                     </span>
                   )}
                 </div>
+
+                {/* ── Predecessor column ─────────────────────────────────── */}
+                {showPred && (
+                  <div className="w-36 shrink-0 px-2 py-2 flex flex-col gap-0.5 justify-center border-l border-slate-100">
+                    {(() => {
+                      // Hiển thị dep_links mới (FS/SS/FF/SF) hoặc depends_on legacy (FS)
+                      const links: { wbsId: string; type: string; lag?: number }[] =
+                        task.dep_links?.length
+                          ? task.dep_links
+                          : (task.depends_on ?? []).map(wid => ({ wbsId: wid, type: 'FS' }));
+                      if (!links.length) return <span className="text-[10px] text-slate-300">—</span>;
+                      return links.map(lk => {
+                        const pred = items.find(t => t.wbsId === lk.wbsId);
+                        const predCode = pred?.name?.slice(0, 12) ?? lk.wbsId.slice(0, 8);
+                        const lagStr = lk.lag ? (lk.lag > 0 ? `+${lk.lag}d` : `${lk.lag}d`) : '';
+                        const typeColor =
+                          lk.type === 'FS' ? 'bg-teal-100 text-teal-700'
+                          : lk.type === 'SS' ? 'bg-blue-100 text-blue-700'
+                          : lk.type === 'FF' ? 'bg-violet-100 text-violet-700'
+                          : 'bg-orange-100 text-orange-700'; // SF
+                        return (
+                          <div key={lk.wbsId} className="flex items-center gap-1 flex-wrap">
+                            <span className={`text-[9px] font-black px-1 py-0.5 rounded ${typeColor}`}>{lk.type}</span>
+                            <span className="text-[10px] text-slate-600 truncate" title={pred?.name}>{predCode}</span>
+                            {lagStr && <span className="text-[9px] text-slate-400">{lagStr}</span>}
+                          </div>
+                        );
+                      });
+                    })()}
+                  </div>
+                )}
 
                 {/* ── PA3 Financial Panel (right side) ───────────────────── */}
                 {showFinance && canViewFinance && (() => {
@@ -940,11 +995,32 @@ export function GanttChart({
                   <GitMerge size={10} className="inline mr-1"/>
                   <b>{items[linkingFrom]?.name?.slice(0,20)}</b> → <b>{items[ctxMenu.taskIdx]?.name?.slice(0,20)}</b>
                 </div>
+                {/* Chọn loại quan hệ */}
+                <div className="px-3 py-2 border-b border-slate-100">
+                  <p className="text-[9px] text-slate-400 font-bold uppercase mb-1.5">Loại quan hệ</p>
+                  <div className="grid grid-cols-2 gap-1">
+                    {(['FS','SS','FF','SF'] as const).map(t => (
+                      <button key={t}
+                        onClick={() => setLinkingDepType(t)}
+                        className={`px-2 py-1 rounded-lg text-[10px] font-bold border transition-all text-left ${
+                          linkingDepType === t
+                            ? 'bg-teal-50 border-teal-300 text-teal-700'
+                            : 'bg-slate-50 border-slate-200 text-slate-500 hover:border-slate-300'
+                        }`}
+                      >
+                        <span className="font-black">{t}</span>
+                        <span className="text-[8px] ml-1 opacity-70">
+                          {t==='FS'?'Finish→Start':t==='SS'?'Start→Start':t==='FF'?'Finish→Finish':'Start→Finish'}
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
                 <button
                   className="w-full text-left px-3 py-2.5 text-xs text-emerald-700 hover:bg-emerald-50 flex items-center gap-2 font-semibold"
-                  onClick={() => { addDependency(linkingFrom, ctxMenu.taskIdx); setLinkingFrom(null); setCtxMenu(null); }}
+                  onClick={() => { addDependency(linkingFrom, ctxMenu.taskIdx, linkingDepType); setLinkingFrom(null); setCtxMenu(null); }}
                 >
-                  ✓ Xác nhận liên kết (Finish-to-Start)
+                  ✓ Xác nhận liên kết ({linkingDepType})
                 </button>
                 <button
                   className="w-full text-left px-3 py-2 text-xs text-slate-500 hover:bg-slate-50 flex items-center gap-2"
@@ -956,38 +1032,46 @@ export function GanttChart({
             )}
 
             {/* Danh sách liên kết hiện có + nút xoá */}
-            {items[ctxMenu.taskIdx]?.depends_on?.length ? (
-              <>
-                <div className="border-t border-slate-100 mt-1 px-3 py-1.5 text-[10px] font-semibold text-slate-400 uppercase tracking-wide">
-                  Phụ thuộc vào:
-                </div>
-                {items[ctxMenu.taskIdx].depends_on!.map(wid => {
-                  const pred = items.find(t => t.wbsId === wid);
-                  return (
-                    <div key={wid} className="px-3 py-1.5 flex items-center justify-between text-xs text-slate-600 hover:bg-slate-50">
-                      <span className="flex items-center gap-1.5">
-                        <span className="text-slate-300">←</span>
-                        {pred?.name?.slice(0,24) ?? wid}
-                      </span>
-                      <button
-                        className="text-rose-400 hover:text-rose-600 ml-2 text-[11px] font-bold"
-                        onClick={() => {
-                          const next = items.map((t, i) =>
-                            i === ctxMenu.taskIdx
-                              ? { ...t, depends_on: t.depends_on?.filter(d => d !== wid) }
-                              : t
-                          );
-                          setItems(next);
-                          onUpdateTask?.({ ...next[ctxMenu.taskIdx] });
-                          onReorder(next);
-                          setCtxMenu(null);
-                        }}
-                      >✕ Xoá</button>
-                    </div>
-                  );
-                })}
-              </>
-            ) : null}
+            {(() => {
+              const links = items[ctxMenu.taskIdx]?.dep_links?.length
+                ? items[ctxMenu.taskIdx].dep_links!
+                : (items[ctxMenu.taskIdx]?.depends_on ?? []).map(w => ({ wbsId: w, type: 'FS' as const }));
+              if (!links.length) return null;
+              return (
+                <>
+                  <div className="border-t border-slate-100 mt-1 px-3 py-1.5 text-[10px] font-semibold text-slate-400 uppercase tracking-wide">
+                    Phụ thuộc vào:
+                  </div>
+                  {links.map(lk => {
+                    const pred = items.find(t => t.wbsId === lk.wbsId);
+                    return (
+                      <div key={lk.wbsId + lk.type} className="px-3 py-1.5 flex items-center justify-between text-xs text-slate-600 hover:bg-slate-50">
+                        <span className="flex items-center gap-1.5">
+                          <span className={`text-[9px] font-black px-1 py-0.5 rounded ${
+                            lk.type==='FS'?'bg-teal-100 text-teal-700':lk.type==='SS'?'bg-blue-100 text-blue-700':lk.type==='FF'?'bg-violet-100 text-violet-700':'bg-orange-100 text-orange-700'
+                          }`}>{lk.type}</span>
+                          {pred?.name?.slice(0,22) ?? lk.wbsId}
+                        </span>
+                        <button
+                          className="text-rose-400 hover:text-rose-600 ml-2 text-[11px] font-bold"
+                          onClick={() => {
+                            const next = items.map((t, i) => i === ctxMenu.taskIdx ? {
+                              ...t,
+                              dep_links:  t.dep_links?.filter(l => !(l.wbsId === lk.wbsId && l.type === lk.type)),
+                              depends_on: t.depends_on?.filter(d => d !== lk.wbsId),
+                            } : t);
+                            setItems(next);
+                            onUpdateTask?.({ ...next[ctxMenu.taskIdx] });
+                            onReorder(next);
+                            setCtxMenu(null);
+                          }}
+                        >✕ Xoá</button>
+                      </div>
+                    );
+                  })}
+                </>
+              );
+            })()}
           </div>
         </>
       )}

@@ -1,6 +1,10 @@
 // GanttTypes.ts — GEM & CLAUDE PM Pro
 // Shared types, constants, seed data cho Gantt & ProgressDashboard
 
+// 4 loại quan hệ phụ thuộc chuẩn PM (tương thích MS Project)
+export type DepType = 'FS' | 'SS' | 'FF' | 'SF';
+export type DepLink = { wbsId: string; type: DepType; lag?: number };
+
 // ─── WBS Item type ────────────────────────────────────────────────────────────
 export type WBSItem = {
   id: string; code: string; name: string;
@@ -10,7 +14,8 @@ export type WBSItem = {
   gantt_end_date?: string;
   gantt_baseline_start?: string;
   gantt_baseline_end?: string;
-  depends_on?: string[];
+  depends_on?: string[];   // legacy FS only — giữ để backward compat
+  dep_links?:  DepLink[];  // S32: đầy đủ FS/SS/FF/SF + lag
   responsible_id?: string;
   resource_ids?: string[];
   delay_days?: number;
@@ -18,6 +23,24 @@ export type WBSItem = {
   gantt_start?: number;
   gantt_dur?: number;
 };
+
+// ─── S34 TODO: Import từ MS Project (.mpp) ────────────────────────────────────
+// MS Project .mpp là binary format — cần thư viện parse phía server hoặc
+// export từ MS Project ra XML (.xml) rồi parse trên client.
+// Mapping khi import:
+//   Task.Name          → WBSItem.name
+//   Task.OutlineNumber → WBSItem.code
+//   Task.Cost          → WBSItem.budget
+//   Task.Start         → WBSItem.gantt_start_date
+//   Task.Finish        → WBSItem.gantt_end_date
+//   Task.PercentWorkComplete → WBSItem.ev_pct
+//   Task.PredecessorLink.PredecessorUID + Type (0=FF,1=FS,2=SF,3=SS) + Lag
+//                      → WBSItem.dep_links
+// Approach khuyến nghị S34:
+//   1. User export .mpp → .xml từ MS Project (File → Save As → XML)
+//   2. App đọc XML → parse Task nodes → map sang WBSItem[]
+//   3. Preview → confirm → db.set('progress_wbs')
+// ─────────────────────────────────────────────────────────────────────────────
 
 // ─── Seed data ────────────────────────────────────────────────────────────────
 export const WBS_INIT: WBSItem[] = [
