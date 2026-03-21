@@ -185,6 +185,7 @@ export default function ProgressDashboard({ project: selectedProject, projectId:
         gantt_start_date: w.gantt_start_date, gantt_end_date: w.gantt_end_date,
         gantt_baseline_start: w.gantt_baseline_start, gantt_baseline_end: w.gantt_baseline_end,
         depends_on: w.depends_on,
+        dep_links:  w.dep_links,
       };
     });
   }, [wbs, startMs]);
@@ -530,8 +531,8 @@ export default function ProgressDashboard({ project: selectedProject, projectId:
                     ev_pct: updated.done,
                     gantt_start: updated.start,
                     gantt_dur: updated.dur,
-                    // persist depends_on khi tạo/xoá liên kết
                     ...(updated.depends_on !== undefined ? { depends_on: updated.depends_on } : {}),
+                    ...(updated.dep_links  !== undefined ? { dep_links:  updated.dep_links  } : {}),
                   };
                   if (startMs > 0) {
                     const s = new Date(startMs + updated.start * 86400000);
